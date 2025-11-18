@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MSTC REWARD — Dashboard</title>
+<style>
+:root{--bg:#071025;--card:#0b1220;--muted:#9aa7bd;--accent:#6ee7b7}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#071025,#071a2b);color:#e6eef6;margin:0;padding:14px}
+.container{max-width:940px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 6px 20px rgba(0,0,0,0.5)}
+.h1{font-size:18px;margin:0}
+.muted{color:var(--muted);font-size:13px}
+.row{display:flex;gap:12px;align-items:center}
+.col{display:flex;flex-direction:column}
+.balance{font-size:26px;font-weight:700}
+.controls{display:flex;gap:8px}
+.btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:inherit;cursor:pointer}
+.btn-primary{background:var(--accent);color:#002219;border:0;padding:8px 12px;border-radius:8px}
+.input{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+.small{font-size:13px;color:var(--muted)}
+.link{background:rgba(255,255,255,0.02);padding:8px;border-radius:8px;word-break:break-all}
+.flex{display:flex;gap:12px}
+.left{flex:1}
+.right{width:280px}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+.search{display:flex;gap:8px;align-items:center}
+.admin-only{background:#06121a;padding:10px;border-radius:8px}
+pre{white-space:pre-wrap;background:#031018;padding:8px;border-radius:8px;color:#9fd}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="h1">Betzy Mini Dashboard</div>
+      <div class="small muted" id="who">Connecting...</div>
+    </div>
+    <div class="controls">
+      <button id="btnRefresh" class="btn">Refresh</button>
+      <button id="btnOpenBot" class="btn">Open Bot</button>
+    </div>
+  </div>
+
+  <div class="flex">
+    <div class="left">
+      <div class="card">
+        <div class="row">
+          <div style="flex:1">
+            <div class="muted">Balances</div>
+            <div class="row" style="align-items:flex-end;gap:20px">
+              <div>
+                <div class="small muted">MUSD</div>
+                <div id="musd" class="balance">—</div>
+              </div>
+              <div>
+                <div class="small muted">MSTC</div>
+                <div id="mstc" class="balance">—</div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="small muted">Rank</div>
+            <div id="rank" class="balance">—</div>
+            <div class="small muted">Team Vol</div>
+            <div id="team_vol" class="small">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="h1">Deposit / Activate</div>
+        <div class="small muted">Min $20, thereafter multiples of $10</div>
+        <div style="margin-top:8px" class="row">
+          <input id="amount" type="number" class="input" value="20" min="20" step="10"/>
+          <button id="btnDeposit" class="btn-primary">Deposit</button>
+          <button id="btnShare" class="btn">Share</button>
+        </div>
+        <div style="margin-top:10px" id="depositResult"></div>
+      </div>
+
+      <div class="card">
+        <div class="h1">Team (downline)</div>
+        <div class="small muted">Shows direct children (depth-limited). Click a node to see details.</div>
+        <div style="margin-top:8px" class="search">
+          <input id="teamUserId" class="input" placeholder="Enter user id (default: me)"/>
+          <button id="btnLoadTeam" class="btn">Load Team</button>
+        </div>
+        <div id="teamContainer" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <div class="h1">Transaction & Referral History</div>
+        <div class="small muted">Latest transactions and referral events</div>
+        <div style="margin-top:8px">
+          <button id="btnLoadHistory" class="btn">Load History</button>
+        </div>
+        <div id="historyContainer" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card">
+        <div class="h1">My Referral Link</div>
+        <div class="small muted">Deep link to share</div>
+        <div style="margin-top:8px" class="link" id="refLink">—</div>
+        <div style="margin-top:8px" class="row">
+          <button id="btnCopy" class="btn">Copy</button>
+          <button id="btnOpenLink" class="btn">Open</button>
+        </div>
+      </div>
+
+      <div class="card admin-only" id="adminPanel" style="display:none">
+        <div class="h1">Admin</div>
+        <div class="small muted">Promote user / recompute metrics / run payout</div>
+        <div style="margin-top:8px" class="row">
+          <input id="adminUserId" class="input" placeholder="user id"/>
+        </div>
+        <div style="margin-top:8px" class="row">
+          <select id="adminRole" class="input">
+            <option value="origin">origin</option>
+            <option value="life_changer">life_changer</option>
+            <option value="user">user</option>
+          </select>
+          <button id="btnPromote" class="btn">Promote</button>
+        </div>
+        <div style="margin-top:8px">
+          <button id="btnRecompute" class="btn">Recompute user</button>
+          <button id="btnRecomputeAll" class="btn">Recompute all</button>
+          <button id="btnRunPayout" class="btn">Run payout now</button>
+        </div>
+        <div id="adminResult" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="h1">Debug</div>
+        <pre id="debug">idle</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  // API root - same origin when served by Flask static
+  const API_ROOT = window.location.origin;
+
+  // Telegram WebApp object (if inside Telegram)
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  const initData = tg ? tg.initData : (window.__initData || null);
+
+  // DOM refs
+  const whoEl = document.getElementById('who');
+  const musdEl = document.getElementById('musd');
+  const mstcEl = document.getElementById('mstc');
+  const rankEl = document.getElementById('rank');
+  const teamVolEl = document.getElementById('team_vol');
+  const refLinkEl = document.getElementById('refLink');
+  const debugEl = document.getElementById('debug');
+  const adminPanel = document.getElementById('adminPanel');
+
+  function dbg(obj){ debugEl.textContent = JSON.stringify(obj, null, 2); }
+
+  function setWhoText(u){ whoEl.textContent = u ? `${u.first_name || ''} (${u.id})` : 'Not connected' }
+
+  // helper for POST JSON
+  async function postJSON(path, body){
+    const res = await fetch(API_ROOT + path, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  }
+
+  // login / fetch profile
+  let me = null;
+  async function loadMe(){
+    if (!initData){
+      setWhoText(null);
+      dbg({error:'no initData available'});
+      return;
+    }
+    const resp = await postJSON('/webapp/me', { initData });
+    dbg(resp);
+    if (!resp.ok){
+      setWhoText(null);
+      return;
+    }
+    me = resp.user;
+    setWhoText(me);
+    musdEl.textContent = me.balance_musd ?? 0;
+    mstcEl.textContent = me.balance_mstc ?? 0;
+    rankEl.textContent = me.role ?? 'user';
+    teamVolEl.textContent = me.total_team_business ?? 0;
+    const botUsername = resp.bot_username || (resp.user && resp.user.bot_username);
+    const link = `https://t.me/${botUsername}?start=ref_${me.id}`;
+    refLinkEl.textContent = link;
+    if (me.is_admin) adminPanel.style.display = 'block';
+  }
+
+  // deposit handler
+  document.getElementById('btnDeposit').onclick = async ()=>{
+    const amt = Number(document.getElementById('amount').value || 0);
+    if (!amt || amt < 20 || ((amt - 20) % 10 !== 0 && amt !== 20)){
+      alert('Amount must be min 20 and thereafter multiples of 10');
+      return;
+    }
+    const body = { initData, amount: amt };
+    const resp = await postJSON('/webapp/verify', body);
+    dbg(resp);
+    if (resp.ok){
+      if (resp.user){
+        me = resp.user;
+        musdEl.textContent = me.balance_musd;
+        mstcEl.textContent = me.balance_mstc;
+        teamVolEl.textContent = me.total_team_business ?? teamVolEl.textContent;
+      }
+      const rd = resp.referral_dist || {};
+      document.getElementById('depositResult').innerHTML = `Referral: ${rd.amount || 0} -> ${rd.to || 'company_pool'} (${rd.referrer_role || 'none'})`;
+    } else {
+      alert('Deposit failed: ' + (resp.error || JSON.stringify(resp)));
+    }
+  };
+
+  // share / copy link
+  document.getElementById('btnCopy').onclick = ()=>{ navigator.clipboard.writeText(refLinkEl.textContent).then(()=>alert('Copied')); }
+  document.getElementById('btnOpenLink').onclick = ()=>{ if (tg) tg.openLink(refLinkEl.textContent); else window.open(refLinkEl.textContent,'_blank'); }
+  document.getElementById('btnShare').onclick = async ()=>{
+    if (!me) return alert('Load profile first');
+    if (navigator.share) {
+      navigator.share({title:'Join via my referral', text:'Join using my referral', url:refLinkEl.textContent});
+    } else {
+      navigator.clipboard.writeText(refLinkEl.textContent);
+      alert('Copied link');
+    }
+  };
+
+  // load team
+  document.getElementById('btnLoadTeam').onclick = async ()=>{
+    const uid = Number(document.getElementById('teamUserId').value || (me && me.id));
+    if (!uid) return alert('Provide user id');
+    const resp = await postJSON('/webapp/team', { initData, user_id: uid, depth: 1 });
+    dbg(resp);
+    if (!resp.ok) return alert('Failed: ' + (resp.error || JSON.stringify(resp)));
+    const nodes = resp.children || [];
+    const c = document.getElementById('teamContainer');
+    c.innerHTML = '';
+    if (nodes.length === 0) c.innerHTML = '<div class="small muted">No direct children</div>';
+    nodes.forEach(n=>{
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `<div style="display:flex;justify-content:space-between"><div><b>${n.username || n.id}</b><div class="small muted">id: ${n.id} role:${n.role}</div></div><div style="text-align:right"><div class="small">team:${n.total_team_business||0}</div><div class="small">active_origins:${n.active_origin_count||0}</div></div></div>`;
+      c.appendChild(div);
+    });
+  };
+
+  // load history
+  document.getElementById('btnLoadHistory').onclick = async ()=>{
+    const resp = await postJSON('/webapp/history', { initData, limit: 30 });
+    dbg(resp);
+    if (!resp.ok) return alert('Failed to load history');
+    const c = document.getElementById('historyContainer'); c.innerHTML='';
+    const txs = resp.transactions || [];
+    const refs = resp.referral_events || [];
+    const tdiv = document.createElement('div'); tdiv.innerHTML = '<div class="small muted">Transactions</div>';
+    const table = document.createElement('table'); table.className='table';
+    table.innerHTML = '<thead><tr><th>id</th><th>amount</th><th>currency</th><th>type</th><th>created_at</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    txs.forEach(tx=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${tx.id}</td><td>${tx.amount}</td><td>${tx.currency}</td><td>${tx.type}</td><td>${tx.created_at}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    tdiv.appendChild(table);
+    c.appendChild(tdiv);
+
+    const rdiv = document.createElement('div'); rdiv.innerHTML = '<div class="small muted">Referral Events</div>';
+    refs.forEach(re=>{
+      const d = document.createElement('div'); d.innerHTML = `${re.id}: from ${re.from_user} -> ${re.to_user} : ${re.amount} @ ${re.created_at}`;
+      rdiv.appendChild(d);
+    });
+    c.appendChild(rdiv);
+  };
+
+  // admin actions
+  document.getElementById('btnPromote').onclick = async ()=>{
+    const uid = Number(document.getElementById('adminUserId').value);
+    const role = document.getElementById('adminRole').value;
+    if (!uid) return alert('Provide user id');
+    const resp = await postJSON('/admin/promote', { initData, user_id: uid, role });
+    document.getElementById('adminResult').textContent = JSON.stringify(resp);
+    if (resp.ok) alert('Promoted');
+  };
+
+  document.getElementById('btnRecompute').onclick = async ()=>{
+    const uid = Number(document.getElementById('adminUserId').value);
+    if (!uid) return alert('Provide user id');
+    const resp = await postJSON('/admin/recompute-team', { user_id: uid });
+    document.getElementById('adminResult').textContent = JSON.stringify(resp);
+  };
+
+  document.getElementById('btnRecomputeAll').onclick = async ()=>{
+    if (!confirm('Recompute all users?')) return;
+    const resp = await postJSON('/admin/recompute-all', {});
+    document.getElementById('adminResult').textContent = JSON.stringify(resp);
+  };
+
+  document.getElementById('btnRunPayout').onclick = async ()=>{
+    const resp = await postJSON('/cron/payout', {});
+    document.getElementById('adminResult').textContent = JSON.stringify(resp);
+  };
+
+  // open bot
+  document.getElementById('btnOpenBot').onclick = ()=>{ if (tg) tg.openLink(refLinkEl.textContent); else window.open(refLinkEl.textContent,'_blank'); };
+
+  // refresh / initial
+  document.getElementById('btnRefresh').onclick = loadMe;
+  await loadMe();
+
+})();
+</script>
+</body>
+</html>

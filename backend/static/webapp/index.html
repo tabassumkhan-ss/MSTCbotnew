@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MSTC Mini — Wallet</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa7bd;--accent:#6ee7b7}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#071025 0%,#081226 100%);color:#e6eef6;margin:0;padding:18px}
+    .wrap{max-width:720px;margin:0 auto}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:16px;box-shadow:0 6px 24px rgba(0,0,0,0.6);margin-bottom:12px}
+    .row{display:flex;gap:12px;align-items:center}
+    .h1{font-size:20px;margin:0 0 8px 0}
+    .muted{color:var(--muted);font-size:13px}
+    .balance{font-size:28px;font-weight:700}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px 12px;border-radius:8px;color:inherit;cursor:pointer}
+    .btn-primary{background:var(--accent);color:#002219;border:0;padding:10px 14px;font-weight:600}
+    .small{font-size:13px}
+    .field{margin:8px 0}
+    input[type="number"]{width:120px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+    .center{display:flex;justify-content:center;align-items:center}
+    .link{word-break:break-all;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#031018;padding:10px;border-radius:8px;color:#9fd}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="topCard">
+      <div class="row">
+        <div style="flex:1">
+          <div class="h1">MSTC Mini — Wallet</div>
+          <div class="muted" id="who">Connecting...</div>
+        </div>
+        <div style="text-align:right">
+          <div class="muted small">MUSD</div>
+          <div class="balance" id="musd">—</div>
+          <div class="muted small">MSTC</div>
+          <div class="balance" id="mstc">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="h1">Deposit / Activate</div>
+      <div class="muted small">Minimum 20, then multiples of 10</div>
+      <div class="field row" style="margin-top:10px">
+        <input id="amount" type="number" value="20" min="20" step="10" />
+        <button class="btn-primary" id="btnDeposit">Deposit</button>
+        <button id="btnShare" title="Copy referral link">Share link</button>
+      </div>
+      <div id="depositResult" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="h1">My Referral Link</div>
+      <div class="muted small">Share to invite friends</div>
+      <div style="margin-top:8px" class="link" id="refLink">—</div>
+      <div style="margin-top:8px">
+        <button id="btnCopy">Copy link</button>
+        <button id="btnOpen">Open in Telegram</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="h1">Quick Debug / Response</div>
+      <pre id="debug">No activity yet</pre>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  // CONFIG: endpoint roots for API calls (adjust if needed)
+  const API_ROOT = window.location.origin; // serves from same host: e.g., https://yourdomain
+  // If you serve webapp from a different host change to e.g. 'https://api.example.com'
+
+  // utility
+  function log(msg){ document.getElementById('debug').textContent = JSON.stringify(msg, null, 2) }
+
+  // Telegram Web App environment (works when opened inside Telegram)
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  const initData = (tg && tg.initData) ? tg.initData : (window.__initData || null);
+
+  // display minimal identity quickly
+  function setWho(txt){ document.getElementById('who').textContent = txt }
+  if (tg) {
+    setWho(`Telegram user: ${tg.initDataUnsafe?.user?.first_name || 'unknown'} (${tg.initDataUnsafe?.user?.id || 'unknown'})`)
+  } else {
+    setWho('Not running inside Telegram WebApp — initData unavailable')
+  }
+
+  // Helper: call backend /webapp/verify to create an activation (server should verify initData!)
+  async function callVerify(amount, referrer_id=null){
+    const payload = { initData, amount };
+    if (referrer_id) payload.referrer_id = referrer_id;
+    const res = await fetch(API_ROOT + '/webapp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  // Helper: get my profile (server must trust initData or session)
+  async function callMe(){
+    const payload = { initData };
+    const res = await fetch(API_ROOT + '/webapp/me', {
+      method: 'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  // Build deep-link
+  function makeReferralLink(botUsername, myId){
+    // deep link: https://t.me/<bot>?start=ref_<id>
+    return `https://t.me/${botUsername}?start=ref_${myId}`;
+  }
+
+  // UI elements
+  const btnDeposit = document.getElementById('btnDeposit');
+  const btnShare = document.getElementById('btnShare');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnOpen = document.getElementById('btnOpen');
+  const amountInput = document.getElementById('amount');
+  const refLinkEl = document.getElementById('refLink');
+  const musdEl = document.getElementById('musd');
+  const mstcEl = document.getElementById('mstc');
+
+  // initial load: call /webapp/me to populate balances & referral link
+  let me = null;
+  async function initialLoad(){
+    try{
+      const data = await callMe();
+      if (!data.ok){
+        log(data);
+        setWho('Not verified with server');
+        return;
+      }
+      me = data.user;
+      musdEl.textContent = (me.balance_musd !== undefined) ? me.balance_musd : '0.0';
+      mstcEl.textContent = (me.balance_mstc !== undefined) ? me.balance_mstc : '0.0';
+      // bot username from response (backend should return it)
+      const botUsername = data.bot_username || 'YourBot';
+      const link = makeReferralLink(botUsername, me.id);
+      refLinkEl.textContent = link;
+      btnCopy.onclick = ()=>{ navigator.clipboard.writeText(link).then(()=>alert('Copied')); };
+      btnOpen.onclick = ()=>{ if (tg) tg.openLink(link); else window.open(link,'_blank'); };
+      log({info:'Loaded profile', me, link});
+    }catch(e){
+      console.error(e);
+      log({error: String(e)});
+    }
+  }
+  await initialLoad();
+
+  // Deposit button handler
+  btnDeposit.addEventListener('click', async ()=>{
+    const amt = Number(amountInput.value || 0);
+    if (!amt || amt < 20 || ((amt - 20) % 10 !== 0 && amt !== 20)){
+      alert('Amount must be minimum 20 and thereafter multiples of 10');
+      return;
+    }
+    btnDeposit.disabled = true;
+    btnDeposit.textContent = 'Processing…';
+    try{
+      const resp = await callVerify(amt, /*referrer_id optional*/ null);
+      log(resp);
+      // update UI balances (server returns updated user optionally)
+      if (resp.user){
+        me = resp.user;
+        musdEl.textContent = me.balance_musd;
+        mstcEl.textContent = me.balance_mstc;
+      } else {
+        // if backend returned only musd/mstc totals
+        musdEl.textContent = resp.musd ?? musdEl.textContent;
+        mstcEl.textContent = resp.mstc ?? mstcEl.textContent;
+      }
+      // show referral distribution
+      const rd = resp.referral_dist || {};
+      const dEl = document.getElementById('depositResult');
+      dEl.innerHTML = `<div class="muted small">Referral: ${rd.amount ?? 0} (to ${rd.to ?? 'company_pool'}) — role: ${rd.referrer_role ?? 'none'}</div>`;
+    }catch(err){
+      console.error(err);
+      log({error:String(err)});
+      alert('Deposit failed — check console');
+    }finally{
+      btnDeposit.disabled = false;
+      btnDeposit.textContent = 'Deposit';
+    }
+  });
+
+  // Quick share: open OS share if available, otherwise copy
+  btnShare.addEventListener('click', async ()=>{
+    if (!me){ alert('Profile not loaded'); return; }
+    const botUsername = (await callMe()).bot_username || 'YourBot';
+    const link = makeReferralLink(botUsername, me.id);
+    if (navigator.share){
+      navigator.share({title:'Join via my referral', text:'Use my referral link', url: link}).catch(()=>navigator.clipboard.writeText(link));
+    } else {
+      navigator.clipboard.writeText(link).then(()=>alert('Link copied'));
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
