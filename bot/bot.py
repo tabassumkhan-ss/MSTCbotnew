@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(__file__))
 from utils import BACKEND_URL, is_admin, call_backend
 
 load_dotenv()
-BOT_TOKEN = "8487241335:AAHfCDzdzZBiedvPAcYbr5_BRqSa8YTaWVs"
+BOT_TOKEN = "12345"
 POLL_INTERVAL = float(os.getenv('BOT_POLL_INTERVAL', '1.5'))  # seconds between getUpdates
 PAYOUT_INTERVAL_MINUTES = int(os.getenv('PAYOUT_INTERVAL_MINUTES', '5'))
 
