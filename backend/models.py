@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./data/betzybot.db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./data/mstcbot.db')
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine)
