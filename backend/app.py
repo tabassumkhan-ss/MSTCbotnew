@@ -14,9 +14,9 @@ except Exception:
     from utils import verify_telegram_initdata
 
 # Environment configuration
-BOT_TOKEN = "8487241335:AAHfCDzdzZBiedvPAcYbr5_BRqSa8YTaWVs"
-BOT_USERNAME = "mstcrefbot"
-ADMIN_IDS = 7955075357
+BOT_TOKEN = "12345"
+BOT_USERNAME = "abc"
+ADMIN_IDS = 1234
 
 
 app = Flask(__name__)
