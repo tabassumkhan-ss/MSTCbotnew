@@ -1,3 +1,4 @@
+# backend/app.py
 import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -17,7 +18,6 @@ except Exception:
 BOT_TOKEN = "12345"
 BOT_USERNAME = "abc"
 ADMIN_IDS = 1234
-
 
 app = Flask(__name__)
 CORS(app)
@@ -73,15 +73,18 @@ def webapp_me():
         'total_team_business': float(user.total_team_business or 0.0),
         'active_origin_count': int(user.active_origin_count or 0)
     }
+    db.close()
     return jsonify({'ok': True, 'user': resp_user, 'bot_username': BOT_USERNAME})
-@app.route('/webapp/verify', methods=['POST'])
+
+
+# ---------------------------
+# Helper functions (not routes)
+# ---------------------------
 def _get_referrer_chain(db, user, max_levels=3):
     """
     Return list of User objects representing the referrer chain:
     [level1_referrer, level2_referrer, ...] up to max_levels.
-    Renamed to _get_referrer_chain to avoid accidental route/name collisions.
     """
-    # defensive: ensure we have a db and user
     if db is None or user is None:
         return []
 
@@ -91,7 +94,6 @@ def _get_referrer_chain(db, user, max_levels=3):
         ref_id = getattr(current, "referrer_id", None)
         if not ref_id:
             break
-        # ensure ref_id is an int
         try:
             parent = db.query(User).get(int(ref_id))
         except Exception:
@@ -102,11 +104,13 @@ def _get_referrer_chain(db, user, max_levels=3):
         current = parent
     return chain
 
+
 def is_origin(user):
     try:
         return bool(user.self_activated) or (getattr(user, "role", "") == "origin")
     except Exception:
         return False
+
 
 def is_life_changer(user):
     try:
@@ -114,6 +118,7 @@ def is_life_changer(user):
                 and int(getattr(user, "active_origin_count", 0)) >= 10)
     except Exception:
         return False
+
 
 def credit_team_business(db, user, amount):
     current = user
@@ -128,6 +133,10 @@ def credit_team_business(db, user, amount):
             pass
         current = parent
 
+
+# ---------------------------
+# Main verify route (decorated)
+# ---------------------------
 @app.route('/webapp/verify', methods=['POST'])
 def webapp_verify():
     """
@@ -171,9 +180,7 @@ def webapp_verify():
         if not user:
             return jsonify({'ok': False, 'error': 'user_not_found'}), 404
 
-        # ----------------------------
         # Create Transaction records (match fields in backend/models.py)
-        # ----------------------------
         txn_musd = Transaction(
             user_id=user.id,
             amount=musd,
@@ -273,3 +280,36 @@ def webapp_verify():
         return jsonify({"ok": False, "error": "internal_error", "detail": str(e)}), 500
     finally:
         db.close()
+
+
+if __name__ == "__main__":
+    import sys
+    import logging
+
+    # make sure logs are visible
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    logger = logging.getLogger("backend.app")
+    logger.info("Starting backend.app entrypoint (pid=%s)", __import__("os").getpid())
+
+    # default run values
+    host = "127.0.0.1"
+    port = 8001
+    debug = True
+
+    # simple CLI: `python backend\app.py run` or `python -m backend.app run`
+    if len(sys.argv) >= 2 and sys.argv[1] == "run":
+        # allow optional port: python backend\app.py run 5000
+        if len(sys.argv) >= 3:
+            try:
+                port = int(sys.argv[2])
+            except Exception:
+                logger.warning("Invalid port passed, using default %s", port)
+        logger.info("Flask run -> host=%s port=%s debug=%s", host, port, debug)
+        # app.run is blocking and will print Werkzeug/Flask logs
+        app.run(host=host, port=port, debug=debug)
+    else:
+        print("Usage: python backend\\app.py run [port]")
+        print("   or: python -m backend.app run [port]")
