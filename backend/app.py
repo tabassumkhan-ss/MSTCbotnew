@@ -75,110 +75,201 @@ def webapp_me():
     }
     return jsonify({'ok': True, 'user': resp_user, 'bot_username': BOT_USERNAME})
 @app.route('/webapp/verify', methods=['POST'])
+def _get_referrer_chain(db, user, max_levels=3):
+    """
+    Return list of User objects representing the referrer chain:
+    [level1_referrer, level2_referrer, ...] up to max_levels.
+    Renamed to _get_referrer_chain to avoid accidental route/name collisions.
+    """
+    # defensive: ensure we have a db and user
+    if db is None or user is None:
+        return []
+
+    chain = []
+    current = user
+    for _ in range(max_levels):
+        ref_id = getattr(current, "referrer_id", None)
+        if not ref_id:
+            break
+        # ensure ref_id is an int
+        try:
+            parent = db.query(User).get(int(ref_id))
+        except Exception:
+            break
+        if not parent:
+            break
+        chain.append(parent)
+        current = parent
+    return chain
+
+def is_origin(user):
+    try:
+        return bool(user.self_activated) or (getattr(user, "role", "") == "origin")
+    except Exception:
+        return False
+
+def is_life_changer(user):
+    try:
+        return (float(getattr(user, "total_team_business", 0.0)) >= 1000.0
+                and int(getattr(user, "active_origin_count", 0)) >= 10)
+    except Exception:
+        return False
+
+def credit_team_business(db, user, amount):
+    current = user
+    while getattr(current, "referrer_id", None):
+        parent = db.query(User).get(int(current.referrer_id))
+        if not parent:
+            break
+        try:
+            parent.total_team_business = float(parent.total_team_business or 0.0) + float(amount)
+            db.add(parent)
+        except Exception:
+            pass
+        current = parent
+
+@app.route('/webapp/verify', methods=['POST'])
 def webapp_verify():
+    """
+    Deposit + multi-level referral handler.
+    Uses the Transaction and ReferralEvent models defined in backend/models.py.
+    """
     data = request.get_json(force=True)
     initData = data.get('initData')
     amount = data.get('amount')
 
-    # ---- Basic validation ----
+    # basic validation
     if not initData or not isinstance(initData, dict) or 'user' not in initData:
         return jsonify({'ok': False, 'error': 'missing initData.user'}), 400
 
     try:
         amount = float(amount)
-    except:
+    except Exception:
         return jsonify({'ok': False, 'error': 'invalid_amount'}), 400
 
-    # ---- Deposit rules ----
-    MIN_DEPOSIT = 20
-    STEP = 10
-
+    MIN_DEPOSIT = 20.0
+    STEP = 10.0
     if amount < MIN_DEPOSIT:
         return jsonify({'ok': False, 'error': 'min_deposit'}), 400
-
     if amount != MIN_DEPOSIT and ((amount - MIN_DEPOSIT) % STEP) != 0:
         return jsonify({'ok': False, 'error': 'invalid_step'}), 400
 
-    # ---- Get user ----
+    # monetary split
+    MSTC_PERCENT = 0.30
+    mstc = round(amount * MSTC_PERCENT, 2)
+    musd = round(amount - mstc, 2)
+
+    LEVEL_PERCENTS = [0.05, 0.03, 0.01]
+    MAX_LEVELS = len(LEVEL_PERCENTS)
+
     tg_user = initData['user']
     user_id = int(tg_user['id'])
 
     db = SessionLocal()
-    user = db.query(User).get(user_id)
-    if not user:
-        return jsonify({'ok': False, 'error': 'user_not_found'}), 404
+    try:
+        user = db.query(User).get(user_id)
+        if not user:
+            return jsonify({'ok': False, 'error': 'user_not_found'}), 404
 
-    # ---- Business logic ----
-    MSTC_PERCENT = 0.30
-    REFERRAL_PERCENT = 0.05  # temporary until your referral tree is connected
+        # ----------------------------
+        # Create Transaction records (match fields in backend/models.py)
+        # ----------------------------
+        txn_musd = Transaction(
+            user_id=user.id,
+            amount=musd,
+            currency="MUSD",
+            type="deposit"
+        )
+        db.add(txn_musd)
 
-    mstc = round(amount * MSTC_PERCENT, 2)
-    musd = round(amount - mstc, 2)
-    referral_amount = round(amount * REFERRAL_PERCENT, 2)
+        txn_mstc = Transaction(
+            user_id=user.id,
+            amount=mstc,
+            currency="MSTC",
+            type="credit_mstc"
+        )
+        db.add(txn_mstc)
 
-    referral_dist = {"amount": referral_amount, "to": "company_pool"}
+        # credit user balances
+        user.balance_musd = float(user.balance_musd or 0.0) + musd
+        user.balance_mstc = float(user.balance_mstc or 0.0) + mstc
+        db.add(user)
 
-    # ---- Store transaction ----
-    txn = Transaction(
-        user_id=user.id,
-        amount=amount,
-        mstc=mstc,
-        musd=musd,
-        txn_type="deposit"
-    )
-    db.add(txn)
+        # credit upstream team business
+        credit_team_business(db, user, amount)
 
-    # ---- Store referral event ----
-    ref = ReferralEvent(
-        user_id=user.id,
-        amount=referral_amount,
-        sent_to="company_pool"
-    )
-    db.add(ref)
+        # referral chain & distribution
+        chain = _get_referrer_chain(db, user, max_levels=MAX_LEVELS)
+        referral_dist = []
+        total_distributed = 0.0
 
-    # ---- Update user balance ----
-    user.balance_musd += musd
-    user.balance_mstc += mstc
+        for level_idx, ref in enumerate(chain):
+            base_pct = LEVEL_PERCENTS[level_idx] if level_idx < len(LEVEL_PERCENTS) else 0.0
+            pct = base_pct
+            if level_idx == 0 and is_life_changer(ref):
+                pct = 0.10
 
-    db.commit()
+            amount_for_ref = round(amount * pct, 2)
+            if amount_for_ref <= 0:
+                continue
 
-    return jsonify({
-        "ok": True,
-        "mstc": mstc,
-        "musd": musd,
-        "referral_dist": referral_dist
-    })
+            ref.balance_musd = float(ref.balance_musd or 0.0) + amount_for_ref
+            db.add(ref)
 
+            ref_evt = ReferralEvent(
+                from_user=user.id,
+                to_user=ref.id,
+                amount=amount_for_ref,
+                note=f"level_{level_idx+1}_referral"
+            )
+            db.add(ref_evt)
 
-if __name__ == "__main__":
-    import sys
-    import logging
+            referral_dist.append({
+                "level": level_idx + 1,
+                "to_user_id": int(ref.id),
+                "to_username": getattr(ref, "username", None),
+                "amount": amount_for_ref,
+                "percent": pct
+            })
+            total_distributed += amount_for_ref
 
-    # make sure logs are visible
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
-    logger = logging.getLogger("backend.app")
-    logger.info("Starting backend.app entrypoint (pid=%s)", __import__("os").getpid())
+        # leftover -> company_pool
+        leftover = round(amount - total_distributed, 2)
+        if leftover > 0:
+            ref_evt = ReferralEvent(
+                from_user=user.id,
+                to_user=None,
+                amount=leftover,
+                note="company_pool_remainder"
+            )
+            db.add(ref_evt)
+            referral_dist.append({
+                "level": 0,
+                "to_user_id": None,
+                "to_username": "company_pool",
+                "amount": leftover,
+                "percent": None
+            })
+            total_distributed += leftover
 
-    # default run values
-    host = "127.0.0.1"
-    port = 8001
-    debug = True
+        db.commit()
 
-    # simple CLI: `python backend\app.py run` or `python -m backend.app run`
-    if len(sys.argv) >= 2 and sys.argv[1] == "run":
-        # allow optional port: python backend\app.py run 5000
-        if len(sys.argv) >= 3:
-            try:
-                port = int(sys.argv[2])
-            except Exception:
-                logger.warning("Invalid port passed, using default %s", port)
-        logger.info("Flask run -> host=%s port=%s debug=%s", host, port, debug)
-        # app.run is blocking and will print Werkzeug/Flask logs
-        app.run(host=host, port=port, debug=debug)
-    else:
-        print("Usage: python backend\\app.py run [port]")
-        print("   or: python -m backend.app run [port]")
+        resp = {
+            "ok": True,
+            "mstc": mstc,
+            "musd": musd,
+            "referral_dist": referral_dist
+        }
+        return jsonify(resp), 200
 
+    except SQLAlchemyError as e:
+        db.rollback()
+        return jsonify({"ok": False, "error": "db_error", "detail": str(e)}), 500
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": "internal_error", "detail": str(e)}), 500
+    finally:
+        db.close()
