@@ -36,10 +36,7 @@ ADMIN_IDS = os.getenv("ADMIN_IDS", "7955075357")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "s3cr3t-mstc-2025")
 
 # Used for webapp_url in /bot/start
-BASE_URL = os.getenv(
-    "BASE_URL",
-    "https://sesquicentennially-inapplicable-leroy.ngrok-free.dev"
-)
+BASE_URL = "https://mstcbotnew.onrender.com"
 
 # -------------------------
 # App setup
@@ -303,6 +300,9 @@ def bot_start():
 # -------------------------
 # Helpers
 # -------------------------
+# -------------------------
+# Helpers
+# -------------------------
 def _get_referrer_chain(db, user, max_levels=3):
     if db is None or user is None:
         return []
@@ -341,20 +341,8 @@ def is_life_changer(user):
         return False
 
 
-def credit_team_business(db, user, amount):
-    current = user
-    while getattr(current, "referrer_id", None):
-        parent = db.query(User).get(int(current.referrer_id))
-        if not parent:
-            break
-        try:
-            parent.total_team_business = float(parent.total_team_business or 0.0) + float(amount)
-            db.add(parent)
-        except Exception:
-            pass
-        current = parent
-        def _increment_active_origins_for_upline(db, new_origin_user):
-            """
+def _increment_active_origins_for_upline(db, new_origin_user):
+    """
     Called exactly once when a user becomes Origin (self_activated=True for the first time).
     Walks up the referrer chain and increments active_origin_count for each upline.
     """
@@ -384,6 +372,21 @@ def credit_team_business(db, user, amount):
             pass
 
         current = parent
+
+
+def credit_team_business(db, user, amount):
+    current = user
+    while getattr(current, "referrer_id", None):
+        parent = db.query(User).get(int(current.referrer_id))
+        if not parent:
+            break
+        try:
+            parent.total_team_business = float(parent.total_team_business or 0.0) + float(amount)
+            db.add(parent)
+        except Exception:
+            pass
+        current = parent
+
 
 
 
