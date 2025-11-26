@@ -2,7 +2,7 @@ import os
 import logging
 import json
 from urllib.parse import parse_qsl
-
+from backend.models import Base, engine
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Resilient imports: works both when running as script and as package module
 try:
     # when running as package: python -m backend.app
-    from .models import SessionLocal, User, Transaction, ReferralEvent
+    from models import SessionLocal, User, Transaction, ReferralEvent, Base, engine
     from .utils import verify_telegram_initdata
 except Exception:
     # when running as script: python backend\app.py
@@ -45,6 +45,9 @@ BASE_URL = os.getenv(
 # App setup
 # -------------------------
 app = Flask(__name__)
+
+Base.metadata.create_all(bind=engine)
+
 CORS(app)
 
 # -------------------------
