@@ -1,6 +1,48 @@
+import os
+import json
 import hashlib
 import hmac
-import json
+import requests
+
+# Base URL of your backend API
+# You can also set this in .env as BACKEND_URL, otherwise it uses localhost:8001
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
+
+# Admin IDs (Telegram user IDs), optional.
+# You can set in .env as: ADMIN_IDS=123456,789012
+_admin_ids_env = os.getenv("ADMIN_IDS", "")
+if _admin_ids_env.strip():
+    ADMIN_IDS = {int(x) for x in _admin_ids_env.split(",") if x.strip().isdigit()}
+else:
+    ADMIN_IDS = set()
+
+
+def is_admin(user_id: int) -> bool:
+    """
+    Return True if this Telegram user_id is in the admin list.
+    """
+    try:
+        return int(user_id) in ADMIN_IDS
+    except Exception:
+        return False
+
+
+def call_backend(path: str, method: str = "GET", json: dict | None = None):
+    """
+    Helper to call your Flask backend.
+
+    path: e.g. "/admin/stats" or "/cron/payout"
+    method: "GET" or "POST"
+    json: JSON body for POST
+    """
+    url = BACKEND_URL.rstrip("/") + path
+    try:
+        resp = requests.request(method=method, url=url, json=json, timeout=10)
+        return resp
+    except Exception as e:
+        # You can log or print here if you like
+        print(f"call_backend error for {url}: {e}")
+        return None
 
 
 def verify_telegram_initdata(init_data: dict, bot_token: str) -> bool:

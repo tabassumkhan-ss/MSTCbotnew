@@ -8,7 +8,9 @@ from utils import is_admin, call_backend
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Hi {user.first_name}! Welcome to Mstc bot. Send /balance to see balances.")
+
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Use the web dashboard to view full balances (demo).")

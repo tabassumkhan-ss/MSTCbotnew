@@ -8,13 +8,15 @@ import requests
 from dotenv import load_dotenv
 from telegram import Bot
 from apscheduler.schedulers.background import BackgroundScheduler
+from telegram import WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from utils import is_admin, call_backend
 
 # local helpers
 sys.path.append(os.path.dirname(__file__))
-from utils import BACKEND_URL, is_admin, call_backend
+
 
 load_dotenv()
-BOT_TOKEN = "12345"
+BOT_TOKEN = "8487241335:AAHfCDzdzZBiedvPAcYbr5_BRqSa8YTaWVs"
 POLL_INTERVAL = float(os.getenv('BOT_POLL_INTERVAL', '1.5'))  # seconds between getUpdates
 PAYOUT_INTERVAL_MINUTES = int(os.getenv('PAYOUT_INTERVAL_MINUTES', '5'))
 
@@ -25,6 +27,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN)
+
 
 def handle_command(update):
     """
@@ -50,9 +53,53 @@ def handle_command(update):
         args = parts[1:]
 
         # built-in commands
+                # built-in commands
         if cmd == '/start':
-            bot.send_message(chat_id=chat_id, text=f"Hi {from_user.get('first_name','')} — bot running (polling).")
+            # Parse optional referral code from deep link (/start 12345)
+            ref_code = args[0] if args else None
+
+            from_user = message.get('from', {}) or {}
+            tg_id = from_user.get('id')
+            username = from_user.get('username')
+            first_name = from_user.get('first_name')
+
+            # Default values in case backend call fails
+            text_to_send = "Welcome! Tap below to open the deposit mini app."
+            webapp_url = "https://sesquicentennially-inapplicable-leroy.ngrok-free.dev/static/telegram_mini_app.html"
+            button_label = "Open Deposit Mini App"
+
+            # Ask backend about this user (register + activation status + referral)
+            try:
+                payload = {
+                    "telegram_id": tg_id,
+                    "username": username,
+                    "first_name": first_name,
+                    "ref_code": ref_code,
+                }
+                r = call_backend('/bot/start', method='POST', json=payload)
+                if r is not None and r.ok:
+                    data = r.json()
+                    text_to_send = data.get("message", text_to_send)
+                    webapp_url = data.get("webapp_url", webapp_url)
+                    button_label = data.get("button_label", button_label)
+                else:
+                    logger.warning("Backend /bot/start failed: %s", r.text if r is not None else "no response")
+            except Exception as e:
+                logger.exception("Error calling backend /bot/start: %s", e)
+
+            keyboard = [[InlineKeyboardButton(
+                text=button_label,
+                web_app=WebAppInfo(url=webapp_url)
+            )]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            bot.send_message(
+                chat_id=chat_id,
+                text=text_to_send,
+                reply_markup=reply_markup
+            )
             return
+
 
         if cmd == '/balance':
             bot.send_message(chat_id=chat_id, text="Use the backend admin endpoints to view balances.")
