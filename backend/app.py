@@ -454,16 +454,14 @@ def credit_team_business(db, user, amount):
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
     """
-    Verify a deposit coming from the mini app.
+    Minimal, safe verify route:
 
     - Validates Telegram initData
     - Validates amount (>= 20 and multiple of 10)
-    - Records two Transaction rows (MUSD 70%, MSTC 30%)
-    - Updates user balances and activation (Origin)
-    - Simple referral: 5% of amount to direct referrer if exists, else company_pool
+    - Updates User balances and activation (Origin)
+    - Simple 1-level referral distribution *in memory only*
+      (no DB writes except balances)
     """
-    
-
     data = request.get_json(force=True) or {}
     init_data = data.get("initData", "")
     amount = data.get("amount")
@@ -481,6 +479,7 @@ def webapp_verify():
     except (TypeError, ValueError):
         return jsonify(ok=False, error="invalid_amount"), 400
 
+    # Business rule: ≥ 20 and multiples of 10
     if amount < 20 or amount % 10 != 0:
         return jsonify(ok=False, error="invalid_step"), 400
 
@@ -499,69 +498,32 @@ def webapp_verify():
                 first_name=first_name or "",
             )
             db.add(user)
-            db.flush()  # get user.id
+            db.flush()
 
-        # split amounts
+        # Split amounts
         musd_amount = round(amount * 0.70, 2)
         mstc_amount = round(amount * 0.30, 2)
 
-        # 5) Record transactions
-        t_musd = Transaction(
-            user_id=user.id,
-            amount=musd_amount,
-            currency="MUSD",
-            type="deposit",
-            external_id=tx_musd,  # storing tx hash here
-        )
-        t_mstc = Transaction(
-            user_id=user.id,
-            amount=mstc_amount,
-            currency="MSTC",
-            type="deposit",
-            external_id=tx_mstc,  # storing tx hash here
-        )
-        db.add_all([t_musd, t_mstc])
-
-        # 6) Update user balances
+        # 5) Update user balances
         user.balance_musd = (user.balance_musd or 0.0) + musd_amount
         user.balance_mstc = (user.balance_mstc or 0.0) + mstc_amount
 
-        # 7) Activation logic: Origin
+        # 6) Activation: Origin
         if amount >= 20 and not user.self_activated:
             user.self_activated = True
             user.role = "origin"
 
-        # also basic team business update for this user
+        # 7) Simple team business update for this user
         user.total_team_business = (user.total_team_business or 0.0) + amount
 
-        # 8) Simple referral distribution (1 level, 5% of total)
+        # 8) Simple *in-memory* referral distribution
         referral_dist = []
-        bonus = round(amount * 0.05, 2)
+        bonus = round(amount * 0.05, 2)  # 5% to direct referrer or company_pool
 
         if bonus > 0:
-            if user.referrer is not None:
-                # direct upline
-                ref = user.referrer  # because of relationship in models
+            if getattr(user, "referrer", None) is not None:
+                ref = user.referrer
                 ref.balance_musd = (ref.balance_musd or 0.0) + bonus
-
-                # record referral event
-                evt = ReferralEvent(
-                    from_user=user.id,
-                    to_user=ref.id,
-                    amount=bonus,
-                    note="Level 1 referral bonus",
-                )
-                db.add(evt)
-
-                # and a transaction for the referrer
-                t_ref = Transaction(
-                    user_id=ref.id,
-                    amount=bonus,
-                    currency="MUSD",
-                    type="referral",
-                    external_id=f"referral:{user.id}:{datetime.utcnow().isoformat()}",
-                )
-                db.add(t_ref)
 
                 referral_dist.append({
                     "level": 1,
@@ -570,15 +532,6 @@ def webapp_verify():
                     "amount": bonus,
                 })
             else:
-                # no referrer – send to company_pool logically
-                evt = ReferralEvent(
-                    from_user=user.id,
-                    to_user=None,
-                    amount=bonus,
-                    note="company_pool",
-                )
-                db.add(evt)
-
                 referral_dist.append({
                     "level": 0,
                     "to_user_id": None,
@@ -597,7 +550,7 @@ def webapp_verify():
 
     except Exception as e:
         db.rollback()
-        # log + return detail for debugging
+        # log full error so you can see it on Render
         print("DB error in /webapp/verify:", e)
         traceback.print_exc()
         return jsonify(ok=False, error="db_error", detail=str(e)), 500
