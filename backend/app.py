@@ -2,6 +2,8 @@ import os
 import logging
 import traceback
 import json
+import hashlib
+import hmac
 from urllib.parse import parse_qsl
 
 from flask import Flask, request, jsonify, send_from_directory
@@ -12,7 +14,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent
-from backend.security import verify_telegram_init_data
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +22,68 @@ logger = logging.getLogger(__name__)
 print("Flask CWD:", os.getcwd())
 print("Flask DB URL:", engine.url)
 
-# Resilient imports: works both when running as script and as package module
-try:
-    # when running as package: python -m backend.app
-    from models import SessionLocal, User, Transaction, ReferralEvent, Base, engine
-    from .utils import verify_telegram_initdata
-except Exception:
-    # when running as script: python backend\app.py
-    from models import SessionLocal, User, Transaction, ReferralEvent
-    from utils import verify_telegram_initdata
+def verify_telegram_init_data(init_data: str):
+    """
+    Validate Telegram WebApp initData and return (user_id, username, first_name)
+    or (None, None, None) if invalid.
+
+    Uses the algorithm from:
+    https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+    """
+    if not init_data:
+        return None, None, None
+
+    bot_token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        # No token available to verify
+        return None, None, None
+
+    # Parse query string into dict
+    try:
+        data = dict(parse_qsl(init_data, strict_parsing=True))
+    except Exception:
+        return None, None, None
+
+    hash_check = data.pop("hash", None)
+    if not hash_check:
+        return None, None, None
+
+    # Build data_check_string
+    data_check_pairs = []
+    for key in sorted(data.keys()):
+        value = data[key]
+        data_check_pairs.append(f"{key}={value}")
+    data_check_string = "\n".join(data_check_pairs)
+
+    # Secret key: HMAC-SHA256("WebAppData", bot_token)
+    secret_key = hmac.new(
+        "WebAppData".encode("utf-8"),
+        bot_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
+    # HMAC data_check_string with secret_key
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if calculated_hash != hash_check:
+        return None, None, None
+
+    # If hash is valid, parse user data
+    user_str = data.get("user")
+    if not user_str:
+        return None, None, None
+
+    try:
+        user = json.loads(user_str)
+    except Exception:
+        return None, None, None
+
+    return user.get("id"), user.get("username"), user.get("first_name")
+
 
 # -------------------------
 # Configuration
@@ -407,7 +462,7 @@ def webapp_verify():
     - Updates user balances and activation (Origin)
     - Simple referral: 5% of amount to direct referrer if exists, else company_pool
     """
-    from backend.security import verify_telegram_init_data  # adjust if function is elsewhere
+    
 
     data = request.get_json(force=True) or {}
     init_data = data.get("initData", "")
