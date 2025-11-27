@@ -453,11 +453,23 @@ def webapp_verify():
     LEVEL_PERCENTS = [0.05, 0.03, 0.01]
     MAX_LEVELS = len(LEVEL_PERCENTS)
 
-    db = SessionLocal()
+       db = SessionLocal()
     try:
         user = db.query(User).get(user_id)
         if not user:
-            return jsonify({'ok': False, 'error': 'user_not_found'}), 404
+            # Create user if not present (same logic as in /webapp/me)
+            user = User(
+                id=user_id,
+                username=tg_user.get("username") or "",
+                first_name=tg_user.get("first_name") or "",
+                role="user",
+                self_activated=False,
+                balance_musd=0.0,
+                balance_mstc=0.0,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
 
         # Was this user already Origin before this deposit?
         was_origin = bool(getattr(user, "self_activated", False))
