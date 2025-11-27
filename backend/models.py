@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    ForeignKey, Boolean, UniqueConstraint, Index
+    ForeignKey,BigInteger, Boolean, UniqueConstraint, Index
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from dotenv import load_dotenv
@@ -24,7 +24,7 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True, index=True)  # telegram user id
+    id = Column(BigInteger, primary_key=True, index=True)  # telegram user id
     username = Column(String, nullable=True, index=True)
     first_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -33,7 +33,7 @@ class User(Base):
     active = Column(Boolean, default=True, nullable=False)
 
     # referral linkage
-    referrer_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+    referrer_id = Column(BigInteger, ForeignKey('users.id'), nullable=True, index=True)
     referrals = relationship('User', remote_side=[id], backref='referrer', lazy='joined')
 
     # referral-related fields
@@ -55,8 +55,8 @@ class Transaction(Base):
     external_id can be used to ensure idempotency for external webhook/payment providers.
     """
     __tablename__ = 'transactions'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
     amount = Column(Float, nullable=False)
     currency = Column(String, nullable=False)  # 'MUSD' or 'MSTC' etc.
     type = Column(String, nullable=False)  # 'deposit', 'credit_mstc', 'referral', etc.
@@ -82,9 +82,9 @@ class ReferralEvent(Base):
     - to_user: the recipient user id (nullable for company_pool)
     """
     __tablename__ = 'referral_events'
-    id = Column(Integer, primary_key=True)
-    from_user = Column(Integer, ForeignKey('users.id'), index=True, nullable=False)
-    to_user = Column(Integer, ForeignKey('users.id'), index=True, nullable=True)
+    id = Column(BigInteger, primary_key=True)
+    from_user = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
+    to_user = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=True)
     amount = Column(Float, nullable=False)
     note = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
