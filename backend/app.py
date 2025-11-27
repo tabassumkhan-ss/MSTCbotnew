@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent
-
+from backend.security import verify_telegram_init_data
 
 logger = logging.getLogger(__name__)
 
@@ -395,21 +395,6 @@ def credit_team_business(db, user, amount):
         except Exception:
             pass
         current = parent
-
-
-
-
-# -------------------------
-# Main verify route (deposit)
-# -------------------------
-import logging
-import traceback
-from flask import request, jsonify
-from backend.models import SessionLocal, User, Deposit  # make sure Deposit exists
-from backend.security import verify_telegram_init_data  # or wherever you defined this
-
-logger = logging.getLogger(__name__)
-
 
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
