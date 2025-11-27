@@ -454,15 +454,6 @@ def credit_team_business(db, user, amount):
 
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
-    """
-    Minimal, safe verify route:
-
-    - Validates Telegram initData
-    - Validates amount (>= 20 and multiple of 10)
-    - Updates User balances and activation (Origin)
-    - Simple 1-level referral distribution *in memory only*
-      (no DB writes except balances)
-    """
     data = request.get_json(force=True) or {}
     init_data = data.get("initData", "")
     amount = data.get("amount")
@@ -477,14 +468,12 @@ def webapp_verify():
     # 2) Validate amount
     try:
         amount = float(amount)
-    except (TypeError, ValueError):
+    except:
         return jsonify(ok=False, error="invalid_amount"), 400
 
-    # Business rule: ≥ 20 and multiples of 10
     if amount < 20 or amount % 10 != 0:
         return jsonify(ok=False, error="invalid_step"), 400
 
-    # 3) Validate tx hashes
     if not tx_musd or not tx_mstc:
         return jsonify(ok=False, error="missing_tx_hash"), 400
 
@@ -493,33 +482,23 @@ def webapp_verify():
         # 4) Ensure user exists
         user = db.query(User).get(user_id)
         if not user:
-            user = User(
-                id=user_id,
-                username=username or "",
-                first_name=first_name or "",
-            )
-            db.add(user)
-            db.flush()
+            return jsonify(ok=False, error="user_not_found"), 404
 
-        # Split amounts
         musd_amount = round(amount * 0.70, 2)
         mstc_amount = round(amount * 0.30, 2)
 
-        # 5) Update user balances
         user.balance_musd = (user.balance_musd or 0.0) + musd_amount
         user.balance_mstc = (user.balance_mstc or 0.0) + mstc_amount
 
-        # 6) Activation: Origin
         if amount >= 20 and not user.self_activated:
             user.self_activated = True
             user.role = "origin"
 
-        # 7) Simple team business update for this user
         user.total_team_business = (user.total_team_business or 0.0) + amount
 
-        # 8) Simple *in-memory* referral distribution
+        # Simple referral distribution (in-memory)
         referral_dist = []
-        bonus = round(amount * 0.05, 2)  # 5% to direct referrer or company_pool
+        bonus = round(amount * 0.05, 2)
 
         if bonus > 0:
             if getattr(user, "referrer", None) is not None:
@@ -551,10 +530,10 @@ def webapp_verify():
 
     except Exception as e:
         db.rollback()
-        # log full error so you can see it on Render
         print("DB error in /webapp/verify:", e)
         traceback.print_exc()
         return jsonify(ok=False, error="db_error", detail=str(e)), 500
+
     finally:
         db.close()
 
