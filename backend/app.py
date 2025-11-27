@@ -497,21 +497,33 @@ def webapp_verify():
         user.total_team_business = (user.total_team_business or 0.0) + amount
 
         # Simple referral distribution (in-memory)
+                # Simple referral distribution (in-memory)
         referral_dist = []
         bonus = round(amount * 0.05, 2)
 
         if bonus > 0:
-            if getattr(user, "referrer", None) is not None:
-                ref = user.referrer
-                ref.balance_musd = (ref.balance_musd or 0.0) + bonus
+            # use numeric referrer_id instead of relationship attribute
+            if user.referrer_id:
+                ref = db.query(User).get(user.referrer_id)
+                if ref:
+                    ref.balance_musd = (ref.balance_musd or 0.0) + bonus
 
-                referral_dist.append({
-                    "level": 1,
-                    "to_user_id": ref.id,
-                    "to_username": ref.username,
-                    "amount": bonus,
-                })
+                    referral_dist.append({
+                        "level": 1,
+                        "to_user_id": ref.id,
+                        "to_username": ref.username,
+                        "amount": bonus,
+                    })
+                else:
+                    # referrer_id set but user missing – fall back to company_pool
+                    referral_dist.append({
+                        "level": 0,
+                        "to_user_id": None,
+                        "to_username": "company_pool",
+                        "amount": bonus,
+                    })
             else:
+                # no referrer – goes to company_pool
                 referral_dist.append({
                     "level": 0,
                     "to_user_id": None,
