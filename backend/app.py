@@ -13,11 +13,12 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
-from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent
+from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent,init_db
 
 
 logger = logging.getLogger(__name__)
 
+init_db()
 
 print("Flask CWD:", os.getcwd())
 print("Flask DB URL:", engine.url)
