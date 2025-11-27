@@ -1,13 +1,24 @@
 import os
 import logging
+import traceback
 import json
 from urllib.parse import parse_qsl
-from backend.models import Base, engine
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 import requests
 from dotenv import load_dotenv
+from datetime import datetime
+
+from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent
+
+
+logger = logging.getLogger(__name__)
+
+
+print("Flask CWD:", os.getcwd())
+print("Flask DB URL:", engine.url)
 
 # Resilient imports: works both when running as script and as package module
 try:
@@ -391,203 +402,167 @@ def credit_team_business(db, user, amount):
 # -------------------------
 # Main verify route (deposit)
 # -------------------------
+import logging
+import traceback
+from flask import request, jsonify
+from backend.models import SessionLocal, User, Deposit  # make sure Deposit exists
+from backend.security import verify_telegram_init_data  # or wherever you defined this
+
+logger = logging.getLogger(__name__)
+
+
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
     """
-    Verify Telegram WebApp initData + deposit info, then:
-    - credit user balances
-    - apply referral distribution
-    - record transactions
+    Verify a deposit coming from the mini app.
+
+    - Validates Telegram initData
+    - Validates amount (>= 20 and multiple of 10)
+    - Records two Transaction rows (MUSD 70%, MSTC 30%)
+    - Updates user balances and activation (Origin)
+    - Simple referral: 5% of amount to direct referrer if exists, else company_pool
     """
-    data = request.get_json(force=True)
-    init_data_str = data.get("initData", "")
+    from backend.security import verify_telegram_init_data  # adjust if function is elsewhere
+
+    data = request.get_json(force=True) or {}
+    init_data = data.get("initData", "")
     amount = data.get("amount")
+    tx_musd = data.get("tx_musd", "").strip()
+    tx_mstc = data.get("tx_mstc", "").strip()
 
-    if not init_data_str:
-        return jsonify({"ok": False, "error": "missing_initData"}), 400
+    # 1) Verify Telegram initData
+    user_id, username, first_name = verify_telegram_init_data(init_data)
+    if not user_id:
+        return jsonify(ok=False, error="verify_failed"), 403
 
-    # Parse initData string → dict
-    pairs = parse_qsl(init_data_str, strict_parsing=True)
-    init_data = {}
-    for k, v in pairs:
-        if k in ("user", "chat"):
-            try:
-                init_data[k] = json.loads(v)
-            except Exception:
-                init_data[k] = {}
-        else:
-            init_data[k] = v
-
-    if "user" not in init_data:
-        return jsonify({"ok": False, "error": "missing_initData.user"}), 400
-
-    # 🔓 TEMP: bypass Telegram signature check for testing
-    verified = True  # TODO: re-enable verify_telegram_initdata in production
-
-    if not verified:
-        return jsonify({"ok": False, "error": "verify failed"}), 403
-
-    tg_user = init_data["user"]
-    user_id = int(tg_user["id"])
-
-    # Validate amount
+    # 2) Validate amount
     try:
         amount = float(amount)
-    except Exception:
-        return jsonify({"ok": False, "error": "invalid_amount"}), 400
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="invalid_amount"), 400
 
-    MIN_DEPOSIT = 20.0
-    STEP = 10.0
-    if amount < MIN_DEPOSIT:
-        return jsonify({"ok": False, "error": "min_deposit"}), 400
-    if amount != MIN_DEPOSIT and ((amount - MIN_DEPOSIT) % STEP) != 0:
-        return jsonify({"ok": False, "error": "invalid_step"}), 400
+    if amount < 20 or amount % 10 != 0:
+        return jsonify(ok=False, error="invalid_step"), 400
 
-    # monetary split
-    MSTC_PERCENT = 0.30
-    mstc = round(amount * MSTC_PERCENT, 2)
-    musd = round(amount - mstc, 2)
-
-    LEVEL_PERCENTS = [0.05, 0.03, 0.01]
-    MAX_LEVELS = len(LEVEL_PERCENTS)
+    # 3) Validate tx hashes
+    if not tx_musd or not tx_mstc:
+        return jsonify(ok=False, error="missing_tx_hash"), 400
 
     db = SessionLocal()
     try:
-        # 🔁 Auto-create user if missing
+        # 4) Ensure user exists
         user = db.query(User).get(user_id)
         if not user:
             user = User(
                 id=user_id,
-                username=tg_user.get("username") or "",
-                first_name=tg_user.get("first_name") or "",
-                role="user",
-                self_activated=False,
-                balance_musd=0.0,
-                balance_mstc=0.0,
+                username=username or "",
+                first_name=first_name or "",
             )
             db.add(user)
-            db.commit()
-            db.refresh(user)
+            db.flush()  # get user.id
 
-        # Was this user already Origin before this deposit?
-        was_origin = bool(getattr(user, "self_activated", False))
+        # split amounts
+        musd_amount = round(amount * 0.70, 2)
+        mstc_amount = round(amount * 0.30, 2)
 
-        # Create Transaction records
-        txn_musd = Transaction(
+        # 5) Record transactions
+        t_musd = Transaction(
             user_id=user.id,
-            amount=musd,
+            amount=musd_amount,
             currency="MUSD",
             type="deposit",
+            external_id=tx_musd,  # storing tx hash here
         )
-        db.add(txn_musd)
-
-        txn_mstc = Transaction(
+        t_mstc = Transaction(
             user_id=user.id,
-            amount=mstc,
+            amount=mstc_amount,
             currency="MSTC",
-            type="credit_mstc",
+            type="deposit",
+            external_id=tx_mstc,  # storing tx hash here
         )
-        db.add(txn_mstc)
+        db.add_all([t_musd, t_mstc])
 
-        # credit user balances
-        user.balance_musd = float(user.balance_musd or 0.0) + musd
-        user.balance_mstc = float(user.balance_mstc or 0.0) + mstc
-        db.add(user)
+        # 6) Update user balances
+        user.balance_musd = (user.balance_musd or 0.0) + musd_amount
+        user.balance_mstc = (user.balance_mstc or 0.0) + mstc_amount
 
-        # If user was not Origin before and this deposit qualifies, mark them Origin
-        if not was_origin and amount >= MIN_DEPOSIT:
+        # 7) Activation logic: Origin
+        if amount >= 20 and not user.self_activated:
             user.self_activated = True
-            try:
-                if getattr(user, "role", "") != "origin":
-                    user.role = "origin"
-            except Exception:
-                pass
-            db.add(user)
+            user.role = "origin"
 
-            # Bump active_origin_count for all uplines once
-            _increment_active_origins_for_upline(db, user)
+        # also basic team business update for this user
+        user.total_team_business = (user.total_team_business or 0.0) + amount
 
-        # credit upstream team business
-        credit_team_business(db, user, amount)
-
-        # referral chain & distribution
-        chain = _get_referrer_chain(db, user, max_levels=MAX_LEVELS)
+        # 8) Simple referral distribution (1 level, 5% of total)
         referral_dist = []
-        total_distributed = 0.0
+        bonus = round(amount * 0.05, 2)
 
-        for level_idx, ref in enumerate(chain):
-            base_pct = LEVEL_PERCENTS[level_idx] if level_idx < len(LEVEL_PERCENTS) else 0.0
-            pct = base_pct
-            if level_idx == 0 and is_life_changer(ref):
-                pct = 0.10
+        if bonus > 0:
+            if user.referrer is not None:
+                # direct upline
+                ref = user.referrer  # because of relationship in models
+                ref.balance_musd = (ref.balance_musd or 0.0) + bonus
 
-            amount_for_ref = round(amount * pct, 2)
-            if amount_for_ref <= 0:
-                continue
+                # record referral event
+                evt = ReferralEvent(
+                    from_user=user.id,
+                    to_user=ref.id,
+                    amount=bonus,
+                    note="Level 1 referral bonus",
+                )
+                db.add(evt)
 
-            ref.balance_musd = float(ref.balance_musd or 0.0) + amount_for_ref
-            db.add(ref)
+                # and a transaction for the referrer
+                t_ref = Transaction(
+                    user_id=ref.id,
+                    amount=bonus,
+                    currency="MUSD",
+                    type="referral",
+                    external_id=f"referral:{user.id}:{datetime.utcnow().isoformat()}",
+                )
+                db.add(t_ref)
 
-            ref_evt = ReferralEvent(
-                from_user=user.id,
-                to_user=ref.id,
-                amount=amount_for_ref,
-                note=f"level_{level_idx+1}_referral",
-            )
-            db.add(ref_evt)
+                referral_dist.append({
+                    "level": 1,
+                    "to_user_id": ref.id,
+                    "to_username": ref.username,
+                    "amount": bonus,
+                })
+            else:
+                # no referrer – send to company_pool logically
+                evt = ReferralEvent(
+                    from_user=user.id,
+                    to_user=None,
+                    amount=bonus,
+                    note="company_pool",
+                )
+                db.add(evt)
 
-            referral_dist.append({
-                "level": level_idx + 1,
-                "to_user_id": int(ref.id),
-                "to_username": getattr(ref, "username", None),
-                "amount": amount_for_ref,
-                "percent": pct,
-            })
-            total_distributed += amount_for_ref
-
-        # leftover -> company_pool
-        leftover = round(amount - total_distributed, 2)
-        if leftover > 0:
-            ref_evt = ReferralEvent(
-                from_user=user.id,
-                to_user=None,
-                amount=leftover,
-                note="company_pool_remainder",
-            )
-            db.add(ref_evt)
-            referral_dist.append({
-                "level": 0,
-                "to_user_id": None,
-                "to_username": "company_pool",
-                "amount": leftover,
-                "percent": None,
-            })
-            total_distributed += leftover
+                referral_dist.append({
+                    "level": 0,
+                    "to_user_id": None,
+                    "to_username": "company_pool",
+                    "amount": bonus,
+                })
 
         db.commit()
 
-        resp = {
-            "ok": True,
-            "mstc": mstc,
-            "musd": musd,
-            "referral_dist": referral_dist,
-        }
-        return jsonify(resp), 200
-
-    except SQLAlchemyError as e:
-        db.rollback()
-        return jsonify({"ok": False, "error": "db_error", "detail": str(e)}), 500
+        return jsonify(
+            ok=True,
+            mstc=mstc_amount,
+            musd=musd_amount,
+            referral_dist=referral_dist,
+        )
 
     except Exception as e:
-        try:
-            db.rollback()
-        except Exception:
-            pass
-        return jsonify({"ok": False, "error": "internal_error", "detail": str(e)}), 500
-
+        db.rollback()
+        # log + return detail for debugging
+        print("DB error in /webapp/verify:", e)
+        traceback.print_exc()
+        return jsonify(ok=False, error="db_error", detail=str(e)), 500
     finally:
         db.close()
-
 
 
 # -------------------------
