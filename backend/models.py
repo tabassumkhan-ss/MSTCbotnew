@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./data/mstcbot.db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./data/mstcbotv2.db')
 
 # For SQLite, ensure check_same_thread when using in multiple threads
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -55,7 +55,7 @@ class Transaction(Base):
     external_id can be used to ensure idempotency for external webhook/payment providers.
     """
     __tablename__ = 'transactions'
-    id = Column(BigInteger, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  
     user_id = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
     amount = Column(Float, nullable=False)
     currency = Column(String, nullable=False)  # 'MUSD' or 'MSTC' etc.
