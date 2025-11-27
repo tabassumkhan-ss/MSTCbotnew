@@ -421,13 +421,11 @@ def webapp_verify():
     if "user" not in init_data:
         return jsonify({"ok": False, "error": "missing_initData.user"}), 400
 
-    # Verify Telegram signature
-        # 2) Verify signature (TEMPORARILY DISABLED FOR TESTING)
+    # 🔓 TEMP: bypass Telegram signature check for testing
     verified = True  # TODO: re-enable verify_telegram_initdata in production
 
     if not verified:
         return jsonify({"ok": False, "error": "verify failed"}), 403
-
 
     tg_user = init_data["user"]
     user_id = int(tg_user["id"])
@@ -453,11 +451,11 @@ def webapp_verify():
     LEVEL_PERCENTS = [0.05, 0.03, 0.01]
     MAX_LEVELS = len(LEVEL_PERCENTS)
 
-       db = SessionLocal()
+    db = SessionLocal()
     try:
+        # 🔁 Auto-create user if missing
         user = db.query(User).get(user_id)
         if not user:
-            # Create user if not present (same logic as in /webapp/me)
             user = User(
                 id=user_id,
                 username=tg_user.get("username") or "",
@@ -474,12 +472,12 @@ def webapp_verify():
         # Was this user already Origin before this deposit?
         was_origin = bool(getattr(user, "self_activated", False))
 
-        # Create Transaction records (match fields in backend/models.py)
+        # Create Transaction records
         txn_musd = Transaction(
             user_id=user.id,
             amount=musd,
             currency="MUSD",
-            type="deposit"
+            type="deposit",
         )
         db.add(txn_musd)
 
@@ -487,7 +485,7 @@ def webapp_verify():
             user_id=user.id,
             amount=mstc,
             currency="MSTC",
-            type="credit_mstc"
+            type="credit_mstc",
         )
         db.add(txn_mstc)
 
@@ -511,7 +509,6 @@ def webapp_verify():
 
         # credit upstream team business
         credit_team_business(db, user, amount)
-
 
         # referral chain & distribution
         chain = _get_referrer_chain(db, user, max_levels=MAX_LEVELS)
@@ -590,6 +587,7 @@ def webapp_verify():
 
     finally:
         db.close()
+
 
 
 # -------------------------
