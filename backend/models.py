@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    ForeignKey,BigInteger, Boolean, UniqueConstraint, Index
+    ForeignKey, BigInteger, Boolean, UniqueConstraint, Index
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from dotenv import load_dotenv
@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./data/mstcbotv2.db')
+DATABASE_URL = 'sqlite:///./data/mstcbotv2.db'
 
 # For SQLite, ensure check_same_thread when using in multiple threads
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
