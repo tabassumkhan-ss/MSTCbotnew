@@ -593,6 +593,11 @@ def webapp_verify():
 
         # Create/get user and auto-link referrer (if any)
         user = get_or_create_user(db, tg_user, ref_id)
+        if user.referrer_id is None and ref_id and ref_id != user.id:
+            logging.info("Force-linking referrer: user %s -> %s", user.id, ref_id)
+            user.referrer_id = ref_id
+            db.commit()
+            db.refresh(user)
 
         # ---------- Activation & team business logic ----------
         # mark self_activated if this is their first qualifying deposit
