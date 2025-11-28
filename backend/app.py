@@ -64,32 +64,59 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.refresh(user)
 
 
-def get_or_create_user(db, tg_user_raw, maybe_referrer_id: int | None):
+def get_or_create_user(db, tg_user_raw, maybe_referrer_id):
     """
     Central place to load/create the User AND auto-link referrer.
 
     tg_user_raw can be:
       - a dict with keys like {"id", "username", "first_name"}
-      - OR a tuple where the first element is that dict
-        (to support older verify_telegram_init_data implementations).
+      - a tuple/list that may contain such a dict
+      - an int (Telegram user id)
     """
-    # If verify_telegram_init_data returned a tuple, take the first element
-    if isinstance(tg_user_raw, tuple):
-        tg_user = tg_user_raw[0] or {}
+    user_id = None
+    username = ""
+    first_name = ""
+
+    # Case 1: already a dict
+    if isinstance(tg_user_raw, dict):
+        user_id = tg_user_raw.get("id")
+        username = tg_user_raw.get("username") or ""
+        first_name = tg_user_raw.get("first_name") or ""
+
+    # Case 2: tuple or list (e.g. (user_dict, something_else) OR (user_id, ...))
+    elif isinstance(tg_user_raw, (tuple, list)):
+        # Try to find a dict with "id" inside
+        for item in tg_user_raw:
+            if isinstance(item, dict) and "id" in item:
+                user_id = item.get("id")
+                username = item.get("username") or ""
+                first_name = item.get("first_name") or ""
+                break
+
+        # If still no user_id and first element is an int, treat it as id
+        if user_id is None and tg_user_raw:
+            first = tg_user_raw[0]
+            if isinstance(first, int):
+                user_id = first
+
+    # Case 3: raw int → assume it's the Telegram user id
+    elif isinstance(tg_user_raw, int):
+        user_id = tg_user_raw
+
     else:
-        tg_user = tg_user_raw or {}
+        raise ValueError(f"Unsupported tg_user type: {type(tg_user_raw)} {tg_user_raw!r}")
 
-    user_id = tg_user.get("id")
     if not user_id:
-        raise ValueError(f"Telegram user data missing 'id': {tg_user!r}")
+        raise ValueError(f"Telegram user data missing 'id': {tg_user_raw!r}")
 
+    # Look up or create the user
     user = db.query(User).get(user_id)
 
     if user is None:
         user = User(
             id=user_id,
-            username=tg_user.get("username") or "",
-            first_name=tg_user.get("first_name") or "",
+            username=username,
+            first_name=first_name,
             created_at=datetime.utcnow(),
             role="user",          # or "origin" later when conditions met
             self_activated=False, # will become True on first successful deposit
@@ -102,6 +129,7 @@ def get_or_create_user(db, tg_user_raw, maybe_referrer_id: int | None):
     link_referrer_if_needed(db, user, maybe_referrer_id)
 
     return user
+
 
 def verify_telegram_init_data(init_data: str):
     """
