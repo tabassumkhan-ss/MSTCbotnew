@@ -452,6 +452,50 @@ def credit_team_business(db, user, amount):
             pass
         current = parent
 
+        def update_rank(user: User):
+    """Update user.role based on total_team_business, active_origin_count and self_activated."""
+    total = user.total_team_business or 0.0
+    active_origins = user.active_origin_count or 0
+
+    if total >= 100000:
+        user.role = "creator"
+    elif total >= 25000:
+        user.role = "visionary"
+    elif total >= 5000:
+        user.role = "advisor"
+    elif total >= 1000 and active_origins >= 10:
+        user.role = "life_changer"
+    elif user.self_activated:
+        user.role = "origin"
+    else:
+        # keep at least "user"
+        if not user.role:
+            user.role = "user"
+
+
+def propagate_team_business(db: SessionLocal, user: User, amount: float, became_origin_now: bool):
+    """
+    Add amount to total_team_business of all uplines.
+    If became_origin_now=True, increment active_origin_count for all uplines.
+    """
+    visited = set()
+    current = user
+    while current.referrer_id and current.referrer_id not in visited:
+        ref = db.query(User).get(current.referrer_id)
+        if not ref:
+            break
+        visited.add(ref.id)
+
+        ref.total_team_business = (ref.total_team_business or 0.0) + amount
+        if became_origin_now:
+            ref.active_origin_count = (ref.active_origin_count or 0) + 1
+
+        # update their rank after changing business/active origins
+        update_rank(ref)
+
+        current = ref
+
+
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
     data = request.get_json(force=True) or {}
@@ -468,7 +512,7 @@ def webapp_verify():
     # 2) Validate amount
     try:
         amount = float(amount)
-    except:
+    except Exception:
         return jsonify(ok=False, error="invalid_amount"), 400
 
     if amount < 20 or amount % 10 != 0:
@@ -479,34 +523,44 @@ def webapp_verify():
 
     db = SessionLocal()
     try:
-        # 4) Ensure user exists
+        # 3) Ensure user exists (created earlier via /webapp/me or /webapp/init)
         user = db.query(User).get(user_id)
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
+        # 4) Compute split
         musd_amount = round(amount * 0.70, 2)
         mstc_amount = round(amount * 0.30, 2)
 
+        # 5) Update user balances
         user.balance_musd = (user.balance_musd or 0.0) + musd_amount
         user.balance_mstc = (user.balance_mstc or 0.0) + mstc_amount
 
+        # 6) Activation & rank for this user
+        became_origin_now = False
         if amount >= 20 and not user.self_activated:
             user.self_activated = True
-            user.role = "origin"
+            became_origin_now = True
 
+        # their own business
         user.total_team_business = (user.total_team_business or 0.0) + amount
+        update_rank(user)
 
-        # Simple referral distribution (in-memory)
-                # Simple referral distribution (in-memory)
+        # 7) Propagate team business up the tree
+        propagate_team_business(db, user, amount, became_origin_now)
+
+        # 8) Referral distribution
+        # Rule: direct upline must be self_activated (Origin or higher) to earn 5%.
         referral_dist = []
-        bonus = round(amount * 0.05, 2)
+        bonus = round(amount * 0.05, 2)  # 5% Origin income
 
         if bonus > 0:
-            # use numeric referrer_id instead of relationship attribute
             if user.referrer_id:
                 ref = db.query(User).get(user.referrer_id)
-                if ref:
+                if ref and ref.self_activated:
+                    # ✅ Referrer is activated → gets 5%
                     ref.balance_musd = (ref.balance_musd or 0.0) + bonus
+                    update_rank(ref)  # in case this pushes them into a higher rank
 
                     referral_dist.append({
                         "level": 1,
@@ -515,7 +569,7 @@ def webapp_verify():
                         "amount": bonus,
                     })
                 else:
-                    # referrer_id set but user missing – fall back to company_pool
+                    # ❌ Referrer missing or not activated → goes to company_pool
                     referral_dist.append({
                         "level": 0,
                         "to_user_id": None,
@@ -523,7 +577,7 @@ def webapp_verify():
                         "amount": bonus,
                     })
             else:
-                # no referrer – goes to company_pool
+                # no referrer → goes to company_pool
                 referral_dist.append({
                     "level": 0,
                     "to_user_id": None,
@@ -545,9 +599,9 @@ def webapp_verify():
         print("DB error in /webapp/verify:", e)
         traceback.print_exc()
         return jsonify(ok=False, error="db_error", detail=str(e)), 500
-
     finally:
         db.close()
+
 
 
 # -------------------------
