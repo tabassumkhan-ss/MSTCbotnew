@@ -64,12 +64,25 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.refresh(user)
 
 
-def get_or_create_user(db, tg_user: dict, maybe_referrer_id: int | None):
+def get_or_create_user(db, tg_user_raw, maybe_referrer_id: int | None):
     """
     Central place to load/create the User AND auto-link referrer.
-    Call this from /webapp/me and /webapp/verify.
+
+    tg_user_raw can be:
+      - a dict with keys like {"id", "username", "first_name"}
+      - OR a tuple where the first element is that dict
+        (to support older verify_telegram_init_data implementations).
     """
-    user_id = tg_user["id"]
+    # If verify_telegram_init_data returned a tuple, take the first element
+    if isinstance(tg_user_raw, tuple):
+        tg_user = tg_user_raw[0] or {}
+    else:
+        tg_user = tg_user_raw or {}
+
+    user_id = tg_user.get("id")
+    if not user_id:
+        raise ValueError(f"Telegram user data missing 'id': {tg_user!r}")
+
     user = db.query(User).get(user_id)
 
     if user is None:
