@@ -770,6 +770,27 @@ def telegram_webhook():
 
     return jsonify({"ok": True}), 200
 
+@app.route("/debug/user/<int:user_id>")
+def debug_user(user_id):
+    db = SessionLocal()
+    try:
+        user = db.query(User).get(user_id)
+        if not user:
+            return jsonify({"exists": False})
+
+        return jsonify({
+            "exists": True,
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "self_activated": user.self_activated,
+            "role": user.role,
+            "referrer_id": user.referrer_id,
+            "total_team_business": float(user.total_team_business or 0)
+        })
+    finally:
+        db.close()
+
 
 # -------------------------
 # Entrypoint
