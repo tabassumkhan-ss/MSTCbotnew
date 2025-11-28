@@ -637,6 +637,28 @@ def debug_link_referrer():
     finally:
         db.close()
 
+@app.route("/debug/list_users", methods=["GET"])
+def debug_list_users():
+    """DEBUG: list users in the current DB."""
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        data = []
+        for u in users:
+            data.append({
+                "id": u.id,
+                "username": u.username,
+                "first_name": u.first_name,
+                "self_activated": u.self_activated,
+                "referrer_id": u.referrer_id,
+                "total_team_business": u.total_team_business,
+                "active_origin_count": u.active_origin_count,
+                "role": u.role,
+            })
+        return jsonify(ok=True, users=data)
+    finally:
+        db.close()
+
 
 # -------------------------
 # Static mini-app file (optional helper)
