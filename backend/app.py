@@ -200,7 +200,7 @@ def webapp_me():
     try:
         data = request.get_json() or {}
         init_data = data.get("initData")
-        tg_user = parse_telegram_init_data(init_data)  # your existing function
+        tg_user = verify_telegram_init_data(init_data)  # your existing function
 
         # NEW: read referral id from the request
         ref_id = get_ref_from_payload(data)
@@ -538,7 +538,7 @@ def webapp_verify():
         init_data = data.get("initData")
         amount = float(data.get("amount") or 0)
 
-        tg_user = parse_telegram_init_data(init_data)
+        tg_user = verify_telegram_init_data(init_data)
 
         # NEW: read referral id
         ref_id = get_ref_from_payload(data)
