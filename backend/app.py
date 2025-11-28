@@ -687,6 +687,44 @@ def webapp_verify():
 
     finally:
         db.close()
+@app.route("/debug/downlines/<int:user_id>")
+def debug_downlines(user_id):
+    db = SessionLocal()
+    try:
+        user = db.query(User).get(user_id)
+        if not user:
+            return jsonify({"exists": False, "error": "user_not_found"})
+
+        # direct downlines
+        direct = db.query(User).filter(User.referrer_id == user_id).all()
+
+        return jsonify({
+            "exists": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "username": user.username,
+                "role": user.role,
+                "self_activated": user.self_activated,
+                "referrer_id": user.referrer_id,
+                "total_team_business": float(user.total_team_business or 0),
+            },
+            "direct_downlines": [
+                {
+                    "id": d.id,
+                    "first_name": d.first_name,
+                    "username": d.username,
+                    "role": d.role,
+                    "self_activated": d.self_activated,
+                    "referrer_id": d.referrer_id,
+                    "total_team_business": float(d.total_team_business or 0),
+                }
+                for d in direct
+            ],
+            "direct_downline_count": len(direct),
+        })
+    finally:
+        db.close()
 
 
 @app.route("/debug/link_referrer", methods=["POST"])
@@ -722,47 +760,7 @@ def debug_link_referrer():
     finally:
         db.close()
 
-        @app.route("/debug/downlines/<int:user_id>")
-def debug_downlines(user_id):
-    db = SessionLocal()
-    try:
-        user = db.query(User).get(user_id)
-        if not user:
-            return jsonify({"exists": False, "error": "user_not_found"})
-
-        # direct children: users whose referrer_id == user_id
-        direct = db.query(User).filter(User.referrer_id == user_id).all()
-
-        # for convenience, also show this user's own info + upline
-        return jsonify({
-            "exists": True,
-            "user": {
-                "id": user.id,
-                "first_name": user.first_name,
-                "username": user.username,
-                "role": user.role,
-                "self_activated": user.self_activated,
-                "referrer_id": user.referrer_id,      # upline
-                "total_team_business": float(user.total_team_business or 0),
-            },
-            "direct_downlines": [
-                {
-                    "id": d.id,
-                    "first_name": d.first_name,
-                    "username": d.username,
-                    "role": d.role,
-                    "self_activated": d.self_activated,
-                    "referrer_id": d.referrer_id,
-                    "total_team_business": float(d.total_team_business or 0),
-                }
-                for d in direct
-            ],
-            "direct_downline_count": len(direct),
-        })
-    finally:
-        db.close()
-
-
+        
 @app.route("/debug/list_users", methods=["GET"])
 def debug_list_users():
     """DEBUG: list users in the current DB."""
