@@ -129,20 +129,17 @@ def home():
 # -------------------------
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
-    """
-    Returns the current user info for the mini app.
-
-    - Verifies Telegram initData
-    - Creates user in DB if not exists
-    - On first creation, automatically sets referrer_id from Telegram start_param
-      (if present and points to an existing user, and not self).
-    """
     data = request.get_json(force=True) or {}
     init_data = data.get("initData", "")
 
-    user_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+    # get from initData
+    user_id, username, first_name, parsed_start_param = verify_telegram_init_data(init_data)
     if not user_id:
         return jsonify(ok=False, error="verify_failed"), 403
+
+    # also allow explicit start_param from body (from JS), override if present
+    body_start_param = data.get("start_param")
+    start_param = body_start_param or parsed_start_param
 
     db = SessionLocal()
     try:
@@ -150,7 +147,6 @@ def webapp_me():
         first_time = False
 
         if not user:
-            # New user: create and optionally link referrer
             user = User(
                 id=user_id,
                 username=username or "",
@@ -162,7 +158,7 @@ def webapp_me():
             if start_param:
                 try:
                     ref_id = int(start_param)
-                except ValueError:
+                except (TypeError, ValueError):
                     ref_id = None
 
                 if ref_id and ref_id != user_id:
@@ -210,8 +206,6 @@ def webapp_me():
         return jsonify(ok=False, error="db_error", detail=str(e)), 500
     finally:
         db.close()
-
-
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():

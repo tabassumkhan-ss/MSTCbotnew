@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MSTC Earning Project — Deposit & Reward System</title>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
@@ -16,8 +17,9 @@
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       text-align: center;
       color: #fff;
-      background: radial-gradient(1200px 600px at 50% -20%, rgba(255,255,255,.08), transparent 60%),
-                  linear-gradient(135deg, #5c3cff, #0e1630 60%);
+      background:
+        radial-gradient(1200px 600px at 50% -20%, rgba(255,255,255,.08), transparent 60%),
+        linear-gradient(135deg, #5c3cff, #0e1630 60%);
       overflow-y: auto;
       overflow-x: hidden;
       padding: 12px 10px 24px;
@@ -35,130 +37,308 @@
     }
 
     .logo {
-      width: 88px; height: 88px; border-radius: 50%; object-fit: cover;
-      border: 4px solid rgba(255,255,255,.35); margin: 0 auto 14px; display:block;
-      box-shadow: 0 10px 26px rgba(0,0,0,.35), 0 0 0 8px rgba(255,255,255,.08) inset;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid rgba(255,255,255,.35);
+      margin: 0 auto 14px;
+      display: block;
+      box-shadow:
+        0 10px 26px rgba(0,0,0,.35),
+        0 0 0 8px rgba(255,255,255,.08) inset;
       position: relative;
     }
-    .logo.glow { border-color: transparent; box-shadow: none; isolation:isolate; }
-    .logo.glow::before, .logo.glow::after {
-      content: ""; position: absolute; inset: -6px; border-radius: 50%; z-index: -1;
+
+    .logo.glow {
+      border-color: transparent;
+      box-shadow: none;
+      isolation:isolate;
     }
-    .logo.glow::before {
-      background: conic-gradient(from 0deg,#6cf 0%,#8af 25%,#9ff 50%,#7df 75%,#6cf 100%);
-      filter: blur(6px); animation: spin 4s linear infinite; opacity: .95;
-    }
+
+    .logo.glow::before,
     .logo.glow::after {
-      inset: -14px; background: radial-gradient(closest-side, rgba(108,240,255,.5), rgba(0,0,0,0));
-      filter: blur(10px); opacity: .65;
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      z-index: -1;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-    h2 { margin:0 0 10px; font-weight:700; }
-    .row { margin:10px 0; font-size:1.05rem; }
-    .big { font-size:1.25rem; font-weight:700; }
+    .logo.glow::before {
+      background: conic-gradient(
+        from 0deg,
+        #6cf 0%,
+        #8af 25%,
+        #9ff 50%,
+        #7df 75%,
+        #6cf 100%
+      );
+      filter: blur(6px);
+      animation: spin 4s linear infinite;
+      opacity: .95;
+    }
 
-    .actions { margin-top:16px; display:flex; gap:12px; justify-content:center; }
+    .logo.glow::after {
+      inset: -14px;
+      background: radial-gradient(
+        closest-side,
+        rgba(108,240,255,.5),
+        rgba(0,0,0,0)
+      );
+      filter: blur(10px);
+      opacity: .65;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+
+    .row {
+      margin: 10px 0;
+      font-size: 1.05rem;
+    }
+
+    .big {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
     .btn {
-      padding:11px 22px; border-radius:22px; border:0; cursor:pointer; font-weight:600;
-      background:#00c853; color:#fff; box-shadow:0 8px 24px rgba(0,200,83,.35);
+      padding: 11px 22px;
+      border-radius: 22px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      background: #00c853;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0,200,83,.35);
     }
-    .btn.alt { background:#e53935; box-shadow:0 8px 24px rgba(229,57,53,.35); }
 
-    .ref-line { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+    .btn.alt {
+      background: #e53935;
+      box-shadow: 0 8px 24px rgba(229,57,53,.35);
+    }
+
+    .ref-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
     .copy-btn {
-      display:inline-flex; align-items:center; justify-content:center;
-      width:36px; height:36px; border-radius:10px; border:none; cursor:pointer;
-      background: rgba(255,255,255,.16); color:#fff; font-size:18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      background: rgba(255,255,255,.16);
+      color: #fff;
+      font-size: 18px;
       transition: transform .12s ease, opacity .2s;
     }
-    .copy-btn:active { transform: scale(.96); }
-    .tooltip { margin-top:8px; font-size:.85rem; opacity:0; transition:opacity .25s; }
-    .show { opacity:1; }
+
+    .copy-btn:active {
+      transform: scale(.96);
+    }
+
+    .tooltip {
+      margin-top: 8px;
+      font-size: .85rem;
+      opacity: 0;
+      transition: opacity .25s;
+    }
+
+    .show {
+      opacity: 1;
+    }
 
     .panel {
-      margin-top:18px;
-      text-align:left;
-      background:rgba(0,0,0,.18);
-      padding:16px;
-      border-radius:14px;
+      margin-top: 18px;
+      text-align: left;
+      background: rgba(0,0,0,.18);
+      padding: 16px;
+      border-radius: 14px;
     }
-    .panel h3 { margin:0 0 10px; color:#fff; }
-    label { display:block; font-size:.95rem; opacity:.9; margin:10px 0 6px; }
-    input, .addr-box {
-      width:100%; padding:12px 12px; border-radius:10px;
-      border:1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.08); color:#fff; outline:none;
+
+    .panel h3 {
+      margin: 0 0 10px;
+      color: #fff;
     }
-    .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
-    .rowline { display:flex; align-items:center; gap:10px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
-    .mini { font-size:.9rem; opacity:.9; }
-    .submit { margin-top:14px; text-align:right; }
-    .btn.secondary { background:#2a7de1; box-shadow:0 8px 24px rgba(42,125,225,.35); }
-    .error { color:#ffb4b4; font-size:.9rem; margin-top:6px; }
-    .ok { color:#b5ffcb; font-size:.9rem; margin-top:6px; }
+
+    label {
+      display: block;
+      font-size: .95rem;
+      opacity: .9;
+      margin: 10px 0 6px;
+    }
+
+    input,
+    .addr-box {
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      outline: none;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .rowline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-all;
+    }
+
+    .mini {
+      font-size: .9rem;
+      opacity: .9;
+    }
+
+    .submit {
+      margin-top: 14px;
+      text-align: right;
+    }
+
+    .btn.secondary {
+      background: #2a7de1;
+      box-shadow: 0 8px 24px rgba(42,125,225,.35);
+    }
+
+    .error {
+      color: #ffb4b4;
+      font-size: .9rem;
+      margin-top: 6px;
+    }
+
+    .ok {
+      color: #b5ffcb;
+      font-size: .9rem;
+      margin-top: 6px;
+    }
 
     /* Rank panel */
     .rank-panel {
-      margin-top:18px;
-      background:rgba(0,0,0,.18);
-      padding:16px;
-      border-radius:14px;
+      margin-top: 18px;
+      background: rgba(0,0,0,.18);
+      padding: 16px;
+      border-radius: 14px;
     }
+
     .rank-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
     }
-    .rank-header-title { font-size:1rem; font-weight:600; }
-    .rank-current-label { font-size:.85rem; opacity:.9; }
+
+    .rank-header-title {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .rank-current-label {
+      font-size: .85rem;
+      opacity: .9;
+    }
 
     .rank-tabs {
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-bottom:10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
     .rank-tab {
-      width:100%;
-      padding:12px 14px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      font-size:.85rem;
-      cursor:pointer;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      text-align:center;
-      gap:6px;
-      position:relative;
-      overflow:hidden;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      font-size: .85rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .rank-name { font-weight:600; font-size:.9rem; }
-    .rank-percent { font-size:.8rem; opacity:.9; }
-    .rank-status { font-size:.75rem; opacity:.85; }
+    .rank-name {
+      font-weight: 600;
+      font-size: .9rem;
+    }
+
+    .rank-percent {
+      font-size: .8rem;
+      opacity: .9;
+    }
+
+    .rank-status {
+      font-size: .75rem;
+      opacity: .85;
+    }
 
     .rank-tab.achieved {
-      border-color:#00c853;
+      border-color: #00c853;
       box-shadow:
         0 0 0 1px rgba(0,200,83,.4),
         0 0 16px rgba(0,200,83,.45);
     }
+
     .rank-tab.achieved::before {
-      content:"";
-      position:absolute;
-      left:0; top:0; bottom:0;
-      width:5px;
-      background:linear-gradient(180deg,rgba(0,200,83,1),rgba(0,200,83,0.1));
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: linear-gradient(
+        180deg,
+        rgba(0,200,83,1),
+        rgba(0,200,83,0.1)
+      );
     }
-    .rank-tab.locked .rank-status { color:#ffb4b4; }
-    .rank-tab.achieved .rank-status { color:#b5ffcb; }
+
+    .rank-tab.locked .rank-status {
+      color: #ffb4b4;
+    }
+
+    .rank-tab.achieved .rank-status {
+      color: #b5ffcb;
+    }
 
     .rank-tab.active {
       box-shadow:
@@ -167,42 +347,59 @@
     }
 
     .rank-main {
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:2px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
     }
 
     .rank-progress {
-      width:100%;
-      height:6px;
-      border-radius:999px;
-      background:rgba(255,255,255,.12);
-      overflow:hidden;
-      margin-top:4px;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      overflow: hidden;
+      margin-top: 4px;
     }
 
     .rank-progress-bar {
-      height:100%;
-      border-radius:inherit;
-      background:linear-gradient(90deg,#00c853,#b2ff59);
-      transform-origin:left;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg,#00c853,#b2ff59);
+      transform-origin: left;
     }
 
-    .rank-progress-text { font-size:.75rem; opacity:.85; margin-top:2px; }
+    .rank-progress-text {
+      font-size: .75rem;
+      opacity: .85;
+      margin-top: 2px;
+    }
 
-    .rank-details { font-size:.9rem; line-height:1.4; }
-    .rank-details ul { padding-left:18px; margin:6px 0; }
-    .rank-details li { margin:2px 0; }
+    .rank-details {
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+
+    .rank-details ul {
+      padding-left: 18px;
+      margin: 6px 0;
+    }
+
+    .rank-details li {
+      margin: 2px 0;
+    }
   </style>
 </head>
 <body>
   <div class="card" id="app">
-    <img src="./Botologo_new.png" alt="MSTC EARNING PROJECT" class="logo" id="avatar" />
+    <img src="./Botologo_new.png"
+         alt="MSTC EARNING PROJECT"
+         class="logo"
+         id="avatar" />
 
     <!-- Registration question + Yes/No; hidden later for registered users -->
     <div id="registerSection">
-      <h2 id="accountStatus"> Do you want to Register</h2>
+      <h2 id="accountStatus">Do you want to register?</h2>
       <div class="actions">
         <button id="yesBtn" class="btn" type="button">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
@@ -211,24 +408,33 @@
   </div>
 
   <script>
-    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
-    try { tg && tg.ready(); tg && tg.expand(); } catch(e){}
+    const tg = window.Telegram && window.Telegram.WebApp
+      ? window.Telegram.WebApp
+      : null;
+
+    try {
+      tg && tg.ready();
+      tg && tg.expand();
+    } catch (e) {}
 
     const app = document.getElementById('app');
     const baseLogo = './Botologo_new.png';
 
+    // addresses and labels
     const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
     const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
     const CHAIN_LABEL = "EVM Chain";
 
-    function copyText(txt,tip){
-      navigator.clipboard.writeText(txt).then(()=>{
+    function copyText(txt, tip) {
+      navigator.clipboard.writeText(txt).then(() => {
         tip.classList.add('show');
-        setTimeout(()=>tip.classList.remove('show'),1200);
-      }).catch(()=>alert('Copy failed'));
+        setTimeout(() => tip.classList.remove('show'), 1200);
+      }).catch(() => alert('Copy failed'));
     }
 
-    function fmt(n){return Number(n).toFixed(2);}
+    function fmt(n) {
+      return Number(n).toFixed(2);
+    }
 
     // rank computation
     function computeRanks(user) {
@@ -250,52 +456,61 @@
       else if (isLifeChanger) current = 'Life Changer';
       else if (isOrigin) current = 'Origin';
 
-      return { isOrigin, isLifeChanger, isAdvisor, isVisionary, isCreator, total, activeOrigins, current };
+      return {
+        isOrigin,
+        isLifeChanger,
+        isAdvisor,
+        isVisionary,
+        isCreator,
+        total,
+        activeOrigins,
+        current
+      };
     }
 
     // Verify with backend; fallback to Telegram user
     async function verifyInitData() {
-      const tgApp = window.Telegram && window.Telegram.WebApp;
-      const initData = tgApp ? tgApp.initData : "";
-      const unsafeUser = tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user ? tgApp.initDataUnsafe.user : null;
+  const tgApp = window.Telegram && window.Telegram.WebApp;
+  const initData = tgApp ? tgApp.initData : "";
+  const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+  const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
 
-      if (!tgApp) {
-        console.warn("Not inside Telegram WebApp – using test user.");
-        return {
-          ok: false,
-          user: {
-            id: 123456,
-            first_name: "Test User",
-            username: "testuser",
-            photo_url: null,
-            total_team_business: 0,
-            active_origin_count: 0,
-            role: "",
-            self_activated: false
-          }
-        };
+  // This is where Telegram puts referral info when using ?start= or ?startapp=
+  const startParam = unsafe && (unsafe.start_param || unsafe.startParam) ? (unsafe.start_param || unsafe.startParam) : null;
+
+  if (!tgApp) {
+    console.warn("Not inside Telegram WebApp – using test user.");
+    return {
+      ok: false,
+      user: {
+        id: 123456,
+        first_name: "Test User",
+        username: "testuser",
+        photo_url: null,
+        total_team_business: 0,
+        active_origin_count: 0,
+        role: "",
+        self_activated: false
       }
-
-      try {
-        const res = await fetch('/webapp/me', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ initData })
-        });
-        const j = await res.json();
-
+    };
+  }
+  try {
+    const res = await fetch('/webapp/me', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      // 🔴 send start_param too
+      body: JSON.stringify({ initData, start_param: startParam })
+    });
+    const j = await res.json();
+    
         if (!res.ok || !j.ok) {
           const msg = j.error || j.detail || 'verify failed';
           throw new Error(msg);
         }
-
         return j;
       } catch (err) {
         console.warn('verify error, using unsafe Telegram user as fallback:', err);
-        return {
-          ok: false,
-          user: unsafeUser || {}
-        };
+        return { ok: false, user: unsafeUser || {} };
       }
     }
 
@@ -303,26 +518,44 @@
       // UPDATED: use mstcrefbot for referral link
       const ref = `https://t.me/mstcrefbot?start=${uid}`;
       const ranks = computeRanks(userData || {});
+
       const total = ranks.total.toFixed(2);
       const activeOrigins = ranks.activeOrigins;
 
-      const originProgress   = ranks.isOrigin      ? 100 : 0;
-      const lcBusiness       = Math.min(ranks.total / 1000, 1);
-      const lcOrigins        = Math.min(ranks.activeOrigins / 10, 1);
+      const originProgress = ranks.isOrigin ? 100 : 0;
+
+      const lcBusiness = Math.min(ranks.total / 1000, 1);
+      const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
       const lifeChangerProgress = ranks.isLifeChanger
         ? 100
         : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
-      const advisorProgress  = ranks.isAdvisor   ? 100 : Math.round(Math.min(ranks.total / 5000, 1) * 100);
-      const visionaryProgress= ranks.isVisionary ? 100 : Math.round(Math.min(ranks.total / 25000, 1) * 100);
-      const creatorProgress  = ranks.isCreator   ? 100 : Math.round(Math.min(ranks.total / 100000, 1) * 100);
+
+      const advisorProgress = ranks.isAdvisor
+        ? 100
+        : Math.round(Math.min(ranks.total / 5000, 1) * 100);
+
+      const visionaryProgress = ranks.isVisionary
+        ? 100
+        : Math.round(Math.min(ranks.total / 25000, 1) * 100);
+
+      const creatorProgress = ranks.isCreator
+        ? 100
+        : Math.round(Math.min(ranks.total / 100000, 1) * 100);
 
       app.innerHTML = `
         <img src="${avatar || baseLogo}" class="logo glow" />
         <div class="row big">${uid ?? '(unknown)'}</div>
         <div class="row">${name || 'Unknown'}</div>
-        <div class="row mini">Total Team Business: <b>$${total}</b> · Active Origins: <b>${activeOrigins}</b></div>
+        <div class="row mini">
+          Total Team Business:
+          <b>$${total}</b>
+          · Active Origins:
+          <b>${activeOrigins}</b>
+        </div>
+
         <div class="row ref-line">
-          <span class="mini">Referral Link</span><button class="copy-btn" id="copyRef">📋</button>
+          <span class="mini">Referral Link</span>
+          <button class="copy-btn" id="copyRef">📋</button>
         </div>
         <div class="tooltip" id="tipRef">Copied!</div>
 
@@ -337,110 +570,189 @@
           <div class="split">
             <div>
               <div class="mini">MUSD (70%)</div>
-              <div class="rowline"><span id="musdAmt" class="big">0.00</span><span class="mini">USD</span></div>
+              <div class="rowline">
+                <span id="musdAmt" class="big">0.00</span>
+                <span class="mini">USD</span>
+              </div>
+
               <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
               <div class="addr-box mono">${ADDR_MUSD}</div>
               <div class="rowline" style="margin-top:6px;">
-                <button class="copy-btn" id="copyMUSD">📋</button><span class="mini">${CHAIN_LABEL}</span>
+                <button class="copy-btn" id="copyMUSD">📋</button>
+                <span class="mini">${CHAIN_LABEL}</span>
               </div>
+
               <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
               <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
             </div>
 
             <div>
               <div class="mini">MSTC (30%)</div>
-              <div class="rowline"><span id="mstcAmt" class="big">0.00</span><span class="mini">USD</span></div>
+              <div class="rowline">
+                <span id="mstcAmt" class="big">0.00</span>
+                <span class="mini">USD</span>
+              </div>
+
               <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
               <div class="addr-box mono">${ADDR_MSTC}</div>
               <div class="rowline" style="margin-top:6px;">
-                <button class="copy-btn" id="copyMSTC">📋</button><span class="mini">${CHAIN_LABEL}</span>
+                <button class="copy-btn" id="copyMSTC">📋</button>
+                <span class="mini">${CHAIN_LABEL}</span>
               </div>
+
               <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
               <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
             </div>
           </div>
 
-          <div class="submit"><button class="btn secondary" id="submitDeposit">Submit Deposit</button></div>
-          <div id="submitMsg" class="ok" style="display:none;">Submitted! We’ll verify your transactions shortly.</div>
+          <div class="submit">
+            <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
+          </div>
+          <div id="submitMsg" class="ok" style="display:none;">
+            Submitted! We’ll verify your transactions shortly.
+          </div>
         </div>
 
         <div class="rank-panel">
           <div class="rank-header">
             <div class="rank-header-title">🏅 Your Rank & Levels</div>
-            <div class="rank-current-label">Current: <b>${ranks.current}</b></div>
+            <div class="rank-current-label">
+              Current: <b>${ranks.current}</b>
+            </div>
           </div>
+
           <div class="rank-tabs">
-            <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
+            <button
+              class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
+              data-rank="origin"
+            >
               <div class="rank-main">
                 <span class="rank-name">Origin</span>
                 <span class="rank-percent">5% Level Income</span>
-                <span class="rank-status">${ranks.isOrigin ? 'Achieved' : 'Locked'}</span>
+                <span class="rank-status">
+                  ${ranks.isOrigin ? 'Achieved' : 'Locked'}
+                </span>
               </div>
               <div class="rank-progress">
-                <div class="rank-progress-bar" style="width:${originProgress}%;"></div>
+                <div
+                  class="rank-progress-bar"
+                  style="width:${originProgress}%;"
+                ></div>
               </div>
-              <div class="rank-progress-text">${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}</div>
+              <div class="rank-progress-text">
+                ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
+              </div>
             </button>
 
-            <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
+            <button
+              class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
+              data-rank="life_changer"
+            >
               <div class="rank-main">
                 <span class="rank-name">Life Changer</span>
                 <span class="rank-percent">10% Direct</span>
-                <span class="rank-status">${ranks.isLifeChanger ? 'Achieved' : 'Locked'}</span>
+                <span class="rank-status">
+                  ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
+                </span>
               </div>
               <div class="rank-progress">
-                <div class="rank-progress-bar" style="width:${lifeChangerProgress}%;"></div>
+                <div
+                  class="rank-progress-bar"
+                  style="width:${lifeChangerProgress}%;"
+                ></div>
               </div>
-              <div class="rank-progress-text">${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}</div>
+              <div class="rank-progress-text">
+                ${lifeChangerProgress}% ${
+                  lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
+                }
+              </div>
             </button>
 
-            <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
+            <button
+              class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
+              data-rank="advisor"
+            >
               <div class="rank-main">
                 <span class="rank-name">Advisor</span>
                 <span class="rank-percent">15% Club Rank</span>
-                <span class="rank-status">${ranks.isAdvisor ? 'Achieved' : 'Locked'}</span>
+                <span class="rank-status">
+                  ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
+                </span>
               </div>
               <div class="rank-progress">
-                <div class="rank-progress-bar" style="width:${advisorProgress}%;"></div>
+                <div
+                  class="rank-progress-bar"
+                  style="width:${advisorProgress}%;"
+                ></div>
               </div>
-              <div class="rank-progress-text">${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}</div>
+              <div class="rank-progress-text">
+                ${advisorProgress}% ${
+                  advisorProgress === 100 ? 'achieved' : 'towards next rank'
+                }
+              </div>
             </button>
 
-            <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
+            <button
+              class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
+              data-rank="visionary"
+            >
               <div class="rank-main">
                 <span class="rank-name">Visionary</span>
                 <span class="rank-percent">20% Club Rank</span>
-                <span class="rank-status">${ranks.isVisionary ? 'Achieved' : 'Locked'}</span>
+                <span class="rank-status">
+                  ${ranks.isVisionary ? 'Achieved' : 'Locked'}
+                </span>
               </div>
               <div class="rank-progress">
-                <div class="rank-progress-bar" style="width:${visionaryProgress}%;"></div>
+                <div
+                  class="rank-progress-bar"
+                  style="width:${visionaryProgress}%;"
+                ></div>
               </div>
-              <div class="rank-progress-text">${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}</div>
+              <div class="rank-progress-text">
+                ${visionaryProgress}% ${
+                  visionaryProgress === 100 ? 'achieved' : 'towards next rank'
+                }
+              </div>
             </button>
 
-            <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
+            <button
+              class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
+              data-rank="creator"
+            >
               <div class="rank-main">
                 <span class="rank-name">Creator</span>
                 <span class="rank-percent">25% Top Rank</span>
-                <span class="rank-status">${ranks.isCreator ? 'Achieved' : 'Locked'}</span>
+                <span class="rank-status">
+                  ${ranks.isCreator ? 'Achieved' : 'Locked'}
+                </span>
               </div>
               <div class="rank-progress">
-                <div class="rank-progress-bar" style="width:${creatorProgress}%;"></div>
+                <div
+                  class="rank-progress-bar"
+                  style="width:${creatorProgress}%;"
+                ></div>
               </div>
-              <div class="rank-progress-text">${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}</div>
+              <div class="rank-progress-text">
+                ${creatorProgress}% ${
+                  creatorProgress === 100 ? 'achieved' : 'towards top rank'
+                }
+              </div>
             </button>
           </div>
+
           <div id="rankDetails" class="rank-details"></div>
         </div>
       `;
 
+      // wire up events inside rendered view
       const tip = document.getElementById('tipRef');
       document.getElementById('copyRef').onclick = () => copyText(ref, tip);
 
-      const amt  = document.getElementById('amt');
+      const amt = document.getElementById('amt');
       const musd = document.getElementById('musdAmt');
       const mstc = document.getElementById('mstcAmt');
-      const err  = document.getElementById('err');
+      const err = document.getElementById('err');
 
       amt.oninput = () => {
         const v = parseFloat(amt.value || '0');
@@ -450,34 +762,43 @@
           err.style.display = 'none';
           return;
         }
+
         musd.textContent = fmt(v * 0.70);
         mstc.textContent = fmt(v * 0.30);
-        err.style.display = v < 20 ? 'block' : 'none';
-        err.textContent   = v < 20 ? 'Minimum deposit is $20.' : '';
+
+        if (v < 20) {
+          err.style.display = 'block';
+          err.textContent = 'Minimum deposit is $20.';
+        } else {
+          err.style.display = 'none';
+          err.textContent = '';
+        }
       };
 
       document.getElementById('copyMUSD').onclick = () => copyText(ADDR_MUSD, tip);
       document.getElementById('copyMSTC').onclick = () => copyText(ADDR_MSTC, tip);
 
       document.getElementById('submitDeposit').onclick = async () => {
-        const v   = parseFloat(amt.value || '0');
+        const v = parseFloat(amt.value || '0');
         const tx1 = document.getElementById('txMUSD').value.trim();
         const tx2 = document.getElementById('txMSTC').value.trim();
         const msg = document.getElementById('submitMsg');
 
         if (isNaN(v) || v < 20) {
           err.style.display = 'block';
-          err.textContent   = 'Please enter at least $20.';
+          err.textContent = 'Please enter at least $20.';
           return;
         }
         if (!tx1 || !tx2) {
           err.style.display = 'block';
-          err.textContent   = 'Please paste both transaction hashes.';
+          err.textContent = 'Please paste both transaction hashes.';
           return;
         }
 
         const payload = {
-          initData: (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp.initData : "",
+          initData: (window.Telegram && window.Telegram.WebApp)
+            ? window.Telegram.WebApp.initData
+            : "",
           amount: Number(v.toFixed(2)),
           tx_musd: tx1,
           tx_mstc: tx2
@@ -489,9 +810,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-
           const j = await res.json();
-
           if (!res.ok || !j.ok) {
             throw new Error(j.error || j.detail || JSON.stringify(j));
           }
@@ -500,9 +819,10 @@
 
           if (Array.isArray(j.referral_dist) && j.referral_dist.length > 0) {
             const lines = j.referral_dist.map(r => {
-              const who =
-                r.to_username ||
-                (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : 'company_pool');
+              const who = r.to_username ||
+                (r.to_user_id !== null && r.to_user_id !== undefined
+                  ? r.to_user_id
+                  : 'company_pool');
               const lvl = r.level === 0 ? 'Pool' : `Level ${r.level}`;
               return `${lvl}: ${who} → $${r.amount}`;
             });
@@ -521,8 +841,11 @@
 
       function setActiveRankTab(rankKey) {
         rankTabs.forEach(btn => {
-          if (btn.dataset.rank === rankKey) btn.classList.add('active');
-          else btn.classList.remove('active');
+          if (btn.dataset.rank === rankKey) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
         });
 
         let html = '';
@@ -532,15 +855,18 @@
             <ul>
               <li>Self activation required (your own qualifying deposit).</li>
               <li>You start earning 5% from your direct team as Origin.</li>
-            </ul>`;
+            </ul>
+          `;
         } else if (rankKey === 'life_changer') {
           html = `
             <b>Life Changer – 10% Direct</b>
             <ul>
               <li>1000 MUSD total team business.</li>
               <li>10 active Origins in your group.</li>
-              <li>Eligible for Life Changer club and monthly pool (2% company turnover shared among achievers – handled by admin).</li>
-            </ul>`;
+              <li>Eligible for Life Changer club and monthly pool
+                  (2% company turnover shared among achievers – handled by admin).</li>
+            </ul>
+          `;
         } else if (rankKey === 'advisor') {
           html = `
             <b>Advisor – 15%</b>
@@ -548,22 +874,26 @@
               <li>5000 MUSD total team business (target).</li>
               <li>Higher monthly club requirements decided by company rules.</li>
               <li>2% company club pool shared among all active Advisors (as per plan).</li>
-            </ul>`;
+            </ul>
+          `;
         } else if (rankKey === 'visionary') {
           html = `
             <b>Visionary – 20%</b>
             <ul>
               <li>25000 MUSD total team business (target).</li>
               <li>Next-level leadership and club participation.</li>
-            </ul>`;
+            </ul>
+          `;
         } else if (rankKey === 'creator') {
           html = `
             <b>Creator – 25%</b>
             <ul>
               <li>100000 MUSD total team business (top rank target).</li>
               <li>Highest reward slab and special company recognition.</li>
-            </ul>`;
+            </ul>
+          `;
         }
+
         rankDetails.innerHTML = html;
       }
 
@@ -572,6 +902,7 @@
       else if (ranks.isVisionary) defaultRank = 'visionary';
       else if (ranks.isAdvisor) defaultRank = 'advisor';
       else if (ranks.isLifeChanger) defaultRank = 'life_changer';
+
       setActiveRankTab(defaultRank);
 
       rankTabs.forEach(btn => {
@@ -588,7 +919,9 @@
       const verifyResp = await verifyInitData();
 
       const tgApp = window.Telegram && window.Telegram.WebApp;
-      const unsafeUser = tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user ? tgApp.initDataUnsafe.user : {};
+      const unsafeUser = tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
+        ? tgApp.initDataUnsafe.user
+        : {};
 
       const u = verifyResp.user || unsafeUser || {};
       const id = u.id || 0;
@@ -608,7 +941,10 @@
     };
 
     document.getElementById('noBtn').onclick = () => {
-      app.innerHTML = `<img src="${baseLogo}" class="logo"/><div class="row big">❌ Registration Cancelled</div>`;
+      app.innerHTML = `
+        <img src="${baseLogo}" class="logo" />
+        <div class="row big">❌ Registration Cancelled</div>
+      `;
     };
 
     function updateActivationStatus(user) {
@@ -623,36 +959,32 @@
       } else {
         // REGISTERED USER – hide question
         registerSection.style.display = "none";
-
+        // Text here will be replaced when full view loads,
+        // but it's safe to keep a message.
         if (user.is_active) {
           statusEl.textContent = "You are activated as Origin ✅";
         } else {
-          statusEl.textContent = "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
+          statusEl.textContent =
+            "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
         }
       }
     }
 
     async function loadActivationStatus() {
-      if (!tg) {
+      const tgApp = window.Telegram && window.Telegram.WebApp;
+      if (!tgApp) {
         console.error("Telegram WebApp not available");
         return;
       }
 
-      const initUser = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null;
-
-      const payload = {
-        initData: {
-          user: initUser || {}
-        }
-      };
+      const initData = tgApp.initData || "";
 
       try {
         const res = await fetch('/webapp/init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ initData })
         });
-
         const data = await res.json();
 
         if (data && data.ok !== false) {
@@ -676,3 +1008,4 @@
   </script>
 </body>
 </html>
+
