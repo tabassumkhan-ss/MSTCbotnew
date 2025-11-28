@@ -26,11 +26,28 @@ print("Flask DB URL:", engine.url)
 def get_ref_from_payload(data):
     """
     Try to read referral id from the incoming JSON.
-    We accept either 'ref' or 'referrer_id' fields.
+
+    Priority:
+      1) data["ref"] or data["referrer_id"]
+      2) "ref" or "start_param" inside initData (Telegram start param)
     """
     ref_raw = data.get("ref") or data.get("referrer_id")
+
+    # If frontend didn't send ref explicitly, try to extract from initData
+    if not ref_raw:
+        init_data = data.get("initData")
+        if isinstance(init_data, str):
+            try:
+                # init_data is a query-string-like payload from Telegram
+                pairs = dict(parse_qsl(init_data, keep_blank_values=True))
+                # Telegram deep-link "start_param" usually carries ref code
+                ref_raw = pairs.get("ref") or pairs.get("start_param")
+            except Exception:
+                ref_raw = None
+
     if ref_raw is None:
         return None
+
     try:
         return int(ref_raw)
     except (TypeError, ValueError):
