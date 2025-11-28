@@ -258,15 +258,24 @@ def webapp_me():
     try:
         data = request.get_json() or {}
         init_data = data.get("initData")
-        tg_user = verify_telegram_init_data(init_data)  # your existing function
+        tg_user = verify_telegram_init_data(init_data)
 
-        # NEW: read referral id from the request
         ref_id = get_ref_from_payload(data)
-
-        # NEW: central helper that creates user + auto-links ref
         user = get_or_create_user(db, tg_user, ref_id)
 
-        # ... build whatever JSON you already return, example:
+        logging.info("ME DEBUG raw data: %r", data)
+        logging.info(
+            "ME DEBUG user_id=%s ref_id=%s user.referrer_id(before)=%s",
+            user.id, ref_id, user.referrer_id
+        )
+
+        if user.referrer_id is None and ref_id and ref_id != user.id:
+            logging.info("ME DEBUG Force-linking referrer: user %s -> %s", user.id, ref_id)
+            user.referrer_id = ref_id
+            db.commit()
+            db.refresh(user)
+            logging.info("ME DEBUG user.referrer_id(after)=%s", user.referrer_id)
+
         resp = {
             "ok": True,
             "user": {
@@ -602,80 +611,80 @@ def webapp_verify():
         if amount <= 0:
             return jsonify({"ok": False, "error": "invalid_amount"}), 400
 
-        # Parse Telegram initData and get Telegram user dict
+        # Parse Telegram initData
         tg_user = verify_telegram_init_data(init_data)
 
-        # Read referral id from payload (?ref= in mini app URL)
+        # Referral extraction
         ref_id = get_ref_from_payload(data)
 
-        # Create/get user and auto-link referrer (if any)
+        # Get or create user
         user = get_or_create_user(db, tg_user, ref_id)
+
+        logging.info("VERIFY DEBUG raw data: %r", data)
+        logging.info(
+            "VERIFY DEBUG user_id=%s ref_id=%s user.referrer_id(before)=%s",
+            user.id, ref_id, user.referrer_id
+        )
+
+        # Force-link if needed
         if user.referrer_id is None and ref_id and ref_id != user.id:
             logging.info("Force-linking referrer: user %s -> %s", user.id, ref_id)
             user.referrer_id = ref_id
             db.commit()
             db.refresh(user)
+            logging.info(
+                "VERIFY DEBUG user.referrer_id(after)=%s", user.referrer_id
+            )
 
-        # ---------- Activation & team business logic ----------
-        # mark self_activated if this is their first qualifying deposit
+        # ---------- ACTIVATION ----------
         if not user.self_activated and amount >= 20:
             user.self_activated = True
-            # you can set role to "origin" here if that's your rule
-            if not user.role:
-                user.role = "origin"
+            user.role = "origin"     # <-- THIS IS SAFE NOW
+            logging.info("User %s activated as Origin", user.id)
 
-        # increment user's own team business
+        # ---------- TEAM BUSINESS ----------
         user.total_team_business = float(user.total_team_business or 0) + amount
 
-        # ---------- Referral distribution (simple Level 1) ----------
+        # ---------- REFERRAL DISTRIBUTION ----------
+        level1_bonus = round(amount * 0.05, 2)
         referral_dist = None
-        level1_bonus = round(amount * 0.05, 2)  # 5% Origin bonus
 
         if user.referrer_id:
             referrer = db.query(User).get(user.referrer_id)
             if referrer and referrer.self_activated:
-                # Pay Level 1 bonus to referrer
-                # (Example: track rewards in some field if you have it)
-                if hasattr(referrer, "referral_earnings"):
-                    referrer.referral_earnings = float(
-                        getattr(referrer, "referral_earnings", 0.0) or 0.0
-                    ) + level1_bonus
-
                 referral_dist = {
                     "to": str(referrer.id),
                     "level": 1,
-                    "amount": level1_bonus,
+                    "amount": level1_bonus
                 }
             else:
-                # Referrer not active → send to company_pool
                 referral_dist = {
                     "to": "company_pool",
-                    "amount": level1_bonus,
+                    "amount": level1_bonus
                 }
         else:
-            # No referrer → send to company_pool
             referral_dist = {
                 "to": "company_pool",
-                "amount": level1_bonus,
+                "amount": level1_bonus
             }
 
-        # ---------- Commit DB changes ----------
         db.commit()
 
-        # ---------- Return JSON response ----------
         return jsonify({
             "ok": True,
             "amount": amount,
             "user_id": user.id,
             "self_activated": user.self_activated,
+            "role": user.role,
             "referrer_id": user.referrer_id,
-            "referral_dist": referral_dist,
+            "referral_dist": referral_dist
         })
 
     except Exception as e:
         db.rollback()
         logging.exception("Error in /webapp/verify")
         return jsonify({"ok": False, "error": "server_error"}), 500
+
     finally:
         db.close()
 
