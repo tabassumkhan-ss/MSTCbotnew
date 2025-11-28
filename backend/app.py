@@ -730,7 +730,8 @@ def telegram_webhook():
 # Entrypoint
 # -------------------------
 if __name__ == "__main__":
-    import sys
+    import os
+    import logging
 
     logging.basicConfig(
         level=logging.INFO,
@@ -739,18 +740,10 @@ if __name__ == "__main__":
     logger = logging.getLogger("backend.app")
     logger.info("Starting backend.app entrypoint (pid=%s)", os.getpid())
 
-    host = "127.0.0.1"
-    port = 8001
-    debug = True
+    # Render will set PORT; locally it will default to 8001
+    port = int(os.environ.get("PORT", 8001))
+    host = "0.0.0.0"          # IMPORTANT: must be 0.0.0.0 for Render
+    debug = False             # keep False in production
 
-    if len(sys.argv) >= 2 and sys.argv[1] == "run":
-        if len(sys.argv) >= 3:
-            try:
-                port = int(sys.argv[2])
-            except Exception:
-                logger.warning("Invalid port passed, using default %s", port)
-        logger.info("Flask run -> host=%s port=%s debug=%s", host, port, debug)
-        app.run(host=host, port=port, debug=debug)
-    else:
-        print("Usage: python backend\\app.py run [port]")
-        print("   or: python -m backend.app run [port]")
+    logger.info("Flask run -> host=%s port=%s debug=%s", host, port, debug)
+    app.run(host=host, port=port, debug=debug)
