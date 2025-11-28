@@ -604,6 +604,38 @@ def webapp_verify():
     finally:
         db.close()
 
+@app.route("/debug/link_referrer", methods=["POST"])
+def debug_link_referrer():
+    """
+    DEBUG ONLY: Manually set referrer_id for a user.
+    Body: { "user_id": <downline_id>, "referrer_id": <upline_id> }
+    """
+    data = request.get_json(force=True) or {}
+    user_id = data.get("user_id")
+    referrer_id = data.get("referrer_id")
+
+    if not user_id or not referrer_id:
+        return jsonify(ok=False, error="missing_ids"), 400
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).get(int(user_id))
+        ref = db.query(User).get(int(referrer_id))
+
+        if not user or not ref:
+            return jsonify(ok=False, error="not_found"), 404
+
+        user.referrer_id = ref.id
+        db.commit()
+
+        return jsonify(ok=True, user_id=user.id, referrer_id=ref.id)
+    except Exception as e:
+        db.rollback()
+        print("Error in /debug/link_referrer:", e)
+        traceback.print_exc()
+        return jsonify(ok=False, error="db_error", detail=str(e)), 500
+    finally:
+        db.close()
 
 
 # -------------------------
