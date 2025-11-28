@@ -452,8 +452,9 @@ def credit_team_business(db, user, amount):
             pass
         current = parent
 
-        def update_rank(user: User):
+def update_rank(user: User):
     """Update user.role based on total_team_business, active_origin_count and self_activated."""
+    
     total = user.total_team_business or 0.0
     active_origins = user.active_origin_count or 0
 
@@ -468,7 +469,6 @@ def credit_team_business(db, user, amount):
     elif user.self_activated:
         user.role = "origin"
     else:
-        # keep at least "user"
         if not user.role:
             user.role = "user"
 
@@ -476,7 +476,7 @@ def credit_team_business(db, user, amount):
 def propagate_team_business(db: SessionLocal, user: User, amount: float, became_origin_now: bool):
     """
     Add amount to total_team_business of all uplines.
-    If became_origin_now=True, increment active_origin_count for all uplines.
+    Increment active_origin_count of uplines if user became Origin on this deposit.
     """
     visited = set()
     current = user
@@ -484,16 +484,18 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
         ref = db.query(User).get(current.referrer_id)
         if not ref:
             break
+
         visited.add(ref.id)
 
         ref.total_team_business = (ref.total_team_business or 0.0) + amount
+
         if became_origin_now:
             ref.active_origin_count = (ref.active_origin_count or 0) + 1
 
-        # update their rank after changing business/active origins
         update_rank(ref)
 
         current = ref
+
 
 
 @app.route("/webapp/verify", methods=["POST"])
