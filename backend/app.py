@@ -538,19 +538,81 @@ def webapp_verify():
         init_data = data.get("initData")
         amount = float(data.get("amount") or 0)
 
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        if amount <= 0:
+            return jsonify({"ok": False, "error": "invalid_amount"}), 400
+
+        # Parse Telegram initData and get Telegram user dict
         tg_user = verify_telegram_init_data(init_data)
 
-        # NEW: read referral id
+        # Read referral id from payload (?ref= in mini app URL)
         ref_id = get_ref_from_payload(data)
 
-        # NEW: get/create user + auto-link
+        # Create/get user and auto-link referrer (if any)
         user = get_or_create_user(db, tg_user, ref_id)
 
-        # ... your existing deposit / reward logic here ...
-        # |-> this logic will now see user.referrer_id set automatically
-        #     if the user came through a referral link.
+        # ---------- Activation & team business logic ----------
+        # mark self_activated if this is their first qualifying deposit
+        if not user.self_activated and amount >= 20:
+            user.self_activated = True
+            # you can set role to "origin" here if that's your rule
+            if not user.role:
+                user.role = "origin"
 
-        # return your existing JSON
+        # increment user's own team business
+        user.total_team_business = float(user.total_team_business or 0) + amount
+
+        # ---------- Referral distribution (simple Level 1) ----------
+        referral_dist = None
+        level1_bonus = round(amount * 0.05, 2)  # 5% Origin bonus
+
+        if user.referrer_id:
+            referrer = db.query(User).get(user.referrer_id)
+            if referrer and referrer.self_activated:
+                # Pay Level 1 bonus to referrer
+                # (Example: track rewards in some field if you have it)
+                if hasattr(referrer, "referral_earnings"):
+                    referrer.referral_earnings = float(
+                        getattr(referrer, "referral_earnings", 0.0) or 0.0
+                    ) + level1_bonus
+
+                referral_dist = {
+                    "to": str(referrer.id),
+                    "level": 1,
+                    "amount": level1_bonus,
+                }
+            else:
+                # Referrer not active → send to company_pool
+                referral_dist = {
+                    "to": "company_pool",
+                    "amount": level1_bonus,
+                }
+        else:
+            # No referrer → send to company_pool
+            referral_dist = {
+                "to": "company_pool",
+                "amount": level1_bonus,
+            }
+
+        # ---------- Commit DB changes ----------
+        db.commit()
+
+        # ---------- Return JSON response ----------
+        return jsonify({
+            "ok": True,
+            "amount": amount,
+            "user_id": user.id,
+            "self_activated": user.self_activated,
+            "referrer_id": user.referrer_id,
+            "referral_dist": referral_dist,
+        })
+
+    except Exception as e:
+        db.rollback()
+        logging.exception("Error in /webapp/verify")
+        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
 
