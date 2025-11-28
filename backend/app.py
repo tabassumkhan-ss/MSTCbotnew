@@ -25,29 +25,29 @@ print("Flask DB URL:", engine.url)
 
 def verify_telegram_init_data(init_data: str):
     """
-    Validate Telegram WebApp initData and return (user_id, username, first_name)
-    or (None, None, None) if invalid.
+    Validate Telegram WebApp initData and return:
+      (user_id, username, first_name, start_param)
+    or (None, None, None, None) if invalid.
 
     Uses the algorithm from:
     https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
     """
     if not init_data:
-        return None, None, None
+        return None, None, None, None
 
     bot_token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        # No token available to verify
-        return None, None, None
+        return None, None, None, None
 
     # Parse query string into dict
     try:
         data = dict(parse_qsl(init_data, strict_parsing=True))
     except Exception:
-        return None, None, None
+        return None, None, None, None
 
     hash_check = data.pop("hash", None)
     if not hash_check:
-        return None, None, None
+        return None, None, None, None
 
     # Build data_check_string
     data_check_pairs = []
@@ -71,19 +71,21 @@ def verify_telegram_init_data(init_data: str):
     ).hexdigest()
 
     if calculated_hash != hash_check:
-        return None, None, None
+        return None, None, None, None
 
     # If hash is valid, parse user data
     user_str = data.get("user")
     if not user_str:
-        return None, None, None
+        return None, None, None, None
 
     try:
         user = json.loads(user_str)
     except Exception:
-        return None, None, None
+        return None, None, None, None
 
-    return user.get("id"), user.get("username"), user.get("first_name")
+    start_param = data.get("start_param")  # this is the referrer's id (as string)
+
+    return user.get("id"), user.get("username"), user.get("first_name"), start_param
 
 
 # -------------------------
@@ -128,70 +130,87 @@ def home():
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
     """
-    Verify Telegram WebApp initData, ensure user exists in DB, and return user info.
-    Frontend sends: { initData: Telegram.WebApp.initData } (string).
+    Returns the current user info for the mini app.
+
+    - Verifies Telegram initData
+    - Creates user in DB if not exists
+    - On first creation, automatically sets referrer_id from Telegram start_param
+      (if present and points to an existing user, and not self).
     """
-    data = request.get_json(force=True)
-    init_data_str = data.get("initData", "")
+    data = request.get_json(force=True) or {}
+    init_data = data.get("initData", "")
 
-    if not init_data_str:
-        return jsonify({"ok": False, "error": "missing_initData"}), 400
-
-    # 1) Parse Telegram initData string → dict
-    pairs = parse_qsl(init_data_str, strict_parsing=True)
-    init_data = {}
-    for k, v in pairs:
-        if k in ("user", "chat"):
-            try:
-                init_data[k] = json.loads(v)
-            except Exception:
-                init_data[k] = {}
-        else:
-            init_data[k] = v
-
-    if "user" not in init_data:
-        return jsonify({"ok": False, "error": "missing_initData.user"}), 400
-
-    # 2) Verify signature
-        # Verify Telegram signature (TEMPORARILY DISABLED FOR TESTING)
-    verified = True  # TODO: re-enable verify_telegram_initdata in production
-
-    if not verified:
-        return jsonify({"ok": False, "error": "verify failed"}), 403
-
-    tg_user = init_data["user"]
-    user_id = int(tg_user.get("id"))
+    user_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+    if not user_id:
+        return jsonify(ok=False, error="verify_failed"), 403
 
     db = SessionLocal()
     try:
         user = db.query(User).get(user_id)
+        first_time = False
+
         if not user:
+            # New user: create and optionally link referrer
             user = User(
                 id=user_id,
-                username=tg_user.get("username") or "",
-                first_name=tg_user.get("first_name") or "",
-                role="user",
-                self_activated=False,
-                balance_musd=0.0,
-                balance_mstc=0.0,
+                username=username or "",
+                first_name=first_name or "",
             )
+            first_time = True
+
+            # Auto-link referrer from start_param (if valid)
+            if start_param:
+                try:
+                    ref_id = int(start_param)
+                except ValueError:
+                    ref_id = None
+
+                if ref_id and ref_id != user_id:
+                    ref = db.query(User).get(ref_id)
+                    if ref:
+                        user.referrer_id = ref.id
+
             db.add(user)
             db.commit()
-            db.refresh(user)
+        else:
+            # Existing user: update name/username if changed
+            changed = False
+            if username and user.username != username:
+                user.username = username
+                changed = True
+            if first_name and user.first_name != first_name:
+                user.first_name = first_name
+                changed = True
+            if changed:
+                db.commit()
 
         resp_user = {
             "id": user.id,
             "username": user.username,
             "first_name": user.first_name,
-            "balance_musd": float(user.balance_musd or 0.0),
-            "balance_mstc": float(user.balance_mstc or 0.0),
             "role": user.role,
-            "total_team_business": float(getattr(user, "total_team_business", 0.0) or 0.0),
-            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+            "self_activated": user.self_activated,
+            "total_team_business": user.total_team_business,
+            "active_origin_count": user.active_origin_count,
+            "referrer_id": user.referrer_id,
         }
-        return jsonify({"ok": True, "user": resp_user, "bot_username": BOT_USERNAME})
+
+        # Flags for your front-end if needed
+        return jsonify(
+            ok=True,
+            user=resp_user,
+            has_registered=True,
+            is_active=bool(user.self_activated),
+            first_time=first_time,
+        )
+
+    except Exception as e:
+        print("Error in /webapp/me:", e)
+        traceback.print_exc()
+        return jsonify(ok=False, error="db_error", detail=str(e)), 500
     finally:
         db.close()
+
 
 
 @app.route("/webapp/init", methods=["POST"])
@@ -506,8 +525,9 @@ def webapp_verify():
     tx_musd = data.get("tx_musd", "").strip()
     tx_mstc = data.get("tx_mstc", "").strip()
 
-    # 1) Verify Telegram initData
-    user_id, username, first_name = verify_telegram_init_data(init_data)
+            # 1) Verify Telegram initData
+    user_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+
     if not user_id:
         return jsonify(ok=False, error="verify_failed"), 403
 
