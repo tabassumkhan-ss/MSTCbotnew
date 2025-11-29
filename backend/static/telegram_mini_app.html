@@ -417,12 +417,17 @@
       tg && tg.expand();
     } catch (e) {}
 
+    // 🔹 NEW: read ?ref= from URL (e.g. ?ref=7955075357)
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get("ref");   // string or null
+    console.log("Referral from URL:", ref);
+
     const app = document.getElementById('app');
     const baseLogo = './Botologo_new.png';
 
     // addresses and labels
-    const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-    const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+    const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0"; 
+    const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0"; 
     const CHAIN_LABEL = "EVM Chain";
 
     function copyText(txt, tip) {
@@ -431,6 +436,7 @@
         setTimeout(() => tip.classList.remove('show'), 1200);
       }).catch(() => alert('Copy failed'));
     }
+
 
     function fmt(n) {
       return Number(n).toFixed(2);
@@ -496,11 +502,13 @@
   }
   try {
     const res = await fetch('/webapp/me', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      // 🔴 send start_param too
-      body: JSON.stringify({ initData, start_param: startParam })
-    });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    initData: tg.initData,
+    ref: ref   // <--- important
+  })
+});
     const j = await res.json();
     
         if (!res.ok || !j.ok) {
@@ -806,10 +814,14 @@
 
         try {
           const res = await fetch('/webapp/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    initData: tg.initData,
+    amount: Number(amount),
+    ref: ref   // <--- important
+  })
+});
           const j = await res.json();
           if (!res.ok || !j.ok) {
             throw new Error(j.error || j.detail || JSON.stringify(j));
@@ -971,36 +983,39 @@
     }
 
     async function loadActivationStatus() {
-      const tgApp = window.Telegram && window.Telegram.WebApp;
-      if (!tgApp) {
-        console.error("Telegram WebApp not available");
-        return;
+  const tgApp = window.Telegram && window.Telegram.WebApp;
+  if (!tgApp) {
+    console.error("Telegram WebApp not available");
+    return;
+  }
+
+  const initData = tgApp.initData || "";
+
+  try {
+    const res = await fetch('/webapp/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData,
+        ref: ref      // 🔹 send referral id along with initData
+      })
+    });
+    const data = await res.json();
+
+    if (data && data.ok !== false) {
+      updateActivationStatus(data);
+
+      // if user already registered, skip question and show full view
+      if (data.has_registered) {
+        await showRegisteredViewFromBackend();
       }
-
-      const initData = tgApp.initData || "";
-
-      try {
-        const res = await fetch('/webapp/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData })
-        });
-        const data = await res.json();
-
-        if (data && data.ok !== false) {
-          updateActivationStatus(data);
-
-          // if user already registered, skip question and show full view
-          if (data.has_registered) {
-            await showRegisteredViewFromBackend();
-          }
-        } else {
-          console.error("init failed", data);
-        }
-      } catch (err) {
-        console.error("Error loading activation status:", err);
-      }
+    } else {
+      console.error("init failed", data);
     }
+  } catch (err) {
+    console.error("Error loading activation status:", err);
+  }
+}
 
     document.addEventListener('DOMContentLoaded', () => {
       loadActivationStatus();

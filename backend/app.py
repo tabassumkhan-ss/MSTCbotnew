@@ -298,68 +298,54 @@ def webapp_init():
     """
     Called by telegram_mini_app.html on load (via loadActivationStatus()).
 
-    Frontend sends (from your JS):
-      { "initData": { "user": { id, username, first_name, ... } } }
-
-    Response:
-      - has_registered: False  -> show "Do you want to register?" + Yes/No
-      - has_registered: True   -> skip question, directly show full dashboard
+    We treat a user as:
+      - "registered" if they have *any* team business or self_activated flag
+      - "active" if self_activated is True (Origin or above)
     """
-    data = request.get_json() or {}
-    init_data = data.get("initData") or {}
-    user_info = init_data.get("user") or {}
-
-    tg_id = user_info.get("id")
-    username = user_info.get("username")
-    first_name = user_info.get("first_name")
-
-    if not tg_id:
-        return jsonify({"ok": False, "error": "no telegram id"}), 400
-
     db = SessionLocal()
     try:
-        # In your DB, Telegram ID == primary key "id"
-        user = db.query(User).get(tg_id)
+        data = request.get_json() or {}
+        init_data = data.get("initData")
 
-        if not user:
-            # First-time user, not in DB
-            return jsonify({
-                "ok": True,
-                "has_registered": False,
-                "is_active": False,
-                "user_id": tg_id,
-                "username": username,
-                "first_name": first_name,
-            })
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        # User exists → registered
-                # User exists → registered
-        has_registered = True
+        # Parse Telegram initData (same as /webapp/me, /webapp/verify)
+        tg_user = verify_telegram_init_data(init_data)
 
-        # Treat self_activated as the "active / Origin" flag
-        self_activated = bool(getattr(user, "self_activated", False))
-        is_active = self_activated
+        # Try to read ref from body or initData
+        ref_id = get_ref_from_payload(data)
 
-        total_team_business = float(getattr(user, "total_team_business", 0) or 0)
-        active_origin_count = int(getattr(user, "active_origin_count", 0) or 0)
-        role = getattr(user, "role", "user")
+        # Get or create the user, and auto-link referrer if possible
+        user = get_or_create_user(db, tg_user, ref_id)
 
+        # "Registered" = user has ever done anything (team business or activated)
+        total_team_business = float(user.total_team_business or 0.0)
+        self_activated = bool(user.self_activated)
+        has_registered = bool(self_activated or total_team_business > 0)
 
+        is_active = self_activated  # your Origin/active flag
 
-        return jsonify({
+        resp = {
             "ok": True,
             "has_registered": has_registered,
             "is_active": is_active,
             "total_team_business": total_team_business,
-            "active_origin_count": active_origin_count,
-            "role": role,
+            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+            "role": user.role,
             "self_activated": self_activated,
             "user_id": user.id,
             "username": user.username,
             "first_name": user.first_name,
-        })
+            "referrer_id": user.referrer_id,
+        }
+        return jsonify(resp)
+    except Exception:
+        logging.exception("Error in /webapp/init")
+        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
+
 
 
 @app.post("/bot/start")
