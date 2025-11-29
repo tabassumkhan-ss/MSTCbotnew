@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
-DATABASE_URL = 'sqlite:///./data/mstcbotv2.db'
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/mstcbot.db")
 
 # For SQLite, ensure check_same_thread when using in multiple threads
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
