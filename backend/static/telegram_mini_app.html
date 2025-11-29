@@ -408,6 +408,9 @@
   </div>
 
   <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    window.currentRef = urlParams.get("ref");
+
     const tg = window.Telegram && window.Telegram.WebApp
       ? window.Telegram.WebApp
       : null;
@@ -417,11 +420,7 @@
       tg && tg.expand();
     } catch (e) {}
 
-    // 🔹 NEW: read ?ref= from URL (e.g. ?ref=7955075357)
-    const urlParams = new URLSearchParams(window.location.search);
-    const ref = urlParams.get("ref");   // string or null
-    console.log("Referral from URL:", ref);
-
+    
     const app = document.getElementById('app');
     const baseLogo = './Botologo_new.png';
 
@@ -809,7 +808,8 @@
             : "",
           amount: Number(v.toFixed(2)),
           tx_musd: tx1,
-          tx_mstc: tx2
+          tx_mstc: tx2,
+          ref: window.currentRef || null
         };
 
         try {
