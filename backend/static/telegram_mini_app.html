@@ -876,26 +876,58 @@ window.currentRef = ref;
           console.log('VERIFY RESPONSE:', data);
 
           if (data.ok) {
-            if (tgApp) {
-              tgApp.showAlert('Deposit submitted successfully!');
-            }
-            msgEl.style.display = 'block';
-            msgEl.textContent = 'Deposit submitted successfully!';
+  
+  let summaryLines = [];
 
-            // Optionally clear inputs
-            amtInput.value = '';
-            txMUSDInput.value = '';
-            txMSTCInput.value = '';
-            musdAmt.textContent = '0.00';
-            mstcAmt.textContent = '0.00';
-          } else {
-            const errorText = data.error || 'unknown error';
-            if (tgApp) {
-              tgApp.showAlert('Failed to submit: ' + errorText);
-            }
-            msgEl.style.display = 'block';
-            msgEl.textContent = 'Failed to submit: ' + errorText;
-          }
+  if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
+    summaryLines.push("Referral distribution:");
+
+    data.referral_dist.forEach(r => {
+      const level = (r.level === 0 || r.level === null || r.level === undefined)
+        ? "Pool"
+        : `Level ${r.level}`;
+
+      const who =
+        r.to_username ||
+        (r.to_user_id !== null && r.to_user_id !== undefined
+          ? r.to_user_id
+          : "company_pool");
+
+      summaryLines.push(`${level}: ${who} → $${r.amount}`);
+    });
+  } else {
+    summaryLines.push("No referral distribution (no uplines linked).");
+  }
+
+  const summaryText = summaryLines.join("\n");
+
+  // Show in Telegram alert 
+  if (tgApp) {
+    tgApp.showAlert("Deposit submitted successfully!\n\n" + summaryText);
+  }
+
+  // Also show in the page below the button
+  msgEl.style.display = "block";
+  msgEl.innerHTML =
+    "Deposit submitted successfully!<br><pre style=\"text-align:left; white-space:pre-wrap; margin-top:4px;\">" +
+    summaryText +
+    "</pre>";
+
+  // Optionally clear inputs
+  amtInput.value = "";
+  txMUSDInput.value = "";
+  txMSTCInput.value = "";
+  musdAmt.textContent = "0.00";
+  mstcAmt.textContent = "0.00";
+} else {
+  const errorText = data.error || "unknown error";
+  if (tgApp) {
+    tgApp.showAlert("Failed to submit: " + errorText);
+  }
+  msgEl.style.display = "block";
+  msgEl.textContent = "Failed to submit: " + errorText;
+}
+
         } catch (e) {
           const errorText = e && e.message ? e.message : String(e);
           if (tgApp) {
