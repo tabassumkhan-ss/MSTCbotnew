@@ -406,621 +406,681 @@
       </div>
     </div>
   </div>
+<script>
+  // --- Referral from URL (?ref=...) ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const ref = urlParams.get("ref") || null;
+  window.currentRef = ref;
 
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    window.currentRef = urlParams.get("ref");
+  // --- Telegram WebApp object ---
+  const tg = window.Telegram && window.Telegram.WebApp
+    ? window.Telegram.WebApp
+    : null;
 
-    const tg = window.Telegram && window.Telegram.WebApp
-      ? window.Telegram.WebApp
-      : null;
+  try {
+    tg && tg.ready();
+    tg && tg.expand();
+  } catch (e) {}
 
-    try {
-      tg && tg.ready();
-      tg && tg.expand();
-    } catch (e) {}
+  const app = document.getElementById('app');
+  const baseLogo = './Botologo_new.png';
 
-    
-    const app = document.getElementById('app');
-    const baseLogo = './Botologo_new.png';
+  // Token addresses and labels
+  const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+  const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+  const CHAIN_LABEL = "EVM Chain";
 
-    // addresses and labels
-    const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0"; 
-    const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0"; 
-    const CHAIN_LABEL = "EVM Chain";
+  function copyText(txt, tip) {
+    navigator.clipboard.writeText(txt).then(() => {
+      tip.classList.add('show');
+      setTimeout(() => tip.classList.remove('show'), 1200);
+    }).catch(() => alert('Copy failed'));
+  }
 
-    function copyText(txt, tip) {
-      navigator.clipboard.writeText(txt).then(() => {
-        tip.classList.add('show');
-        setTimeout(() => tip.classList.remove('show'), 1200);
-      }).catch(() => alert('Copy failed'));
-    }
+  function fmt(n) {
+    return Number(n).toFixed(2);
+  }
 
+  // --- Rank computation ---
+  function computeRanks(user) {
+    const total = Number(user.total_team_business || 0);
+    const activeOrigins = Number(user.active_origin_count || 0);
+    const role = user.role || '';
+    const selfActivated = !!user.self_activated;
 
-    function fmt(n) {
-      return Number(n).toFixed(2);
-    }
+    const isOrigin = selfActivated || role === 'origin';
+    const isLifeChanger = total >= 1000 && activeOrigins >= 10;
+    const isAdvisor = total >= 5000;
+    const isVisionary = total >= 25000;
+    const isCreator = total >= 100000;
 
-    // rank computation
-    function computeRanks(user) {
-      const total = Number(user.total_team_business || 0);
-      const activeOrigins = Number(user.active_origin_count || 0);
-      const role = user.role || '';
-      const selfActivated = !!user.self_activated;
+    let current = 'Member';
+    if (isCreator) current = 'Creator';
+    else if (isVisionary) current = 'Visionary';
+    else if (isAdvisor) current = 'Advisor';
+    else if (isLifeChanger) current = 'Life Changer';
+    else if (isOrigin) current = 'Origin';
 
-      const isOrigin = selfActivated || role === 'origin';
-      const isLifeChanger = total >= 1000 && activeOrigins >= 10;
-      const isAdvisor = total >= 5000;
-      const isVisionary = total >= 25000;
-      const isCreator = total >= 100000;
-
-      let current = 'Member';
-      if (isCreator) current = 'Creator';
-      else if (isVisionary) current = 'Visionary';
-      else if (isAdvisor) current = 'Advisor';
-      else if (isLifeChanger) current = 'Life Changer';
-      else if (isOrigin) current = 'Origin';
-
-      return {
-        isOrigin,
-        isLifeChanger,
-        isAdvisor,
-        isVisionary,
-        isCreator,
-        total,
-        activeOrigins,
-        current
-      };
-    }
-
-    // Verify with backend; fallback to Telegram user
-    async function verifyInitData() {
-  const tgApp = window.Telegram && window.Telegram.WebApp;
-  const initData = tgApp ? tgApp.initData : "";
-  const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
-  const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
-
-  // This is where Telegram puts referral info when using ?start= or ?startapp=
-  const startParam = unsafe && (unsafe.start_param || unsafe.startParam) ? (unsafe.start_param || unsafe.startParam) : null;
-
-  if (!tgApp) {
-    console.warn("Not inside Telegram WebApp – using test user.");
     return {
-      ok: false,
-      user: {
-        id: 123456,
-        first_name: "Test User",
-        username: "testuser",
-        photo_url: null,
-        total_team_business: 0,
-        active_origin_count: 0,
-        role: "",
-        self_activated: false
-      }
+      isOrigin,
+      isLifeChanger,
+      isAdvisor,
+      isVisionary,
+      isCreator,
+      total,
+      activeOrigins,
+      current
     };
   }
-  try {
-    const res = await fetch('/webapp/me', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    initData: tg.initData,
-    ref: ref   // <--- important
-  })
-});
-    const j = await res.json();
-    
-        if (!res.ok || !j.ok) {
-          const msg = j.error || j.detail || 'verify failed';
-          throw new Error(msg);
-        }
-        return j;
-      } catch (err) {
-        console.warn('verify error, using unsafe Telegram user as fallback:', err);
-        return { ok: false, user: unsafeUser || {} };
-      }
-    }
 
-    function renderRegisteredView(uid, name, avatar, userData) {
-      // UPDATED: use mstcrefbot for referral link
-      const ref = `https://t.me/mstcrefbot?start=${uid}`;
-      const ranks = computeRanks(userData || {});
+  // --- Verify with backend; fallback to Telegram user ---
+  async function verifyInitData() {
+    const tgApp = tg;
+    const initData = tgApp ? tgApp.initData : "";
+    const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+    const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
 
-      const total = ranks.total.toFixed(2);
-      const activeOrigins = ranks.activeOrigins;
+    // Telegram start/startapp param (if used)
+    const startParam =
+      unsafe && (unsafe.start_param || unsafe.startParam)
+        ? (unsafe.start_param || unsafe.startParam)
+        : null;
 
-      const originProgress = ranks.isOrigin ? 100 : 0;
-
-      const lcBusiness = Math.min(ranks.total / 1000, 1);
-      const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
-      const lifeChangerProgress = ranks.isLifeChanger
-        ? 100
-        : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
-
-      const advisorProgress = ranks.isAdvisor
-        ? 100
-        : Math.round(Math.min(ranks.total / 5000, 1) * 100);
-
-      const visionaryProgress = ranks.isVisionary
-        ? 100
-        : Math.round(Math.min(ranks.total / 25000, 1) * 100);
-
-      const creatorProgress = ranks.isCreator
-        ? 100
-        : Math.round(Math.min(ranks.total / 100000, 1) * 100);
-
-      app.innerHTML = `
-        <img src="${avatar || baseLogo}" class="logo glow" />
-        <div class="row big">${uid ?? '(unknown)'}</div>
-        <div class="row">${name || 'Unknown'}</div>
-        <div class="row mini">
-          Total Team Business:
-          <b>$${total}</b>
-          · Active Origins:
-          <b>${activeOrigins}</b>
-        </div>
-
-        <div class="row ref-line">
-          <span class="mini">Referral Link</span>
-          <button class="copy-btn" id="copyRef">📋</button>
-        </div>
-        <div class="tooltip" id="tipRef">Copied!</div>
-
-        <div class="panel">
-          <h3>💳 Deposit</h3>
-          <div class="mini">Minimum deposit — <b>$20</b>.</div>
-
-          <label>Enter USD amount</label>
-          <input id="amt" type="number" min="20" step="0.01" placeholder="e.g., 20.00" />
-          <div id="err" class="error" style="display:none;"></div>
-
-          <div class="split">
-            <div>
-              <div class="mini">MUSD (70%)</div>
-              <div class="rowline">
-                <span id="musdAmt" class="big">0.00</span>
-                <span class="mini">USD</span>
-              </div>
-
-              <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
-              <div class="addr-box mono">${ADDR_MUSD}</div>
-              <div class="rowline" style="margin-top:6px;">
-                <button class="copy-btn" id="copyMUSD">📋</button>
-                <span class="mini">${CHAIN_LABEL}</span>
-              </div>
-
-              <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
-              <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
-            </div>
-
-            <div>
-              <div class="mini">MSTC (30%)</div>
-              <div class="rowline">
-                <span id="mstcAmt" class="big">0.00</span>
-                <span class="mini">USD</span>
-              </div>
-
-              <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
-              <div class="addr-box mono">${ADDR_MSTC}</div>
-              <div class="rowline" style="margin-top:6px;">
-                <button class="copy-btn" id="copyMSTC">📋</button>
-                <span class="mini">${CHAIN_LABEL}</span>
-              </div>
-
-              <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
-              <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
-            </div>
-          </div>
-
-          <div class="submit">
-            <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
-          </div>
-          <div id="submitMsg" class="ok" style="display:none;">
-            Submitted! We’ll verify your transactions shortly.
-          </div>
-        </div>
-
-        <div class="rank-panel">
-          <div class="rank-header">
-            <div class="rank-header-title">🏅 Your Rank & Levels</div>
-            <div class="rank-current-label">
-              Current: <b>${ranks.current}</b>
-            </div>
-          </div>
-
-          <div class="rank-tabs">
-            <button
-              class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
-              data-rank="origin"
-            >
-              <div class="rank-main">
-                <span class="rank-name">Origin</span>
-                <span class="rank-percent">5% Level Income</span>
-                <span class="rank-status">
-                  ${ranks.isOrigin ? 'Achieved' : 'Locked'}
-                </span>
-              </div>
-              <div class="rank-progress">
-                <div
-                  class="rank-progress-bar"
-                  style="width:${originProgress}%;"
-                ></div>
-              </div>
-              <div class="rank-progress-text">
-                ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
-              </div>
-            </button>
-
-            <button
-              class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
-              data-rank="life_changer"
-            >
-              <div class="rank-main">
-                <span class="rank-name">Life Changer</span>
-                <span class="rank-percent">10% Direct</span>
-                <span class="rank-status">
-                  ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
-                </span>
-              </div>
-              <div class="rank-progress">
-                <div
-                  class="rank-progress-bar"
-                  style="width:${lifeChangerProgress}%;"
-                ></div>
-              </div>
-              <div class="rank-progress-text">
-                ${lifeChangerProgress}% ${
-                  lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
-                }
-              </div>
-            </button>
-
-            <button
-              class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
-              data-rank="advisor"
-            >
-              <div class="rank-main">
-                <span class="rank-name">Advisor</span>
-                <span class="rank-percent">15% Club Rank</span>
-                <span class="rank-status">
-                  ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
-                </span>
-              </div>
-              <div class="rank-progress">
-                <div
-                  class="rank-progress-bar"
-                  style="width:${advisorProgress}%;"
-                ></div>
-              </div>
-              <div class="rank-progress-text">
-                ${advisorProgress}% ${
-                  advisorProgress === 100 ? 'achieved' : 'towards next rank'
-                }
-              </div>
-            </button>
-
-            <button
-              class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
-              data-rank="visionary"
-            >
-              <div class="rank-main">
-                <span class="rank-name">Visionary</span>
-                <span class="rank-percent">20% Club Rank</span>
-                <span class="rank-status">
-                  ${ranks.isVisionary ? 'Achieved' : 'Locked'}
-                </span>
-              </div>
-              <div class="rank-progress">
-                <div
-                  class="rank-progress-bar"
-                  style="width:${visionaryProgress}%;"
-                ></div>
-              </div>
-              <div class="rank-progress-text">
-                ${visionaryProgress}% ${
-                  visionaryProgress === 100 ? 'achieved' : 'towards next rank'
-                }
-              </div>
-            </button>
-
-            <button
-              class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
-              data-rank="creator"
-            >
-              <div class="rank-main">
-                <span class="rank-name">Creator</span>
-                <span class="rank-percent">25% Top Rank</span>
-                <span class="rank-status">
-                  ${ranks.isCreator ? 'Achieved' : 'Locked'}
-                </span>
-              </div>
-              <div class="rank-progress">
-                <div
-                  class="rank-progress-bar"
-                  style="width:${creatorProgress}%;"
-                ></div>
-              </div>
-              <div class="rank-progress-text">
-                ${creatorProgress}% ${
-                  creatorProgress === 100 ? 'achieved' : 'towards top rank'
-                }
-              </div>
-            </button>
-          </div>
-
-          <div id="rankDetails" class="rank-details"></div>
-        </div>
-      `;
-
-      // wire up events inside rendered view
-      const tip = document.getElementById('tipRef');
-      document.getElementById('copyRef').onclick = () => copyText(ref, tip);
-
-      const amt = document.getElementById('amt');
-      const musd = document.getElementById('musdAmt');
-      const mstc = document.getElementById('mstcAmt');
-      const err = document.getElementById('err');
-
-      amt.oninput = () => {
-        const v = parseFloat(amt.value || '0');
-        if (isNaN(v) || v <= 0) {
-          musd.textContent = '0.00';
-          mstc.textContent = '0.00';
-          err.style.display = 'none';
-          return;
-        }
-
-        musd.textContent = fmt(v * 0.70);
-        mstc.textContent = fmt(v * 0.30);
-
-        if (v < 20) {
-          err.style.display = 'block';
-          err.textContent = 'Minimum deposit is $20.';
-        } else {
-          err.style.display = 'none';
-          err.textContent = '';
+    if (!tgApp) {
+      console.warn("Not inside Telegram WebApp – using test user.");
+      return {
+        ok: false,
+        user: {
+          id: 123456,
+          first_name: "Test User",
+          username: "testuser",
+          photo_url: null,
+          total_team_business: 0,
+          active_origin_count: 0,
+          role: "",
+          self_activated: false
         }
       };
+    }
 
-      document.getElementById('copyMUSD').onclick = () => copyText(ADDR_MUSD, tip);
-      document.getElementById('copyMSTC').onclick = () => copyText(ADDR_MSTC, tip);
+    try {
+      const res = await fetch('/webapp/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData,
+          ref      // from URL or null
+        })
+      });
 
-      document.getElementById('submitDeposit').onclick = async () => {
-        const v = parseFloat(amt.value || '0');
-        const tx1 = document.getElementById('txMUSD').value.trim();
-        const tx2 = document.getElementById('txMSTC').value.trim();
-        const msg = document.getElementById('submitMsg');
+      const j = await res.json();
 
-        if (isNaN(v) || v < 20) {
-          err.style.display = 'block';
-          err.textContent = 'Please enter at least $20.';
+      if (!res.ok || !j.ok) {
+        const msg = j.error || j.detail || 'verify failed';
+        throw new Error(msg);
+      }
+      return j;
+    } catch (err) {
+      console.warn('verify error, using unsafe Telegram user as fallback:', err);
+      return { ok: false, user: unsafeUser || {} };
+    }
+  }
+
+  // --- Render full registered view (deposit + ranks) ---
+  function renderRegisteredView(uid, name, avatar, userData) {
+    const ranks = computeRanks(userData || {});
+
+    const total = ranks.total.toFixed(2);
+    const activeOrigins = ranks.activeOrigins;
+
+    const originProgress = ranks.isOrigin ? 100 : 0;
+
+    const lcBusiness = Math.min(ranks.total / 1000, 1);
+    const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
+    const lifeChangerProgress = ranks.isLifeChanger
+      ? 100
+      : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
+
+    const advisorProgress = ranks.isAdvisor
+      ? 100
+      : Math.round(Math.min(ranks.total / 5000, 1) * 100);
+
+    const visionaryProgress = ranks.isVisionary
+      ? 100
+      : Math.round(Math.min(ranks.total / 25000, 1) * 100);
+
+    const creatorProgress = ranks.isCreator
+      ? 100
+      : Math.round(Math.min(ranks.total / 100000, 1) * 100);
+
+    // referral link for this uid
+    const refLink = `https://t.me/mstcrefbot?start=${uid}`;
+
+    app.innerHTML = `
+      <img src="${avatar || baseLogo}" class="logo glow" />
+      <div class="row big">${uid ?? '(unknown)'}</div>
+      <div class="row">${name || 'Unknown'}</div>
+      <div class="row mini">
+        Total Team Business:
+        <b>$${total}</b>
+        · Active Origins:
+        <b>${activeOrigins}</b>
+      </div>
+
+      <div class="row ref-line">
+        <span class="mini">Referral Link</span>
+        <button class="copy-btn" id="copyRef">📋</button>
+      </div>
+      <div class="tooltip" id="tipRef">Copied!</div>
+
+      <div class="panel">
+        <h3>💳 Deposit</h3>
+        <div class="mini">Minimum deposit — <b>$20</b>.</div>
+
+        <label>Enter USD amount</label>
+        <input id="amt" type="number" min="20" step="0.01" placeholder="e.g., 20.00" />
+        <div id="err" class="error" style="display:none;"></div>
+
+        <div class="split">
+          <div>
+            <div class="mini">MUSD (70%)</div>
+            <div class="rowline">
+              <span id="musdAmt" class="big">0.00</span>
+              <span class="mini">USD</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
+            <div class="addr-box mono">${ADDR_MUSD}</div>
+            <div class="rowline" style="margin-top:6px;">
+              <button class="copy-btn" id="copyMUSD">📋</button>
+              <span class="mini">${CHAIN_LABEL}</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
+            <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
+          </div>
+
+          <div>
+            <div class="mini">MSTC (30%)</div>
+            <div class="rowline">
+              <span id="mstcAmt" class="big">0.00</span>
+              <span class="mini">USD</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
+            <div class="addr-box mono">${ADDR_MSTC}</div>
+            <div class="rowline" style="margin-top:6px;">
+              <button class="copy-btn" id="copyMSTC">📋</button>
+              <span class="mini">${CHAIN_LABEL}</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
+            <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
+          </div>
+        </div>
+
+        <div class="submit">
+          <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
+        </div>
+        <div id="submitMsg" class="ok" style="display:none;"></div>
+      </div>
+
+      <div class="rank-panel">
+        <div class="rank-header">
+          <div class="rank-header-title">🏅 Your Rank & Levels</div>
+          <div class="rank-current-label">
+            Current: <b>${ranks.current}</b>
+          </div>
+        </div>
+
+        <div class="rank-tabs">
+          <button
+            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
+            data-rank="origin"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Origin</span>
+              <span class="rank-percent">5% Level Income</span>
+              <span class="rank-status">
+                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${originProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
+            data-rank="life_changer"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Life Changer</span>
+              <span class="rank-percent">10% Direct</span>
+              <span class="rank-status">
+                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${lifeChangerProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${lifeChangerProgress}% ${
+                lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
+            data-rank="advisor"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Advisor</span>
+              <span class="rank-percent">15% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${advisorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${advisorProgress}% ${
+                advisorProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
+            data-rank="visionary"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Visionary</span>
+              <span class="rank-percent">20% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isVisionary ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${visionaryProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${visionaryProgress}% ${
+                visionaryProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
+            data-rank="creator"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Creator</span>
+              <span class="rank-percent">25% Top Rank</span>
+              <span class="rank-status">
+                ${ranks.isCreator ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${creatorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${creatorProgress}% ${
+                creatorProgress === 100 ? 'achieved' : 'towards top rank'
+              }
+            </div>
+          </button>
+        </div>
+
+        <div id="rankDetails" class="rank-details"></div>
+      </div>
+    `;
+
+    // --- Wire up events inside rendered view ---
+
+    const tip = document.getElementById('tipRef');
+    const copyRefBtn = document.getElementById('copyRef');
+    if (copyRefBtn && tip) {
+      copyRefBtn.onclick = () => copyText(refLink, tip);
+    }
+
+    const amtInput = document.getElementById('amt');
+    const musdAmt = document.getElementById('musdAmt');
+    const mstcAmt = document.getElementById('mstcAmt');
+    const errEl = document.getElementById('err');
+
+    if (amtInput && musdAmt && mstcAmt && errEl) {
+      amtInput.oninput = () => {
+        const v = parseFloat(amtInput.value || '0');
+        if (isNaN(v) || v <= 0) {
+          musdAmt.textContent = '0.00';
+          mstcAmt.textContent = '0.00';
+          errEl.style.display = 'none';
+          errEl.textContent = '';
           return;
         }
+
+        musdAmt.textContent = fmt(v * 0.70);
+        mstcAmt.textContent = fmt(v * 0.30);
+
+        if (v < 20) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Minimum deposit is $20.';
+        } else {
+          errEl.style.display = 'none';
+          errEl.textContent = '';
+        }
+      };
+    }
+
+    const tipCopy = document.getElementById('tipRef');
+    const copyMUSDBtn = document.getElementById('copyMUSD');
+    const copyMSTCBtn = document.getElementById('copyMSTC');
+
+    if (copyMUSDBtn && tipCopy) {
+      copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tipCopy);
+    }
+    if (copyMSTCBtn && tipCopy) {
+      copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tipCopy);
+    }
+
+    const submitBtn = document.getElementById('submitDeposit');
+    const msgEl = document.getElementById('submitMsg');
+    const txMUSDInput = document.getElementById('txMUSD');
+    const txMSTCInput = document.getElementById('txMSTC');
+
+    if (submitBtn && amtInput && errEl && msgEl && txMUSDInput && txMSTCInput) {
+      submitBtn.onclick = async () => {
+        const tgApp = tg;
+
+        // Clear previous messages
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+
+        const valueStr = amtInput.value ? amtInput.value.trim() : "0";
+        const amount = parseFloat(valueStr || "0");
+
+        const tx1 = txMUSDInput.value.trim();
+        const tx2 = txMSTCInput.value.trim();
+
+        if (isNaN(amount) || amount < 20) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please enter at least $20.';
+          if (tgApp) {
+            tgApp.showAlert('Please enter at least $20.');
+          }
+          return;
+        }
+
         if (!tx1 || !tx2) {
-          err.style.display = 'block';
-          err.textContent = 'Please paste both transaction hashes.';
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please paste both transaction hashes.';
+          if (tgApp) {
+            tgApp.showAlert('Please paste both transaction hashes.');
+          }
           return;
         }
 
         const payload = {
-          initData: (window.Telegram && window.Telegram.WebApp)
-            ? window.Telegram.WebApp.initData
-            : "",
-          amount: Number(v.toFixed(2)),
+          initData: tgApp ? tgApp.initData : "",
+          amount: Number(amount.toFixed(2)),
           tx_musd: tx1,
           tx_mstc: tx2,
           ref: window.currentRef || null
         };
 
+        msgEl.style.display = 'block';
+        msgEl.textContent = 'Submitting...';
+
         try {
           const res = await fetch('/webapp/verify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    initData: tg.initData,
-    amount: Number(amount),
-    ref: ref   // <--- important
-  })
-});
-          const j = await res.json();
-          if (!res.ok || !j.ok) {
-            throw new Error(j.error || j.detail || JSON.stringify(j));
-          }
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-          msg.style.display = 'block';
+          const data = await res.json();
+          console.log('VERIFY RESPONSE:', data);
 
-          if (Array.isArray(j.referral_dist) && j.referral_dist.length > 0) {
-            const lines = j.referral_dist.map(r => {
-              const who = r.to_username ||
-                (r.to_user_id !== null && r.to_user_id !== undefined
-                  ? r.to_user_id
-                  : 'company_pool');
-              const lvl = r.level === 0 ? 'Pool' : `Level ${r.level}`;
-              return `${lvl}: ${who} → $${r.amount}`;
-            });
-            alert('Referral distribution:\n' + lines.join('\n'));
+          if (data.ok) {
+            if (tgApp) {
+              tgApp.showAlert('Deposit submitted successfully!');
+            }
+            msgEl.style.display = 'block';
+            msgEl.textContent = 'Deposit submitted successfully!';
+
+            // Optionally clear inputs
+            amtInput.value = '';
+            txMUSDInput.value = '';
+            txMSTCInput.value = '';
+            musdAmt.textContent = '0.00';
+            mstcAmt.textContent = '0.00';
           } else {
-            alert('No referral distribution (no uplines linked).');
+            const errorText = data.error || 'unknown error';
+            if (tgApp) {
+              tgApp.showAlert('Failed to submit: ' + errorText);
+            }
+            msgEl.style.display = 'block';
+            msgEl.textContent = 'Failed to submit: ' + errorText;
           }
-        } catch (err2) {
-          console.error('submit error', err2);
-          alert('Failed to submit deposit: ' + (err2.message || err2));
+        } catch (e) {
+          const errorText = e && e.message ? e.message : String(e);
+          if (tgApp) {
+            tgApp.showAlert('Failed to submit: ' + errorText);
+          }
+          msgEl.style.display = 'block';
+          msgEl.textContent = 'Failed to submit: ' + errorText;
         }
       };
-
-      const rankDetails = document.getElementById('rankDetails');
-      const rankTabs = app.querySelectorAll('.rank-tab');
-
-      function setActiveRankTab(rankKey) {
-        rankTabs.forEach(btn => {
-          if (btn.dataset.rank === rankKey) {
-            btn.classList.add('active');
-          } else {
-            btn.classList.remove('active');
-          }
-        });
-
-        let html = '';
-        if (rankKey === 'origin') {
-          html = `
-            <b>Origin – 5% Level Income</b>
-            <ul>
-              <li>Self activation required (your own qualifying deposit).</li>
-              <li>You start earning 5% from your direct team as Origin.</li>
-            </ul>
-          `;
-        } else if (rankKey === 'life_changer') {
-          html = `
-            <b>Life Changer – 10% Direct</b>
-            <ul>
-              <li>1000 MUSD total team business.</li>
-              <li>10 active Origins in your group.</li>
-              <li>Eligible for Life Changer club and monthly pool
-                  (2% company turnover shared among achievers – handled by admin).</li>
-            </ul>
-          `;
-        } else if (rankKey === 'advisor') {
-          html = `
-            <b>Advisor – 15%</b>
-            <ul>
-              <li>5000 MUSD total team business (target).</li>
-              <li>Higher monthly club requirements decided by company rules.</li>
-              <li>2% company club pool shared among all active Advisors (as per plan).</li>
-            </ul>
-          `;
-        } else if (rankKey === 'visionary') {
-          html = `
-            <b>Visionary – 20%</b>
-            <ul>
-              <li>25000 MUSD total team business (target).</li>
-              <li>Next-level leadership and club participation.</li>
-            </ul>
-          `;
-        } else if (rankKey === 'creator') {
-          html = `
-            <b>Creator – 25%</b>
-            <ul>
-              <li>100000 MUSD total team business (top rank target).</li>
-              <li>Highest reward slab and special company recognition.</li>
-            </ul>
-          `;
-        }
-
-        rankDetails.innerHTML = html;
-      }
-
-      let defaultRank = 'origin';
-      if (ranks.isCreator) defaultRank = 'creator';
-      else if (ranks.isVisionary) defaultRank = 'visionary';
-      else if (ranks.isAdvisor) defaultRank = 'advisor';
-      else if (ranks.isLifeChanger) defaultRank = 'life_changer';
-
-      setActiveRankTab(defaultRank);
-
-      rankTabs.forEach(btn => {
-        btn.addEventListener('click', () => {
-          setActiveRankTab(btn.dataset.rank);
-        });
-      });
     }
 
-    // helper: show full view using backend, used for:
-    // - YES click (first time)
-    // - auto-show for already registered users
-    async function showRegisteredViewFromBackend() {
-      const verifyResp = await verifyInitData();
+    // --- Rank tab details ---
+    const rankDetails = document.getElementById('rankDetails');
+    const rankTabs = app.querySelectorAll('.rank-tab');
 
-      const tgApp = window.Telegram && window.Telegram.WebApp;
-      const unsafeUser = tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
+    function setActiveRankTab(rankKey) {
+      rankTabs.forEach(btn => {
+        if (btn.dataset.rank === rankKey) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      let html = '';
+      if (rankKey === 'origin') {
+        html = `
+          <b>Origin – 5% Level Income</b>
+          <ul>
+            <li>Self activation required (your own qualifying deposit).</li>
+            <li>You start earning 5% from your direct team as Origin.</li>
+          </ul>
+        `;
+      } else if (rankKey === 'life_changer') {
+        html = `
+          <b>Life Changer – 10% Direct</b>
+          <ul>
+            <li>1000 MUSD total team business.</li>
+            <li>10 active Origins in your group.</li>
+            <li>Eligible for Life Changer club and monthly pool
+                (2% company turnover shared among achievers – handled by admin).</li>
+          </ul>
+        `;
+      } else if (rankKey === 'advisor') {
+        html = `
+          <b>Advisor – 15%</b>
+          <ul>
+            <li>5000 MUSD total team business (target).</li>
+            <li>Higher monthly club requirements decided by company rules.</li>
+            <li>2% company club pool shared among all active Advisors (as per plan).</li>
+          </ul>
+        `;
+      } else if (rankKey === 'visionary') {
+        html = `
+          <b>Visionary – 20%</b>
+          <ul>
+            <li>25000 MUSD total team business (target).</li>
+            <li>Next-level leadership and club participation.</li>
+          </ul>
+        `;
+      } else if (rankKey === 'creator') {
+        html = `
+          <b>Creator – 25%</b>
+          <ul>
+            <li>100000 MUSD total team business (top rank target).</li>
+            <li>Highest reward slab and special company recognition.</li>
+          </ul>
+        `;
+      }
+
+      if (rankDetails) {
+        rankDetails.innerHTML = html;
+      }
+    }
+
+    let defaultRank = 'origin';
+    if (ranks.isCreator) defaultRank = 'creator';
+    else if (ranks.isVisionary) defaultRank = 'visionary';
+    else if (ranks.isAdvisor) defaultRank = 'advisor';
+    else if (ranks.isLifeChanger) defaultRank = 'life_changer';
+
+    setActiveRankTab(defaultRank);
+
+    rankTabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        setActiveRankTab(btn.dataset.rank);
+      });
+    });
+  }
+
+  // --- Helper: show full view from backend (YES or auto for registered users) ---
+  async function showRegisteredViewFromBackend() {
+    const verifyResp = await verifyInitData();
+
+    const tgApp = tg;
+    const unsafeUser =
+      tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
         ? tgApp.initDataUnsafe.user
         : {};
 
-      const u = verifyResp.user || unsafeUser || {};
-      const id = u.id || 0;
-      const name =
-        (u.first_name || '') +
-        (u.username ? ' @' + u.username : '') ||
-        u.username ||
-        'Unknown';
-      const avatar = u.photo_url || baseLogo;
+    const u = verifyResp.user || unsafeUser || {};
+    const id = u.id || 0;
+    const name =
+      ((u.first_name || '') +
+        (u.username ? ' @' + u.username : '')) ||
+      u.username ||
+      'Unknown';
+    const avatar = u.photo_url || baseLogo;
 
-      renderRegisteredView(id, name, avatar, verifyResp.user || {});
-    }
-
-    // YES / NO button handlers
-    document.getElementById('yesBtn').onclick = async () => {
-      await showRegisteredViewFromBackend();
-    };
-
-    document.getElementById('noBtn').onclick = () => {
-      app.innerHTML = `
-        <img src="${baseLogo}" class="logo" />
-        <div class="row big">❌ Registration Cancelled</div>
-      `;
-    };
-
-    function updateActivationStatus(user) {
-      const statusEl = document.getElementById("accountStatus");
-      const registerSection = document.getElementById("registerSection");
-      if (!user || !statusEl || !registerSection) return;
-
-      if (!user.has_registered) {
-        // FIRST TIME USER – show question + Yes/No
-        statusEl.textContent = "Do you want to register?";
-        registerSection.style.display = "";
-      } else {
-        // REGISTERED USER – hide question
-        registerSection.style.display = "none";
-        // Text here will be replaced when full view loads,
-        // but it's safe to keep a message.
-        if (user.is_active) {
-          statusEl.textContent = "You are activated as Origin ✅";
-        } else {
-          statusEl.textContent =
-            "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
-        }
-      }
-    }
-
-    async function loadActivationStatus() {
-  const tgApp = window.Telegram && window.Telegram.WebApp;
-  if (!tgApp) {
-    console.error("Telegram WebApp not available");
-    return;
+    renderRegisteredView(id, name, avatar, verifyResp.user || {});
   }
 
-  const initData = tgApp.initData || "";
+  // --- Activation status (first screen, Yes/No) ---
+  function updateActivationStatus(user) {
+    const statusEl = document.getElementById("accountStatus");
+    const registerSection = document.getElementById("registerSection");
+    if (!user || !statusEl || !registerSection) return;
 
-  try {
-    const res = await fetch('/webapp/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData,
-        ref: ref      // 🔹 send referral id along with initData
-      })
-    });
-    const data = await res.json();
-
-    if (data && data.ok !== false) {
-      updateActivationStatus(data);
-
-      // if user already registered, skip question and show full view
-      if (data.has_registered) {
-        await showRegisteredViewFromBackend();
-      }
+    if (!user.has_registered) {
+      // FIRST TIME USER – show question + Yes/No
+      statusEl.textContent = "Do you want to register?";
+      registerSection.style.display = "";
     } else {
-      console.error("init failed", data);
+      // REGISTERED USER – hide question
+      registerSection.style.display = "none";
+      if (user.is_active) {
+        statusEl.textContent = "You are activated as Origin ✅";
+      } else {
+        statusEl.textContent =
+          "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
+      }
     }
-  } catch (err) {
-    console.error("Error loading activation status:", err);
   }
-}
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadActivationStatus();
-    });
-  </script>
+  async function loadActivationStatus() {
+    const tgApp = tg;
+    if (!tgApp) {
+      console.error("Telegram WebApp not available");
+      return;
+    }
+
+    const initData = tgApp.initData || "";
+
+    try {
+      const res = await fetch('/webapp/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData,
+          ref           // send referral id along with initData
+        })
+      });
+      const data = await res.json();
+
+      if (data && data.ok !== false) {
+        updateActivationStatus(data);
+
+        // if user already registered, skip question and show full view
+        if (data.has_registered) {
+          await showRegisteredViewFromBackend();
+        }
+      } else {
+        console.error("init failed", data);
+      }
+    } catch (err) {
+      console.error("Error loading activation status:", err);
+    }
+  }
+
+  // --- YES / NO button handlers + init ---
+  document.addEventListener('DOMContentLoaded', () => {
+    // Load activation status
+    loadActivationStatus();
+
+    const yesBtn = document.getElementById('yesBtn');
+    const noBtn = document.getElementById('noBtn');
+
+    if (yesBtn) {
+      yesBtn.onclick = async () => {
+        await showRegisteredViewFromBackend();
+      };
+    }
+
+    if (noBtn) {
+      noBtn.onclick = () => {
+        app.innerHTML = `
+          <img src="${baseLogo}" class="logo" />
+          <div class="row big">❌ Registration Cancelled</div>
+        `;
+      };
+    }
+  });
+</script>
+
+ 
 </body>
 </html>
 
