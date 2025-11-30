@@ -810,7 +810,7 @@ def debug_reset_origin(user_id):
         user.role = "user"
         db.commit()
 
-        return jsonify(ok=True, user_id=user.id, self_activated=user.self_activated)
+        return jsonify(ok=True, user_id=user.id, self_activated=user.self_activated,role=user.role,)
     finally:
         db.close()
 
