@@ -1087,6 +1087,7 @@ window.currentRef = ref;
 
       });
       const data = await res.json();
+      console.log("VERIFY RESPONSE:", data);
 
       if (data && data.ok !== false) {
         updateActivationStatus(data);

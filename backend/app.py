@@ -23,6 +23,7 @@ init_db()
 print("Flask CWD:", os.getcwd())
 print("Flask DB URL:", engine.url)
 
+
 def get_ref_from_payload(data):
     """
     Extract referral ID from the JSON sent by the mini-app.
@@ -45,11 +46,6 @@ def get_ref_from_payload(data):
 
     # Step 2: Convert to int safely
     if not ref_raw:
-        return None
-
-    try:
-        return int(ref_raw)
-    except (TypeError, ValueError):
         return None
 
     try:
