@@ -798,6 +798,21 @@ def serve_mini_app():
         os.path.join(app.root_path, "static"),
         "telegram_mini_app.html"
     )
+@app.route("/debug/reset_origin/<int:user_id>")
+def debug_reset_origin(user_id):
+    db = SessionLocal()
+    try:
+        user = db.query(User).get(user_id)
+        if not user:
+            return jsonify(ok=False, error="user_not_found"), 404
+
+        user.self_activated = False
+        user.role = "user"
+        db.commit()
+
+        return jsonify(ok=True, user_id=user.id, self_activated=user.self_activated)
+    finally:
+        db.close()
 
 
 # -------------------------
