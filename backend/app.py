@@ -286,6 +286,7 @@ def webapp_me():
                 "self_activated": user.self_activated,
                 "referrer_id": user.referrer_id,
                 "total_team_business": float(user.total_team_business or 0),
+                "active_origin_count": int(user.active_origin_count or 0),
             },
         }
         return jsonify(resp)
@@ -621,10 +622,23 @@ def webapp_verify():
             )
 
         # ---------- ACTIVATION ----------
+        # (check if user was not origin before this deposit)
+        was_origin_before = user.self_activated
+
         if not user.self_activated and amount >= 20:
             user.self_activated = True
             user.role = "origin"
             logging.info("User %s activated as Origin", user.id)
+
+            # Increase upline's active_origin_count
+            if user.referrer_id:
+                upline = db.query(User).get(user.referrer_id)
+                if upline:
+                    upline.active_origin_count = int(upline.active_origin_count or 0) + 1
+                    logging.info(
+                        "Incremented upline %s active_origin_count to %s",
+                        upline.id, upline.active_origin_count
+                    )
 
         # ---------- TEAM BUSINESS ----------
         user.total_team_business = float(user.total_team_business or 0) + amount
@@ -632,7 +646,7 @@ def webapp_verify():
         # ---------- REFERRAL DISTRIBUTION ----------
         level1_bonus = round(amount * 0.05, 2)
 
-        # IMPORTANT: always a LIST (JSON array)
+        # Always a LIST (JSON array)
         referral_dist = []
 
         referrer = None
@@ -665,7 +679,7 @@ def webapp_verify():
             "self_activated": user.self_activated,
             "role": user.role,
             "referrer_id": user.referrer_id,
-            "referral_dist": referral_dist,  # <-- always a list
+            "referral_dist": referral_dist,  # always a list
         })
 
     except Exception as e:
@@ -675,6 +689,7 @@ def webapp_verify():
 
     finally:
         db.close()
+
 
 
 @app.route("/debug/downlines/<int:user_id>")
