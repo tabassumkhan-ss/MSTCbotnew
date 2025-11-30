@@ -581,8 +581,6 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
 
         current = ref
 
-
-
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
     db = SessionLocal()
@@ -625,7 +623,7 @@ def webapp_verify():
         # ---------- ACTIVATION ----------
         if not user.self_activated and amount >= 20:
             user.self_activated = True
-            user.role = "origin"     # <-- THIS IS SAFE NOW
+            user.role = "origin"
             logging.info("User %s activated as Origin", user.id)
 
         # ---------- TEAM BUSINESS ----------
@@ -633,26 +631,30 @@ def webapp_verify():
 
         # ---------- REFERRAL DISTRIBUTION ----------
         level1_bonus = round(amount * 0.05, 2)
-        referral_dist = None
 
+        # IMPORTANT: always a LIST (JSON array)
+        referral_dist = []
+
+        referrer = None
         if user.referrer_id:
             referrer = db.query(User).get(user.referrer_id)
-            if referrer and referrer.self_activated:
-                referral_dist = {
-                    "to": str(referrer.id),
-                    "level": 1,
-                    "amount": level1_bonus
-                }
-            else:
-                referral_dist = {
-                    "to": "company_pool",
-                    "amount": level1_bonus
-                }
+
+        if referrer and referrer.self_activated:
+            # Bonus goes to direct upline (Level 1)
+            referral_dist.append({
+                "level": 1,
+                "to_user_id": referrer.id,
+                "to_username": referrer.username or "",
+                "amount": level1_bonus,
+            })
         else:
-            referral_dist = {
-                "to": "company_pool",
-                "amount": level1_bonus
-            }
+            # Bonus goes to company pool (treated as level 0 / Pool)
+            referral_dist.append({
+                "level": 0,
+                "to_user_id": None,
+                "to_username": None,
+                "amount": level1_bonus,
+            })
 
         db.commit()
 
@@ -663,7 +665,7 @@ def webapp_verify():
             "self_activated": user.self_activated,
             "role": user.role,
             "referrer_id": user.referrer_id,
-            "referral_dist": referral_dist
+            "referral_dist": referral_dist,  # <-- always a list
         })
 
     except Exception as e:
@@ -673,6 +675,8 @@ def webapp_verify():
 
     finally:
         db.close()
+
+
 @app.route("/debug/downlines/<int:user_id>")
 def debug_downlines(user_id):
     db = SessionLocal()
