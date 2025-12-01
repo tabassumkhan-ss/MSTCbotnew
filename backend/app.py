@@ -640,24 +640,24 @@ def webapp_verify():
             )
 
         # ---------- ACTIVATION ----------
-        if not user.self_activated and amount >= 20:
+        # Check if this deposit makes the user Origin for the first time
+        became_origin_now = (not user.self_activated and amount >= 20)
+
+        if became_origin_now:
             user.self_activated = True
+            # base role; update_rank will refine (life_changer, advisor, etc.)
             user.role = "origin"
             logging.info("User %s activated as Origin", user.id)
 
-            # Increase direct upline's active_origin_count
-            if user.referrer_id:
-                upline = db.query(User).get(user.referrer_id)
-                if upline:
-                    upline.active_origin_count = int(upline.active_origin_count or 0) + 1
-                    logging.info(
-                        "Incremented upline %s active_origin_count to %s",
-                        upline.id, upline.active_origin_count
-                    )
-
-        # ---------- TEAM BUSINESS ----------
+        # ---------- SELF BUSINESS ----------
         user.total_team_business = float(user.total_team_business or 0) + amount
-        # Optional: update user's rank based on new totals
+
+        # ---------- TEAM BUSINESS UP THE TREE ----------
+        # This adds 'amount' to all uplines' total_team_business
+        # and, if became_origin_now=True, increments active_origin_count for each upline.
+        propagate_team_business(db, user, amount, became_origin_now)
+
+        # Update THIS user's rank after their own TB change
         update_rank(user)
 
         # ---------- REFERRAL DISTRIBUTION ----------
@@ -734,8 +734,6 @@ def webapp_verify():
 
     finally:
         db.close()
-
-
 
 
 @app.route("/debug/downlines/<int:user_id>")
