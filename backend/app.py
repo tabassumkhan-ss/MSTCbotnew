@@ -599,6 +599,41 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
         update_rank(ref)
 
         current = ref
+def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
+    """
+    Take 2% of this deposit amount and distribute it equally
+    among all active club achievers (life_changer / advisor / visionary / creator).
+
+    Returns the total club pool amount taken from this deposit.
+    """
+    club_cut = round(amount * 0.02, 2)  # 2% of deposit
+    if club_cut <= 0:
+        return 0.0
+
+    # Find all active club achievers
+    achievers = (
+        db.query(User)
+        .filter(
+            User.self_activated == True,
+            User.role.in_(["life_changer", "advisor", "visionary", "creator"])
+        )
+        .all()
+    )
+
+    if not achievers:
+        # No one to distribute to yet -> pool effectively stays with company
+        return 0.0
+
+    # Equal share for each achiever
+    per_user = round(club_cut / len(achievers), 2)
+    if per_user <= 0:
+        return 0.0
+
+    for u in achievers:
+        u.club_income = float(u.club_income or 0.0) + per_user
+        db.add(u)
+
+    return club_cut
 
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
@@ -659,6 +694,8 @@ def webapp_verify():
 
         # Update THIS user's rank after their own TB change
         update_rank(user)
+        club_pool_used = distribute_club_bonus(db, amount)
+        logging.info("Club bonus distributed: %s from amount %s", club_pool_used, amount)    
 
         # ---------- REFERRAL DISTRIBUTION ----------
         # Configurable level percentages
