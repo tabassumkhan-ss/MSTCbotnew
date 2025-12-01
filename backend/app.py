@@ -147,6 +147,24 @@ def get_or_create_user(db, tg_user_raw, maybe_referrer_id):
 
     return user
 
+def get_uplines(db, user, max_levels=3):
+    """
+    Walk up the referral tree from `user` and return a list of (level, upline_user).
+    level=1 is direct referrer, level=2 is referrer's referrer, etc.
+    Stops early if no more uplines.
+    """
+    uplines = []
+    current = user
+    level = 1
+    while level <= max_levels and current.referrer_id:
+        upline = db.query(User).get(current.referrer_id)
+        if not upline:
+            break
+        uplines.append((level, upline))
+        current = upline
+        level += 1
+    return uplines
+
 
 def verify_telegram_init_data(init_data: str):
     """
@@ -311,7 +329,7 @@ def webapp_init():
         if not init_data:
             return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        # Parse Telegram initData (same as /webapp/me, /webapp/verify)
+        # Parse Telegram initData 
         tg_user = verify_telegram_init_data(init_data)
 
         # Try to read ref from body or initData
@@ -622,15 +640,12 @@ def webapp_verify():
             )
 
         # ---------- ACTIVATION ----------
-        # (check if user was not origin before this deposit)
-        was_origin_before = user.self_activated
-
         if not user.self_activated and amount >= 20:
             user.self_activated = True
             user.role = "origin"
             logging.info("User %s activated as Origin", user.id)
 
-            # Increase upline's active_origin_count
+            # Increase direct upline's active_origin_count
             if user.referrer_id:
                 upline = db.query(User).get(user.referrer_id)
                 if upline:
@@ -642,33 +657,63 @@ def webapp_verify():
 
         # ---------- TEAM BUSINESS ----------
         user.total_team_business = float(user.total_team_business or 0) + amount
+        # Optional: update user's rank based on new totals
+        update_rank(user)
 
         # ---------- REFERRAL DISTRIBUTION ----------
-        level1_bonus = round(amount * 0.05, 2)
+        # Configurable level percentages
+        LEVEL_BONUSES = {
+            1: 0.05,  # 5% to Level 1
+            2: 0.03,  # 3% to Level 2
+            3: 0.02,  # 2% to Level 3
+        }
 
         # Always a LIST (JSON array)
         referral_dist = []
 
-        referrer = None
-        if user.referrer_id:
-            referrer = db.query(User).get(user.referrer_id)
+        uplines = get_uplines(db, user, max_levels=3)
 
-        if referrer and referrer.self_activated:
-            # Bonus goes to direct upline (Level 1)
-            referral_dist.append({
-                "level": 1,
-                "to_user_id": referrer.id,
-                "to_username": referrer.username or "",
-                "amount": level1_bonus,
-            })
-        else:
-            # Bonus goes to company pool (treated as level 0 / Pool)
-            referral_dist.append({
-                "level": 0,
-                "to_user_id": None,
-                "to_username": None,
-                "amount": level1_bonus,
-            })
+        for level, upline in uplines:
+            pct = LEVEL_BONUSES.get(level, 0)
+            if pct <= 0:
+                continue
+
+            bonus_amount = round(amount * pct, 2)
+
+            # Qualification rules by level
+            qualifies = False
+            role = (upline.role or "user").lower()
+
+            if level == 1:
+                # direct sponsor must at least be Origin (self_activated)
+                qualifies = bool(upline.self_activated)
+            elif level == 2:
+                # must be Life Changer or above
+                qualifies = role in ("life_changer", "advisor", "visionary", "creator")
+            elif level == 3:
+                # must be Advisor or above
+                qualifies = role in ("advisor", "visionary", "creator")
+
+            if qualifies:
+                # Pay bonus to this upline
+                referral_dist.append({
+                    "level": level,
+                    "to_user_id": upline.id,
+                    "to_username": upline.username or "",
+                    "amount": bonus_amount,
+                })
+
+                # Optional: treat this as part of club income
+                upline.club_income = float(upline.club_income or 0) + bonus_amount
+
+            else:
+                # Bonus for this level goes to company pool
+                referral_dist.append({
+                    "level": 0,   # 0 means Pool in your UI
+                    "to_user_id": None,
+                    "to_username": None,
+                    "amount": bonus_amount,
+                })
 
         db.commit()
 
@@ -689,6 +734,7 @@ def webapp_verify():
 
     finally:
         db.close()
+
 
 
 
