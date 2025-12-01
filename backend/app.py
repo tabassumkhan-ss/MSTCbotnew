@@ -600,17 +600,10 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
 
         current = ref
 def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
-    """
-    Take 2% of this deposit amount and distribute it equally
-    among all active club achievers (life_changer / advisor / visionary / creator).
-
-    Returns the total club pool amount taken from this deposit.
-    """
     club_cut = round(amount * 0.02, 2)  # 2% of deposit
     if club_cut <= 0:
         return 0.0
 
-    # Find all active club achievers
     achievers = (
         db.query(User)
         .filter(
@@ -621,19 +614,69 @@ def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
     )
 
     if not achievers:
-        # No one to distribute to yet -> pool effectively stays with company
-        return 0.0
+        # No club achievers yet -> whole 2% effectively remains with company
+        add_to_company_pool(db, club_cut)
+        return club_cut
 
-    # Equal share for each achiever
     per_user = round(club_cut / len(achievers), 2)
     if per_user <= 0:
-        return 0.0
+        # If it's too small to split, also treat as company pool
+        add_to_company_pool(db, club_cut)
+        return club_cut
 
+    distributed_total = 0.0
     for u in achievers:
         u.club_income = float(u.club_income or 0.0) + per_user
         db.add(u)
+        distributed_total += per_user
+
+    # Any tiny leftover from rounding goes to company pool
+    leftover = round(club_cut - distributed_total, 2)
+    if leftover > 0:
+        add_to_company_pool(db, leftover)
 
     return club_cut
+
+
+# Special internal user id for the company pool
+COMPANY_USER_ID = 1  # make sure no real Telegram user uses id=1
+
+
+def get_company_user(db: SessionLocal) -> User:
+    """
+    Ensure there is a special 'company_pool' user in the User table.
+    We store all company pool funds in this user's balances.
+    """
+    company = db.query(User).get(COMPANY_USER_ID)
+    if not company:
+        company = User(
+            id=COMPANY_USER_ID,
+            username="company_pool",
+            first_name="Company",
+            role="company",
+            self_activated=False,
+            created_at=datetime.utcnow(),
+            balance_musd=0.0,
+            balance_mstc=0.0,
+        )
+        db.add(company)
+        db.commit()
+        db.refresh(company)
+    return company
+
+
+def add_to_company_pool(db: SessionLocal, amount: float):
+    """
+    Add the given amount to the company pool balance (MUSD).
+    """
+    amount = float(amount or 0.0)
+    if amount <= 0:
+        return
+
+    company = get_company_user(db)
+    company.balance_musd = float(company.balance_musd or 0.0) + amount
+    db.add(company)
+
 
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():
@@ -745,6 +788,8 @@ def webapp_verify():
 
             else:
                 # Bonus for this level goes to company pool
+                add_to_company_pool(db, bonus_amount)
+
                 referral_dist.append({
                     "level": 0,   # 0 means Pool in your UI
                     "to_user_id": None,
@@ -868,6 +913,28 @@ def debug_list_users():
         return jsonify(ok=True, users=data)
     finally:
         db.close()
+
+@app.route("/debug/company_pool", methods=["GET"])
+def debug_company_pool():
+    db = SessionLocal()
+    try:
+        company = db.query(User).get(COMPANY_USER_ID)
+        if not company:
+            return jsonify(ok=True, exists=False, balance_musd=0.0, balance_mstc=0.0)
+
+        return jsonify(
+            ok=True,
+            exists=True,
+            user_id=company.id,
+            username=company.username,
+            role=company.role,
+            balance_musd=float(company.balance_musd or 0.0),
+            balance_mstc=float(company.balance_mstc or 0.0),
+            club_income=float(company.club_income or 0.0) if hasattr(company, "club_income") else 0.0,
+        )
+    finally:
+        db.close()
+        
 
 
 # -------------------------
