@@ -13,8 +13,7 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
-from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent,init_db
-
+from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
         # No self-referral
         return
 
-    ref = db.query(User).get(maybe_referrer_id)
+    ref = db.get(User, maybe_referrer_id)
     if not ref:
         return
 
@@ -127,7 +126,7 @@ def get_or_create_user(db, tg_user_raw, maybe_referrer_id):
         raise ValueError(f"Telegram user data missing 'id': {tg_user_raw!r}")
 
     # Look up or create the user
-    user = db.query(User).get(user_id)
+    user = db.get(User, user_id)
 
     if user is None:
         user = User(
@@ -137,6 +136,8 @@ def get_or_create_user(db, tg_user_raw, maybe_referrer_id):
             created_at=datetime.utcnow(),
             role="user",          # or "origin" later when conditions met
             self_activated=False, # will become True on first successful deposit
+            balance_musd=0.0,
+            balance_mstc=0.0,
         )
         db.add(user)
         db.commit()
@@ -157,7 +158,7 @@ def get_uplines(db, user, max_levels=3):
     current = user
     level = 1
     while level <= max_levels and current.referrer_id:
-        upline = db.query(User).get(current.referrer_id)
+        upline = db.get(User, current.referrer_id)
         if not upline:
             break
         uplines.append((level, upline))
@@ -199,9 +200,9 @@ def verify_telegram_init_data(init_data: str):
         data_check_pairs.append(f"{key}={value}")
     data_check_string = "\n".join(data_check_pairs)
 
-    # Secret key: HMAC-SHA256("WebAppData", bot_token)
+    # Secret key: HMAC-SHA256("WebAppData", bot_token) per Telegram doc
     secret_key = hmac.new(
-        "WebAppData".encode("utf-8"),
+        b"WebAppData",
         bot_token.encode("utf-8"),
         hashlib.sha256,
     ).digest()
@@ -213,7 +214,8 @@ def verify_telegram_init_data(init_data: str):
         hashlib.sha256,
     ).hexdigest()
 
-    if calculated_hash != hash_check:
+    # Timing-safe comparison
+    if not hmac.compare_digest(calculated_hash, hash_check):
         return None, None, None, None
 
     # If hash is valid, parse user data
@@ -399,7 +401,7 @@ def bot_start():
 
     db = SessionLocal()
     try:
-        user = db.query(User).get(tg_id)
+        user = db.get(User, tg_id)
         is_new = False
         changed = False
 
@@ -470,8 +472,6 @@ def bot_start():
 # Helpers
 # -------------------------
 # -------------------------
-# Helpers
-# -------------------------
 def _get_referrer_chain(db, user, max_levels=3):
     if db is None or user is None:
         return []
@@ -483,7 +483,7 @@ def _get_referrer_chain(db, user, max_levels=3):
         if not ref_id:
             break
         try:
-            parent = db.query(User).get(int(ref_id))
+            parent = db.get(User, int(ref_id))
         except Exception:
             break
         if not parent:
@@ -529,7 +529,7 @@ def _increment_active_origins_for_upline(db, new_origin_user):
             break
         visited.add(parent_id)
 
-        parent = db.query(User).get(parent_id)
+        parent = db.get(User, parent_id)
         if not parent:
             break
 
@@ -546,7 +546,7 @@ def _increment_active_origins_for_upline(db, new_origin_user):
 def credit_team_business(db, user, amount):
     current = user
     while getattr(current, "referrer_id", None):
-        parent = db.query(User).get(int(current.referrer_id))
+        parent = db.get(User, int(current.referrer_id))
         if not parent:
             break
         try:
@@ -594,7 +594,7 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
     visited = set()
     current = user
     while current.referrer_id and current.referrer_id not in visited:
-        ref = db.query(User).get(current.referrer_id)
+        ref = db.get(User, current.referrer_id)
         if not ref:
             break
 
@@ -608,6 +608,7 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
         update_rank(ref)
 
         current = ref
+
 def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
     club_cut = round(amount * 0.02, 2)  # 2% of deposit
     if club_cut <= 0:
@@ -648,7 +649,8 @@ def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
 
 
 # Special internal user id for the company pool
-COMPANY_USER_ID = 1  # make sure no real Telegram user uses id=1
+# Use a reserved unlikely ID to avoid collision with real Telegram user IDs
+COMPANY_USER_ID = -999999999  # reserved internal id
 
 
 def get_company_user(db: SessionLocal) -> User:
@@ -656,7 +658,7 @@ def get_company_user(db: SessionLocal) -> User:
     Ensure there is a special 'company_pool' user in the User table.
     We store all company pool funds in this user's balances.
     """
-    company = db.query(User).get(COMPANY_USER_ID)
+    company = db.get(User, COMPANY_USER_ID)
     if not company:
         company = User(
             id=COMPANY_USER_ID,
@@ -674,9 +676,10 @@ def get_company_user(db: SessionLocal) -> User:
     return company
 
 
-def add_to_company_pool(db: SessionLocal, amount: float):
+def add_to_company_pool(db: SessionLocal, amount: float, *, commit: bool = False):
     """
     Add the given amount to the company pool balance (MUSD).
+    By default it does not commit; pass commit=True to commit immediately.
     """
     amount = float(amount or 0.0)
     if amount <= 0:
@@ -685,6 +688,9 @@ def add_to_company_pool(db: SessionLocal, amount: float):
     company = get_company_user(db)
     company.balance_musd = float(company.balance_musd or 0.0) + amount
     db.add(company)
+    if commit:
+        db.commit()
+        db.refresh(company)
 
 
 @app.route("/webapp/verify", methods=["POST"])
@@ -749,7 +755,7 @@ def webapp_verify():
         club_pool_used = distribute_club_bonus(db, amount)
         logging.info("Club bonus distributed: %s from amount %s", club_pool_used, amount)    
 
-               # ---------- REFERRAL DISTRIBUTION ----------
+        # ---------- REFERRAL DISTRIBUTION ----------
         # Level 2 and 3 fixed percentages (kept as before)
         LEVEL_BONUSES_FIXED = {
             2: 0.03,  # 3% to Level 2
@@ -764,20 +770,18 @@ def webapp_verify():
         for level, upline in uplines:
             # Determine percentage for this level
             if level == 1:
-                # Level 1 uses upline's ROLE percentage
                 role_key = (upline.role or "user").lower()
                 pct = ROLE_LEVEL1_PCT.get(role_key, 0.0)
             else:
-                # Level 2/3 use fixed small percentages
                 pct = LEVEL_BONUSES_FIXED.get(level, 0.0)
 
             if pct <= 0:
-                # Nothing to pay for this level — goes to pool as zero (skip)
+                # nothing to pay at this level — skip
                 continue
 
             bonus_amount = round(amount * pct, 2)
 
-            # Qualification rules: keep existing policy
+            # Qualification rules
             qualifies = False
             role = (upline.role or "user").lower()
 
@@ -791,7 +795,7 @@ def webapp_verify():
                 # must be Advisor or above
                 qualifies = role in ("advisor", "visionary", "creator")
 
-            if qualifies and pct > 0:
+            if qualifies:
                 # Pay bonus to this upline
                 referral_dist.append({
                     "level": level,
@@ -800,25 +804,11 @@ def webapp_verify():
                     "amount": bonus_amount,
                 })
 
-                # Track it as club income if you want (keeps previous behavior)
+                # Track it as club income (keeps previous behavior)
                 upline.club_income = float(upline.club_income or 0) + bonus_amount
                 db.add(upline)
             else:
-                # Bonus for this level goes to company pool
-                add_to_company_pool(db, bonus_amount)
-
-                referral_dist.append({
-                    "level": 0,   # 0 means Pool in your UI
-                    "to_user_id": None,
-                    "to_username": None,
-                    "amount": bonus_amount,
-                })
-
-                # Optional: treat this as part of club income
-                upline.club_income = float(upline.club_income or 0) + bonus_amount
-
-        else:
-                # Bonus for this level goes to company pool
+                # Bonus goes to company pool
                 add_to_company_pool(db, bonus_amount)
 
                 referral_dist.append({
@@ -853,7 +843,7 @@ def webapp_verify():
 def debug_downlines(user_id):
     db = SessionLocal()
     try:
-        user = db.query(User).get(user_id)
+        user = db.get(User, user_id)
         if not user:
             return jsonify({"exists": False, "error": "user_not_found"})
 
@@ -904,8 +894,8 @@ def debug_link_referrer():
 
     db = SessionLocal()
     try:
-        user = db.query(User).get(int(user_id))
-        ref = db.query(User).get(int(referrer_id))
+        user = db.get(User, int(user_id))
+        ref = db.get(User, int(referrer_id))
 
         if not user or not ref:
             return jsonify(ok=False, error="not_found"), 404
@@ -949,7 +939,7 @@ def debug_list_users():
 def debug_company_pool():
     db = SessionLocal()
     try:
-        company = db.query(User).get(COMPANY_USER_ID)
+        company = db.get(User, COMPANY_USER_ID)
         if not company:
             return jsonify(ok=True, exists=False, balance_musd=0.0, balance_mstc=0.0)
 
@@ -981,7 +971,7 @@ def serve_mini_app():
 def debug_reset_origin(user_id):
     db = SessionLocal()
     try:
-        user = db.query(User).get(user_id)
+        user = db.get(User, user_id)
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
@@ -1038,7 +1028,7 @@ def telegram_webhook():
 def debug_user(user_id):
     db = SessionLocal()
     try:
-        user = db.query(User).get(user_id)
+        user = db.get(User, user_id)
         if not user:
             return jsonify({"exists": False})
 
