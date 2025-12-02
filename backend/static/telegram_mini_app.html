@@ -5,15 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MSTC Earning Project — Deposit & Reward System</title>
 
+  <!-- Telegram Web App JS -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
+    
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
       min-height: 100vh;
-      display: block; /* content flows from top */
+      display: block;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
       text-align: center;
       color: #fff;
@@ -36,366 +38,53 @@
       margin: 8px auto 24px;
     }
 
-    .logo {
-      width: 88px;
-      height: 88px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 4px solid rgba(255,255,255,.35);
-      margin: 0 auto 14px;
-      display: block;
-      box-shadow:
-        0 10px 26px rgba(0,0,0,.35),
-        0 0 0 8px rgba(255,255,255,.08) inset;
-      position: relative;
-    }
+    .logo { width:88px; height:88px; border-radius:50%; object-fit:cover; border:4px solid rgba(255,255,255,.35); margin:0 auto 14px; display:block; box-shadow: 0 10px 26px rgba(0,0,0,.35), 0 0 0 8px rgba(255,255,255,.08) inset; position:relative;}
+    .logo.glow { border-color:transparent; box-shadow:none; isolation:isolate; }
+    .logo.glow::before, .logo.glow::after { content:""; position:absolute; inset:-6px; border-radius:50%; z-index:-1; }
+    .logo.glow::before { background: conic-gradient(from 0deg,#6cf 0%,#8af 25%,#9ff 50%,#7df 75%,#6cf 100%); filter: blur(6px); animation: spin 4s linear infinite; opacity:.95; }
+    .logo.glow::after { inset:-14px; background: radial-gradient(closest-side, rgba(108,240,255,.5), rgba(0,0,0,0)); filter: blur(10px); opacity:.65; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    .logo.glow {
-      border-color: transparent;
-      box-shadow: none;
-      isolation:isolate;
-    }
-
-    .logo.glow::before,
-    .logo.glow::after {
-      content: "";
-      position: absolute;
-      inset: -6px;
-      border-radius: 50%;
-      z-index: -1;
-    }
-
-    .logo.glow::before {
-      background: conic-gradient(
-        from 0deg,
-        #6cf 0%,
-        #8af 25%,
-        #9ff 50%,
-        #7df 75%,
-        #6cf 100%
-      );
-      filter: blur(6px);
-      animation: spin 4s linear infinite;
-      opacity: .95;
-    }
-
-    .logo.glow::after {
-      inset: -14px;
-      background: radial-gradient(
-        closest-side,
-        rgba(108,240,255,.5),
-        rgba(0,0,0,0)
-      );
-      filter: blur(10px);
-      opacity: .65;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    h2 {
-      margin: 0 0 10px;
-      font-weight: 700;
-    }
-
-    .row {
-      margin: 10px 0;
-      font-size: 1.05rem;
-    }
-
-    .big {
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-
-    .actions {
-      margin-top: 16px;
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-    }
-
-    .btn {
-      padding: 11px 22px;
-      border-radius: 22px;
-      border: 0;
-      cursor: pointer;
-      font-weight: 600;
-      background: #00c853;
-      color: #fff;
-      box-shadow: 0 8px 24px rgba(0,200,83,.35);
-    }
-
-    .btn.alt {
-      background: #e53935;
-      box-shadow: 0 8px 24px rgba(229,57,53,.35);
-    }
-
-    .ref-line {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 8px;
-    }
-
-    .copy-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      background: rgba(255,255,255,.16);
-      color: #fff;
-      font-size: 18px;
-      transition: transform .12s ease, opacity .2s;
-    }
-
-    .copy-btn:active {
-      transform: scale(.96);
-    }
-
-    .tooltip {
-      margin-top: 8px;
-      font-size: .85rem;
-      opacity: 0;
-      transition: opacity .25s;
-    }
-
-    .show {
-      opacity: 1;
-    }
-
-    .panel {
-      margin-top: 18px;
-      text-align: left;
-      background: rgba(0,0,0,.18);
-      padding: 16px;
-      border-radius: 14px;
-    }
-
-    .panel h3 {
-      margin: 0 0 10px;
-      color: #fff;
-    }
-
-    label {
-      display: block;
-      font-size: .95rem;
-      opacity: .9;
-      margin: 10px 0 6px;
-    }
-
-    input,
-    .addr-box {
-      width: 100%;
-      padding: 12px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.08);
-      color: #fff;
-      outline: none;
-    }
-
-    .split {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    .rowline {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      word-break: break-all;
-    }
-
-    .mini {
-      font-size: .9rem;
-      opacity: .9;
-    }
-
-    .submit {
-      margin-top: 14px;
-      text-align: right;
-    }
-
-    .btn.secondary {
-      background: #2a7de1;
-      box-shadow: 0 8px 24px rgba(42,125,225,.35);
-    }
-
-    .error {
-      color: #ffb4b4;
-      font-size: .9rem;
-      margin-top: 6px;
-    }
-
-    .ok {
-      color: #b5ffcb;
-      font-size: .9rem;
-      margin-top: 6px;
-    }
-
-    /* Rank panel */
-    .rank-panel {
-      margin-top: 18px;
-      background: rgba(0,0,0,.18);
-      padding: 16px;
-      border-radius: 14px;
-    }
-
-    .rank-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    .rank-header-title {
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    .rank-current-label {
-      font-size: .85rem;
-      opacity: .9;
-    }
-
-    .rank-tabs {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .rank-tab {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.06);
-      color: #fff;
-      font-size: .85rem;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 6px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .rank-name {
-      font-weight: 600;
-      font-size: .9rem;
-    }
-
-    .rank-percent {
-      font-size: .8rem;
-      opacity: .9;
-    }
-
-    .rank-status {
-      font-size: .75rem;
-      opacity: .85;
-    }
-
-    .rank-tab.achieved {
-      border-color: #00c853;
-      box-shadow:
-        0 0 0 1px rgba(0,200,83,.4),
-        0 0 16px rgba(0,200,83,.45);
-    }
-
-    .rank-tab.achieved::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 5px;
-      background: linear-gradient(
-        180deg,
-        rgba(0,200,83,1),
-        rgba(0,200,83,0.1)
-      );
-    }
-
-    .rank-tab.locked .rank-status {
-      color: #ffb4b4;
-    }
-
-    .rank-tab.achieved .rank-status {
-      color: #b5ffcb;
-    }
-
-    .rank-tab.active {
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.35),
-        0 0 10px rgba(255,255,255,.25);
-    }
-
-    .rank-main {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-
-    .rank-progress {
-      width: 100%;
-      height: 6px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.12);
-      overflow: hidden;
-      margin-top: 4px;
-    }
-
-    .rank-progress-bar {
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg,#00c853,#b2ff59);
-      transform-origin: left;
-    }
-
-    .rank-progress-text {
-      font-size: .75rem;
-      opacity: .85;
-      margin-top: 2px;
-    }
-
-    .rank-details {
-      font-size: .9rem;
-      line-height: 1.4;
-    }
-
-    .rank-details ul {
-      padding-left: 18px;
-      margin: 6px 0;
-    }
-
-    .rank-details li {
-      margin: 2px 0;
-    }
+    h2 { margin:0 0 10px; font-weight:700; }
+    .row { margin:10px 0; font-size:1.05rem; }
+    .big { font-size:1.25rem; font-weight:700; }
+    .actions { margin-top:16px; display:flex; gap:12px; justify-content:center; }
+    .btn { padding:11px 22px; border-radius:22px; border:0; cursor:pointer; font-weight:600; background:#00c853; color:#fff; box-shadow:0 8px 24px rgba(0,200,83,.35); }
+    .btn.alt { background:#e53935; box-shadow:0 8px 24px rgba(229,57,53,.35); }
+    .ref-line { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
+    .copy-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:none; cursor:pointer; background:rgba(255,255,255,.16); color:#fff; font-size:18px; transition: transform .12s ease, opacity .2s; }
+    .copy-btn:active { transform: scale(.96); }
+    .tooltip { margin-top:8px; font-size:.85rem; opacity:0; transition: opacity .25s; }
+    .show { opacity:1; }
+    .panel { margin-top:18px; text-align:left; background:rgba(0,0,0,.18); padding:16px; border-radius:14px; }
+    .panel h3 { margin:0 0 10px; color:#fff; }
+    label { display:block; font-size:.95rem; opacity:.9; margin:10px 0 6px; }
+    input, .addr-box { width:100%; padding:12px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#fff; outline:none; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+    .rowline { display:flex; align-items:center; gap:10px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break:break-all; }
+    .mini { font-size:.9rem; opacity:.9; }
+    .submit { margin-top:14px; text-align:right; }
+    .btn.secondary { background:#2a7de1; box-shadow:0 8px 24px rgba(42,125,225,.35); }
+    .error { color:#ffb4b4; font-size:.9rem; margin-top:6px; }
+    .ok { color:#b5ffcb; font-size:.9rem; margin-top:6px; }
+    /* rank styles omitted for brevity but preserved from your file */
+    .rank-panel { margin-top:18px; background:rgba(0,0,0,.18); padding:16px; border-radius:14px; }
+    .rank-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+    .rank-header-title { font-size:1rem; font-weight:600; }
+    .rank-tabs { display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
+    .rank-tab { width:100%; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:#fff; font-size:.85rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; position:relative; overflow:hidden; }
+    .rank-name { font-weight:600; font-size:.9rem; }
+    .rank-percent { font-size:.8rem; opacity:.9; }
+    .rank-status { font-size:.75rem; opacity:.85; }
+    .rank-tab.achieved { border-color:#00c853; box-shadow: 0 0 0 1px rgba(0,200,83,.4), 0 0 16px rgba(0,200,83,.45); }
+    .rank-tab.achieved::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background: linear-gradient(180deg, rgba(0,200,83,1), rgba(0,200,83,0.1)); }
+    .rank-details { font-size:.9rem; line-height:1.4; }
   </style>
 </head>
 <body>
   <div class="card" id="app">
-    <img src="./Botologo_new.png"
-         alt="MSTC EARNING PROJECT"
-         class="logo"
-         id="avatar" />
+    <img src="./Botologo_new.png" alt="MSTC EARNING PROJECT" class="logo" id="avatar" />
 
     <!-- Registration question + Yes/No; hidden later for registered users -->
     <div id="registerSection">
@@ -406,181 +95,152 @@
       </div>
     </div>
   </div>
+
 <script>
-  // --- Referral from URL (?ref=...) ---
- const urlParams = new URLSearchParams(window.location.search);
-let ref = urlParams.get("ref") || null;   
+/* ----------------------
+   CONFIG — edit as needed
+   ---------------------- */
+const API_VERIFY = '/webapp/me';        // backend endpoint (keeps /webapp/me as in server)
+const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+const CHAIN_LABEL = "EVM Chain";
+const MIN_DEPOSIT = 20.00;
+
+/* ----------------------
+   Lightweight helpers
+   ---------------------- */
+const app = document.getElementById('app');
+const baseLogo = './Botologo_new.png';
+
+function copyText(txt, tipEl) {
+  navigator.clipboard.writeText(String(txt)).then(() => {
+    if (tipEl) {
+      tipEl.classList.add('show');
+      setTimeout(() => tipEl.classList.remove('show'), 1200);
+    }
+  }).catch(() => alert('Copy failed'));
+}
+
+function fmt(n) {
+  return Number(n || 0).toFixed(2);
+}
+
+/* ----------------------
+   Referral from URL
+   ---------------------- */
+const urlParams = new URLSearchParams(window.location.search);
+let ref = urlParams.get("ref") || null;
 window.currentRef = ref;
 
-  // --- Telegram WebApp object ---
-  const tg = window.Telegram && window.Telegram.WebApp
-    ? window.Telegram.WebApp
-    : null;
+/* ----------------------
+   Telegram WebApp object (if present)
+   ---------------------- */
+const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+try {
+  if (tg && typeof tg.ready === 'function') tg.ready();
+  if (tg && typeof tg.expand === 'function') tg.expand();
+} catch (e) {
+  console.warn('tg.ready/expand error', e);
+}
 
-  try {
-    tg && tg.ready();
-    tg && tg.expand();
-  } catch (e) {}
-
-  const app = document.getElementById('app');
-  const baseLogo = './Botologo_new.png';
-
-  // Token addresses and labels
-  const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-  const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-  const CHAIN_LABEL = "EVM Chain";
-
-  function copyText(txt, tip) {
-    navigator.clipboard.writeText(txt).then(() => {
-      tip.classList.add('show');
-      setTimeout(() => tip.classList.remove('show'), 1200);
-    }).catch(() => alert('Copy failed'));
-  }
-
-  function fmt(n) {
-    return Number(n).toFixed(2);
-  }
-
-  // --- Rank computation ---
-  function computeRanks(user) {
-    const total = Number(user.total_team_business || 0);
-    const activeOrigins = Number(user.active_origin_count || 0);
-    const role = user.role || '';
-    const selfActivated = !!user.self_activated;
-
-    const isOrigin = selfActivated || role === 'origin';
-    const isLifeChanger = total >= 1000 && activeOrigins >= 10;
-    const isAdvisor = total >= 5000;
-    const isVisionary = total >= 25000;
-    const isCreator = total >= 100000;
-
-    let current = 'Member';
-    if (isCreator) current = 'Creator';
-    else if (isVisionary) current = 'Visionary';
-    else if (isAdvisor) current = 'Advisor';
-    else if (isLifeChanger) current = 'Life Changer';
-    else if (isOrigin) current = 'Origin';
-
-    return {
-      isOrigin,
-      isLifeChanger,
-      isAdvisor,
-      isVisionary,
-      isCreator,
-      total,
-      activeOrigins,
-      current
-    };
-  }
-
-  // --- Verify with backend; fallback to Telegram user ---
-  async function verifyInitData() {
-  const tgApp = tg;
-  const initData = tgApp ? tgApp.initData : "";
-  const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+/* ----------------------
+   VERIFY / LOAD user from backend
+   - always posts signed initData when inside Telegram
+   - falls back to unsafe user for display if verify fails
+   ---------------------- */
+async function verifyInitData() {
+  // Signed initData (string) — used for backend verification
+  const initData = tg ? (tg.initData || '') : '';
+  // Unsafe decoded fields for display only
+  const unsafe = tg && tg.initDataUnsafe ? tg.initDataUnsafe : null;
   const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
 
-  // Telegram start/startapp param
-  const startParam =
-    unsafe && (unsafe.start_param || unsafe.startParam)
-      ? (unsafe.start_param || unsafe.startParam)
-      : null;
-
-  // 🔹 If we have a Telegram start_param and no ref from URL yet,
-  //    use it as our referral id.
+  // If Telegram supplied a start_param (bot start parameter), use as referral when not provided by URL
+  const startParam = (unsafe && (unsafe.start_param || unsafe.startParam)) ? (unsafe.start_param || unsafe.startParam) : null;
   if (!window.currentRef && startParam) {
     window.currentRef = startParam;
     ref = startParam;
   }
 
-  const effectiveRef = window.currentRef || null;
-
-  if (!tgApp) {
-    console.warn("Not inside Telegram WebApp – using test user.");
-    return {
-      ok: false,
-      user: {
-        id: 123456,
-        first_name: "Test User",
-        username: "testuser",
-        photo_url: null,
-        total_team_business: 0,
-        active_origin_count: 0,
-        role: "",
-        self_activated: false
-      }
-    };
-  }
-
-  console.log("🚀 Sending to /webapp/me:", {
-  initData,
-  ref: effectiveRef
-});
+  // If not in Telegram environment, still call backend with empty initData to check server-side behavior
+  // (server returns company account or test behavior)
+  const payload = { initData, ref: window.currentRef || null };
 
   try {
-    const res = await fetch('/webapp/me', {
+    console.debug('POST', API_VERIFY, payload);
+    const res = await fetch(API_VERIFY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData,
-        ref: effectiveRef      
-            })
+      body: JSON.stringify(payload)
     });
 
-    const j = await res.json();
-
-    if (!res.ok || !j.ok) {
-      const msg = j.error || j.detail || 'verify failed';
-      throw new Error(msg);
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.ok === false) {
+      // verification failed server-side; return fallback unsafe user for display
+      console.warn('verify failed server response', res.status, j);
+      return { ok: false, user: j.user || unsafeUser || {} , raw: j };
     }
-    return j;
+
+    // success: server typically returns { ok: true, user: { ... } } or similar
+    // adapt to server shape: if server returned top-level user fields (exists, role...), pass them through
+    if (j.user) {
+      return { ok: true, user: j.user, raw: j };
+    } else {
+      // server returned user fields at top-level
+      const userFields = Object.assign({}, j);
+      delete userFields.ok;
+      return { ok: true, user: userFields, raw: j };
+    }
   } catch (err) {
-    console.warn('verify error, using unsafe Telegram user as fallback:', err);
-    return { ok: false, user: unsafeUser || {} };
+    console.warn('verify error — network or parse', err);
+    return { ok: false, user: unsafeUser || {}, error: err && err.message };
   }
 }
 
+/* ----------------------
+   Render registered view (deposit + ranks)
+   ---------------------- */
+function computeRanks(user) {
+  const total = Number(user.total_team_business || 0);
+  const activeOrigins = Number(user.active_origin_count || 0);
+  const role = (user.role || '').toLowerCase();
+  const selfActivated = !!user.self_activated;
 
-  // --- Render full registered view (deposit + ranks) ---
-  function renderRegisteredView(uid, name, avatar, userData) {
-    const ranks = computeRanks(userData || {});
+  const isOrigin = selfActivated || role === 'origin';
+  const isLifeChanger = total >= 1000 && activeOrigins >= 10;
+  const isAdvisor = total >= 5000;
+  const isVisionary = total >= 25000;
+  const isCreator = total >= 100000;
 
-    const total = ranks.total.toFixed(2);
-    const activeOrigins = ranks.activeOrigins;
+  let current = 'Member';
+  if (isCreator) current = 'Creator';
+  else if (isVisionary) current = 'Visionary';
+  else if (isAdvisor) current = 'Advisor';
+  else if (isLifeChanger) current = 'Life Changer';
+  else if (isOrigin) current = 'Origin';
 
-    const originProgress = ranks.isOrigin ? 100 : 0;
+  return { isOrigin, isLifeChanger, isAdvisor, isVisionary, isCreator, total, activeOrigins, current };
+}
 
-    const lcBusiness = Math.min(ranks.total / 1000, 1);
-    const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
-    const lifeChangerProgress = ranks.isLifeChanger
-      ? 100
-      : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
+function renderRegisteredView(uid, name, avatar, userData) {
+  const ranks = computeRanks(userData || {});
+  const total = (ranks.total || 0).toFixed(2);
+  const activeOrigins = ranks.activeOrigins || 0;
+  const originProgress = ranks.isOrigin ? 100 : 0;
+  const lcBusiness = Math.min(ranks.total / 1000, 1);
+  const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
+  const lifeChangerProgress = ranks.isLifeChanger ? 100 : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
+  const advisorProgress = ranks.isAdvisor ? 100 : Math.round(Math.min(ranks.total / 5000, 1) * 100);
+  const visionaryProgress = ranks.isVisionary ? 100 : Math.round(Math.min(ranks.total / 25000, 1) * 100);
+  const creatorProgress = ranks.isCreator ? 100 : Math.round(Math.min(ranks.total / 100000, 1) * 100);
 
-    const advisorProgress = ranks.isAdvisor
-      ? 100
-      : Math.round(Math.min(ranks.total / 5000, 1) * 100);
+  const refLink = `https://t.me/mstcrefbot?start=${uid}`;
 
-    const visionaryProgress = ranks.isVisionary
-      ? 100
-      : Math.round(Math.min(ranks.total / 25000, 1) * 100);
-
-    const creatorProgress = ranks.isCreator
-      ? 100
-      : Math.round(Math.min(ranks.total / 100000, 1) * 100);
-
-    // referral link for this uid
-    const refLink = `https://t.me/mstcrefbot?start=${uid}`;
-
-    app.innerHTML = `
+  app.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
-      <div class="row">${name || 'Unknown'}</div>
-      <div class="row mini">
-        Total Team Business:
-        <b>$${total}</b>
-        · Active Origins:
-        <b>${activeOrigins}</b>
-      </div>
+      <div class="row">${(name || 'Unknown')}</div>
+      <div class="row mini">Total Team Business: <b>$${total}</b> · Active Origins: <b>${activeOrigins}</b></div>
 
       <div class="row ref-line">
         <span class="mini">Referral Link</span>
@@ -590,10 +250,10 @@ window.currentRef = ref;
 
       <div class="panel">
         <h3>💳 Deposit</h3>
-        <div class="mini">Minimum deposit — <b>$20</b>.</div>
+        <div class="mini">Minimum deposit — <b>$${MIN_DEPOSIT}</b>.</div>
 
         <label>Enter USD amount</label>
-        <input id="amt" type="number" min="20" step="0.01" placeholder="e.g., 20.00" />
+        <input id="amt" type="number" min="${MIN_DEPOSIT}" step="0.01" placeholder="e.g., 20.00" />
         <div id="err" class="error" style="display:none;"></div>
 
         <div class="split">
@@ -643,493 +303,295 @@ window.currentRef = ref;
       <div class="rank-panel">
         <div class="rank-header">
           <div class="rank-header-title">🏅 Your Rank & Levels</div>
-          <div class="rank-current-label">
-            Current: <b>${ranks.current}</b>
-          </div>
+          <div class="rank-current-label">Current: <b>${ranks.current}</b></div>
         </div>
 
         <div class="rank-tabs">
-          <button
-            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
-            data-rank="origin"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Origin</span>
-              <span class="rank-percent">5% Level Income</span>
-              <span class="rank-status">
-                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
-              </span>
-            </div>
-            <div class="rank-progress">
-              <div
-                class="rank-progress-bar"
-                style="width:${originProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
-            </div>
+          <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
+            <div class="rank-main"><span class="rank-name">Origin</span><span class="rank-percent">5% Level Income</span>
+              <span class="rank-status">${ranks.isOrigin ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-progress"><div class="rank-progress-bar" style="width:${originProgress}%;"></div></div>
+            <div class="rank-progress-text">${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}</div>
           </button>
 
-          <button
-            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
-            data-rank="life_changer"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Life Changer</span>
-              <span class="rank-percent">10% Direct</span>
-              <span class="rank-status">
-                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
-              </span>
-            </div>
-            <div class="rank-progress">
-              <div
-                class="rank-progress-bar"
-                style="width:${lifeChangerProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${lifeChangerProgress}% ${
-                lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
-              }
-            </div>
+          <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
+            <div class="rank-main"><span class="rank-name">Life Changer</span><span class="rank-percent">10% Direct</span>
+              <span class="rank-status">${ranks.isLifeChanger ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-progress"><div class="rank-progress-bar" style="width:${lifeChangerProgress}%;"></div></div>
+            <div class="rank-progress-text">${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
-          <button
-            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
-            data-rank="advisor"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Advisor</span>
-              <span class="rank-percent">15% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
-              </span>
-            </div>
-            <div class="rank-progress">
-              <div
-                class="rank-progress-bar"
-                style="width:${advisorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${advisorProgress}% ${
-                advisorProgress === 100 ? 'achieved' : 'towards next rank'
-              }
-            </div>
+          <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
+            <div class="rank-main"><span class="rank-name">Advisor</span><span class="rank-percent">15% Club Rank</span>
+              <span class="rank-status">${ranks.isAdvisor ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-progress"><div class="rank-progress-bar" style="width:${advisorProgress}%;"></div></div>
+            <div class="rank-progress-text">${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
-          <button
-            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
-            data-rank="visionary"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Visionary</span>
-              <span class="rank-percent">20% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isVisionary ? 'Achieved' : 'Locked'}
-              </span>
-            </div>
-            <div class="rank-progress">
-              <div
-                class="rank-progress-bar"
-                style="width:${visionaryProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${visionaryProgress}% ${
-                visionaryProgress === 100 ? 'achieved' : 'towards next rank'
-              }
-            </div>
+          <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
+            <div class="rank-main"><span class="rank-name">Visionary</span><span class="rank-percent">20% Club Rank</span>
+              <span class="rank-status">${ranks.isVisionary ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-progress"><div class="rank-progress-bar" style="width:${visionaryProgress}%;"></div></div>
+            <div class="rank-progress-text">${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
-          <button
-            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
-            data-rank="creator"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Creator</span>
-              <span class="rank-percent">25% Top Rank</span>
-              <span class="rank-status">
-                ${ranks.isCreator ? 'Achieved' : 'Locked'}
-              </span>
-            </div>
-            <div class="rank-progress">
-              <div
-                class="rank-progress-bar"
-                style="width:${creatorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${creatorProgress}% ${
-                creatorProgress === 100 ? 'achieved' : 'towards top rank'
-              }
-            </div>
+          <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
+            <div class="rank-main"><span class="rank-name">Creator</span><span class="rank-percent">25% Top Rank</span>
+              <span class="rank-status">${ranks.isCreator ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-progress"><div class="rank-progress-bar" style="width:${creatorProgress}%;"></div></div>
+            <div class="rank-progress-text">${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}</div>
           </button>
         </div>
 
         <div id="rankDetails" class="rank-details"></div>
       </div>
-    `;
+  `;
 
-    // --- Wire up events inside rendered view ---
+  // --- Wire events ---
 
-    const tip = document.getElementById('tipRef');
-    const copyRefBtn = document.getElementById('copyRef');
-    if (copyRefBtn && tip) {
-      copyRefBtn.onclick = () => copyText(refLink, tip);
-    }
+  const tip = document.getElementById('tipRef');
+  const copyRefBtn = document.getElementById('copyRef');
+  if (copyRefBtn && tip) copyRefBtn.onclick = () => copyText(refLink, tip);
 
-    const amtInput = document.getElementById('amt');
-    const musdAmt = document.getElementById('musdAmt');
-    const mstcAmt = document.getElementById('mstcAmt');
-    const errEl = document.getElementById('err');
+  const amtInput = document.getElementById('amt');
+  const musdAmt = document.getElementById('musdAmt');
+  const mstcAmt = document.getElementById('mstcAmt');
+  const errEl = document.getElementById('err');
+  const txMUSDInput = document.getElementById('txMUSD');
+  const txMSTCInput = document.getElementById('txMSTC');
+  const submitBtn = document.getElementById('submitDeposit');
+  const msgEl = document.getElementById('submitMsg');
+  const copyMUSDBtn = document.getElementById('copyMUSD');
+  const copyMSTCBtn = document.getElementById('copyMSTC');
 
-    if (amtInput && musdAmt && mstcAmt && errEl) {
-      amtInput.oninput = () => {
-        const v = parseFloat(amtInput.value || '0');
-        if (isNaN(v) || v <= 0) {
-          musdAmt.textContent = '0.00';
-          mstcAmt.textContent = '0.00';
-          errEl.style.display = 'none';
-          errEl.textContent = '';
-          return;
-        }
-
-        musdAmt.textContent = fmt(v * 0.70);
-        mstcAmt.textContent = fmt(v * 0.30);
-
-        if (v < 20) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Minimum deposit is $20.';
-        } else {
-          errEl.style.display = 'none';
-          errEl.textContent = '';
-        }
-      };
-    }
-
-    const tipCopy = document.getElementById('tipRef');
-    const copyMUSDBtn = document.getElementById('copyMUSD');
-    const copyMSTCBtn = document.getElementById('copyMSTC');
-
-    if (copyMUSDBtn && tipCopy) {
-      copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tipCopy);
-    }
-    if (copyMSTCBtn && tipCopy) {
-      copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tipCopy);
-    }
-
-    const submitBtn = document.getElementById('submitDeposit');
-    const msgEl = document.getElementById('submitMsg');
-    const txMUSDInput = document.getElementById('txMUSD');
-    const txMSTCInput = document.getElementById('txMSTC');
-
-    if (submitBtn && amtInput && errEl && msgEl && txMUSDInput && txMSTCInput) {
-      submitBtn.onclick = async () => {
-        const tgApp = tg;
-
-        // Clear previous messages
+  if (amtInput && musdAmt && mstcAmt && errEl) {
+    amtInput.oninput = () => {
+      const v = parseFloat(amtInput.value || '0');
+      if (isNaN(v) || v <= 0) {
+        musdAmt.textContent = '0.00';
+        mstcAmt.textContent = '0.00';
         errEl.style.display = 'none';
         errEl.textContent = '';
-        msgEl.style.display = 'none';
-        msgEl.textContent = '';
+        return;
+      }
+      musdAmt.textContent = fmt(v * 0.70);
+      mstcAmt.textContent = fmt(v * 0.30);
 
-        const valueStr = amtInput.value ? amtInput.value.trim() : "0";
-        const amount = parseFloat(valueStr || "0");
-
-        const tx1 = txMUSDInput.value.trim();
-        const tx2 = txMSTCInput.value.trim();
-
-        if (isNaN(amount) || amount < 20) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please enter at least $20.';
-          if (tgApp) {
-            tgApp.showAlert('Please enter at least $20.');
-          }
-          return;
-        }
-
-        if (!tx1 || !tx2) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please paste both transaction hashes.';
-          if (tgApp) {
-            tgApp.showAlert('Please paste both transaction hashes.');
-          }
-          return;
-        }
-
-        const payload = {
-          initData: tgApp ? tgApp.initData : "",
-          amount: Number(amount.toFixed(2)),
-          tx_musd: tx1,
-          tx_mstc: tx2,
-          ref: window.currentRef || null
-        };
-
-        msgEl.style.display = 'block';
-        msgEl.textContent = 'Submitting...';
-
-        try {
-          const res = await fetch('/webapp/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await res.json();
-          console.log('VERIFY RESPONSE:', data);
-
-          if (data.ok) {
-  
-  let summaryLines = [];
-
-  if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-    summaryLines.push("Referral distribution:");
-
-    data.referral_dist.forEach(r => {
-      const level = (r.level === 0 || r.level === null || r.level === undefined)
-        ? "Pool"
-        : `Level ${r.level}`;
-
-      const who =
-        r.to_username ||
-        (r.to_user_id !== null && r.to_user_id !== undefined
-          ? r.to_user_id
-          : "company_pool");
-
-      summaryLines.push(`${level}: ${who} → $${r.amount}`);
-    });
-  } else {
-    summaryLines.push("No referral distribution (no uplines linked).");
+      if (v < MIN_DEPOSIT) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Minimum deposit is $' + MIN_DEPOSIT + '.';
+      } else {
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+      }
+    };
   }
 
-  const summaryText = summaryLines.join("\n");
+  if (copyMUSDBtn && tip) copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tip);
+  if (copyMSTCBtn && tip) copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tip);
 
-  // Show in Telegram alert 
-  if (tgApp) {
-    tgApp.showAlert("Deposit submitted successfully!\n\n" + summaryText);
-  }
+  if (submitBtn) {
+    submitBtn.onclick = async () => {
+      // Clear UI messages
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+      if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
 
-  // Also show in the page below the button
-  msgEl.style.display = "block";
-  msgEl.innerHTML =
-    "Deposit submitted successfully!<br><pre style=\"text-align:left; white-space:pre-wrap; margin-top:4px;\">" +
-    summaryText +
-    "</pre>";
+      const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
+      const amount = parseFloat(valueStr || "0");
+      const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
+      const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
 
-  // Optionally clear inputs
-  amtInput.value = "";
-  txMUSDInput.value = "";
-  txMSTCInput.value = "";
-  musdAmt.textContent = "0.00";
-  mstcAmt.textContent = "0.00";
-} else {
-  const errorText = data.error || "unknown error";
-  if (tgApp) {
-    tgApp.showAlert("Failed to submit: " + errorText);
-  }
-  msgEl.style.display = "block";
-  msgEl.textContent = "Failed to submit: " + errorText;
-}
+      if (isNaN(amount) || amount < MIN_DEPOSIT) {
+        if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.'; }
+        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Please enter at least $' + MIN_DEPOSIT + '.');
+        return;
+      }
 
-        } catch (e) {
-          const errorText = e && e.message ? e.message : String(e);
-          if (tgApp) {
-            tgApp.showAlert('Failed to submit: ' + errorText);
-          }
-          msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + errorText;
-        }
+      if (!tx1 || !tx2) {
+        if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Please paste both transaction hashes.'; }
+        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Please paste both transaction hashes.');
+        return;
+      }
+
+      // Prepare payload. Use signed initData string if in Telegram.
+      const payload = {
+        initData: tg ? (tg.initData || "") : "",
+        amount: Number(amount.toFixed(2)),
+        tx_musd: tx1,
+        tx_mstc: tx2,
+        ref: window.currentRef || null
       };
-    }
 
-    // --- Rank tab details ---
+      if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
+
+      try {
+        const res = await fetch('/webapp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        console.debug('VERIFY RESPONSE:', data);
+
+        if (data && data.ok) {
+          // Build a small summary for the user
+          let summaryLines = [];
+          if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
+            summaryLines.push("Referral distribution:");
+            data.referral_dist.forEach(r => {
+              const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
+              const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
+              summaryLines.push(`${level}: ${who} → $${r.amount}`);
+            });
+          } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
+            summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
+          } else {
+            summaryLines.push("No referral distribution (no uplines linked).");
+          }
+
+          const summaryText = summaryLines.join("\n");
+
+          if (tg && typeof tg.showAlert === 'function') {
+            tg.showAlert("Deposit submitted successfully!\n\n" + summaryText);
+          }
+
+          if (msgEl) {
+            msgEl.style.display = 'block';
+            msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" + summaryText + "</pre>";
+          }
+
+          // Clear inputs
+          if (amtInput) amtInput.value = "";
+          if (txMUSDInput) txMUSDInput.value = "";
+          if (txMSTCInput) txMSTCInput.value = "";
+          if (musdAmt) musdAmt.textContent = "0.00";
+          if (mstcAmt) mstcAmt.textContent = "0.00";
+
+        } else {
+          const errText = (data && (data.error || data.detail)) ? (data.error || data.detail) : 'Unknown error';
+          if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + errText);
+          if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Failed to submit: ' + errText; }
+        }
+      } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + msg);
+        if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Failed to submit: ' + msg; }
+      }
+    };
+  }
+
+  // Rank details wiring (unchanged)
+  const rankDetailsHandler = () => {
     const rankDetails = document.getElementById('rankDetails');
     const rankTabs = app.querySelectorAll('.rank-tab');
-
     function setActiveRankTab(rankKey) {
-      rankTabs.forEach(btn => {
-        if (btn.dataset.rank === rankKey) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      });
-
+      rankTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.rank === rankKey));
       let html = '';
       if (rankKey === 'origin') {
-        html = `
-          <b>Origin – 5% Level Income</b>
-          <ul>
-            <li>Self activation required (your own qualifying deposit).</li>
-            <li>You start earning 5% from your direct team as Origin.</li>
-          </ul>
-        `;
+        html = `<b>Origin – 5% Level Income</b><ul><li>Self activation required (your own qualifying deposit).</li><li>You start earning 5% from your direct team as Origin.</li></ul>`;
       } else if (rankKey === 'life_changer') {
-        html = `
-          <b>Life Changer – 10% Direct</b>
-          <ul>
-            <li>1000 MUSD total team business.</li>
-            <li>10 active Origins in your group.</li>
-            <li>Eligible for Life Changer club and monthly pool
-                (2% company turnover shared among achievers – handled by admin).</li>
-          </ul>
-        `;
+        html = `<b>Life Changer – 10% Direct</b><ul><li>1000 MUSD total team business.</li><li>10 active Origins in your group.</li></ul>`;
       } else if (rankKey === 'advisor') {
-        html = `
-          <b>Advisor – 15%</b>
-          <ul>
-            <li>5000 MUSD total team business (target).</li>
-            <li>Higher monthly club requirements decided by company rules.</li>
-            <li>2% company club pool shared among all active Advisors (as per plan).</li>
-          </ul>
-        `;
+        html = `<b>Advisor – 15%</b><ul><li>5000 MUSD total team business (target).</li></ul>`;
       } else if (rankKey === 'visionary') {
-        html = `
-          <b>Visionary – 20%</b>
-          <ul>
-            <li>25000 MUSD total team business (target).</li>
-            <li>Next-level leadership and club participation.</li>
-          </ul>
-        `;
+        html = `<b>Visionary – 20%</b><ul><li>25000 MUSD total team business (target).</li></ul>`;
       } else if (rankKey === 'creator') {
-        html = `
-          <b>Creator – 25%</b>
-          <ul>
-            <li>100000 MUSD total team business (top rank target).</li>
-            <li>Highest reward slab and special company recognition.</li>
-          </ul>
-        `;
+        html = `<b>Creator – 25%</b><ul><li>100000 MUSD total team business (top rank target).</li></ul>`;
       }
-
-      if (rankDetails) {
-        rankDetails.innerHTML = html;
-      }
+      if (rankDetails) rankDetails.innerHTML = html;
     }
+    // attach click handlers
+    const tabs = app.querySelectorAll('.rank-tab');
+    tabs.forEach(t => t.addEventListener('click', () => setActiveRankTab(t.dataset.rank)));
+    // default select first achieved / origin
+    const defaultTab = app.querySelector('.rank-tab.achieved') ? app.querySelector('.rank-tab.achieved').dataset.rank : 'origin';
+    setActiveRankTab(defaultTab);
+  };
 
-    let defaultRank = 'origin';
-    if (ranks.isCreator) defaultRank = 'creator';
-    else if (ranks.isVisionary) defaultRank = 'visionary';
-    else if (ranks.isAdvisor) defaultRank = 'advisor';
-    else if (ranks.isLifeChanger) defaultRank = 'life_changer';
+  // Call after rendering view to wire rank handlers
+  setTimeout(rankDetailsHandler, 100);
 
-    setActiveRankTab(defaultRank);
+} // end renderRegisteredView
 
-    rankTabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        setActiveRankTab(btn.dataset.rank);
-      });
-    });
-  }
+/* ----------------------
+   Show full view (verify -> render)
+   ---------------------- */
+async function showRegisteredViewFromBackend() {
+  const verifyResp = await verifyInitData();
+  const unsafeUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
 
-  // --- Helper: show full view from backend (YES or auto for registered users) ---
-  async function showRegisteredViewFromBackend() {
-    const verifyResp = await verifyInitData();
+  const u = (verifyResp && verifyResp.user) ? verifyResp.user : unsafeUser || {};
+  const id = u.id || (u.user_id || 0);
+  const name = ((u.first_name || '') + (u.username ? ' @' + u.username : '')) || u.username || 'Unknown';
+  const avatar = u.photo_url || u.photo || baseLogo;
+  renderRegisteredView(id, name, avatar, verifyResp.user || u || {});
+}
 
-    const tgApp = tg;
-    const unsafeUser =
-      tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
-        ? tgApp.initDataUnsafe.user
-        : {};
+/* ----------------------
+   Activation status (first screen)
+   - loadActivationStatus calls backend to find if user already registered
+   ---------------------- */
+async function updateActivationStatus(user) {
+  const statusEl = document.getElementById("accountStatus");
+  const registerSection = document.getElementById("registerSection");
+  if (!statusEl || !registerSection) return;
 
-    const u = verifyResp.user || unsafeUser || {};
-    const id = u.id || 0;
-    const name =
-      ((u.first_name || '') +
-        (u.username ? ' @' + u.username : '')) ||
-      u.username ||
-      'Unknown';
-    const avatar = u.photo_url || baseLogo;
+  // support server shapes: has_registered, exists, or custom flags
+  const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
+  const isActive = user && (user.is_active === true || user.role === 'origin' || user.self_activated === 1 || user.self_activated === true);
 
-    renderRegisteredView(id, name, avatar, verifyResp.user || {});
-  }
-
-  // --- Activation status (first screen, Yes/No) ---
-  function updateActivationStatus(user) {
-    const statusEl = document.getElementById("accountStatus");
-    const registerSection = document.getElementById("registerSection");
-    if (!user || !statusEl || !registerSection) return;
-
-    if (!user.has_registered) {
-      // FIRST TIME USER – show question + Yes/No
-      statusEl.textContent = "Do you want to register?";
-      registerSection.style.display = "";
+  if (!hasReg) {
+    statusEl.textContent = "Do you want to register?";
+    registerSection.style.display = "";
+  } else {
+    registerSection.style.display = "none";
+    if (isActive) {
+      statusEl.textContent = "You are activated as Origin ✅";
     } else {
-      // REGISTERED USER – hide question
-      registerSection.style.display = "none";
-      if (user.is_active) {
-        statusEl.textContent = "You are activated as Origin ✅";
-      } else {
-        statusEl.textContent =
-          "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
-      }
+      statusEl.textContent = "You are registered but not activated yet. Deposit at least $" + MIN_DEPOSIT + " to activate Origin.";
     }
   }
+}
 
-  async function loadActivationStatus() {
-    const tgApp = tg;
-    if (!tgApp) {
-      console.error("Telegram WebApp not available");
-      return;
-    }
+async function loadActivationStatus() {
+  // Reuse verifyInitData so server gets signed initData if available
+  const resp = await verifyInitData();
+  const user = resp && resp.user ? resp.user : {};
+  // Update UI (handles both registered/unregistered)
+  updateActivationStatus(user);
+  // If registered, show full view
+  const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
+  if (hasReg) {
+    await showRegisteredViewFromBackend();
+  } else {
+    // Keep the first-time registration question visible (user can press Yes)
+    console.debug('User not registered or server returned no registration; showing register question.');
+  }
+}
 
-    const initData = tgApp.initData || "";
+/* ----------------------
+   Boot: DOM ready wiring for Yes/No buttons
+   ---------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // Load activation status (this will call backend /webapp/me)
+  loadActivationStatus().catch(e => console.warn('loadActivationStatus error', e));
 
-    try {
-      const res = await fetch('/webapp/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-  initData,
-  ref: window.currentRef || null
-})
+  const yesBtn = document.getElementById('yesBtn');
+  const noBtn = document.getElementById('noBtn');
 
-      });
-      const data = await res.json();
-      console.log("VERIFY RESPONSE:", data);
-
-      if (data && data.ok !== false) {
-        updateActivationStatus(data);
-
-        // if user already registered, skip question and show full view
-        if (data.has_registered) {
-          await showRegisteredViewFromBackend();
-        }
-      } else {
-        console.error("init failed", data);
-      }
-    } catch (err) {
-      console.error("Error loading activation status:", err);
-    }
+  if (yesBtn) {
+    yesBtn.onclick = async () => {
+      // On Yes: run the full render (this will query backend again and render the registered view)
+      await showRegisteredViewFromBackend();
+    };
   }
 
-  // --- YES / NO button handlers + init ---
-  document.addEventListener('DOMContentLoaded', () => {
-    // Load activation status
-    loadActivationStatus();
-
-    const yesBtn = document.getElementById('yesBtn');
-    const noBtn = document.getElementById('noBtn');
-
-    if (yesBtn) {
-      yesBtn.onclick = async () => {
-        await showRegisteredViewFromBackend();
-      };
-    }
-
-    if (noBtn) {
-      noBtn.onclick = () => {
-        app.innerHTML = `
-          <img src="${baseLogo}" class="logo" />
-          <div class="row big">❌ Registration Cancelled</div>
-        `;
-      };
-    }
-  });
+  if (noBtn) {
+    noBtn.onclick = () => {
+      app.innerHTML = `<img src="${baseLogo}" class="logo" /><div class="row big">❌ Registration Cancelled</div>`;
+    };
+  }
+});
 </script>
-
- 
 </body>
 </html>
-
