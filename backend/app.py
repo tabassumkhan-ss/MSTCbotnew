@@ -576,6 +576,15 @@ def update_rank(user: User):
         if not user.role:
             user.role = "user"
 
+# Role-based percentage for Level 1 (direct sponsor) commissions
+ROLE_LEVEL1_PCT = {
+    "origin": 0.05,        # 5%
+    "life_changer": 0.10,  # 10%
+    "advisor": 0.15,       # 15%
+    "visionary": 0.20,     # 20%
+    "creator": 0.25,       # 25%
+}
+
 
 def propagate_team_business(db: SessionLocal, user: User, amount: float, became_origin_now: bool):
     """
@@ -740,10 +749,9 @@ def webapp_verify():
         club_pool_used = distribute_club_bonus(db, amount)
         logging.info("Club bonus distributed: %s from amount %s", club_pool_used, amount)    
 
-        # ---------- REFERRAL DISTRIBUTION ----------
-        # Configurable level percentages
-        LEVEL_BONUSES = {
-            1: 0.05,  # 5% to Level 1
+               # ---------- REFERRAL DISTRIBUTION ----------
+        # Level 2 and 3 fixed percentages (kept as before)
+        LEVEL_BONUSES_FIXED = {
             2: 0.03,  # 3% to Level 2
             3: 0.02,  # 2% to Level 3
         }
@@ -754,13 +762,22 @@ def webapp_verify():
         uplines = get_uplines(db, user, max_levels=3)
 
         for level, upline in uplines:
-            pct = LEVEL_BONUSES.get(level, 0)
+            # Determine percentage for this level
+            if level == 1:
+                # Level 1 uses upline's ROLE percentage
+                role_key = (upline.role or "user").lower()
+                pct = ROLE_LEVEL1_PCT.get(role_key, 0.0)
+            else:
+                # Level 2/3 use fixed small percentages
+                pct = LEVEL_BONUSES_FIXED.get(level, 0.0)
+
             if pct <= 0:
+                # Nothing to pay for this level — goes to pool as zero (skip)
                 continue
 
             bonus_amount = round(amount * pct, 2)
 
-            # Qualification rules by level
+            # Qualification rules: keep existing policy
             qualifies = False
             role = (upline.role or "user").lower()
 
@@ -774,7 +791,7 @@ def webapp_verify():
                 # must be Advisor or above
                 qualifies = role in ("advisor", "visionary", "creator")
 
-            if qualifies:
+            if qualifies and pct > 0:
                 # Pay bonus to this upline
                 referral_dist.append({
                     "level": level,
@@ -783,10 +800,24 @@ def webapp_verify():
                     "amount": bonus_amount,
                 })
 
+                # Track it as club income if you want (keeps previous behavior)
+                upline.club_income = float(upline.club_income or 0) + bonus_amount
+                db.add(upline)
+            else:
+                # Bonus for this level goes to company pool
+                add_to_company_pool(db, bonus_amount)
+
+                referral_dist.append({
+                    "level": 0,   # 0 means Pool in your UI
+                    "to_user_id": None,
+                    "to_username": None,
+                    "amount": bonus_amount,
+                })
+
                 # Optional: treat this as part of club income
                 upline.club_income = float(upline.club_income or 0) + bonus_amount
 
-            else:
+        else:
                 # Bonus for this level goes to company pool
                 add_to_company_pool(db, bonus_amount)
 
