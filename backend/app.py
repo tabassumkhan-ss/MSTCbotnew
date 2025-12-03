@@ -296,10 +296,9 @@ def webapp_me():
             db.refresh(user)
             logging.info("ME DEBUG user.referrer_id(after)=%s", user.referrer_id)
 
-        # New: Treat any existing user as "registered" for UX purposes.
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
-        has_registered = True  # <- immediate registration for smoother UX
+        has_registered = bool(self_activated or total_team_business > 0)
 
         resp = {
             "ok": True,
@@ -321,13 +320,6 @@ def webapp_me():
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
-    """
-    Called by telegram_mini_app.html on load (via loadActivationStatus()).
-
-    We treat a user as:
-      - "registered" immediately for smoother UX
-      - "active" if self_activated is True (Origin or above)
-    """
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -336,21 +328,15 @@ def webapp_init():
         if not init_data:
             return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        # Parse Telegram initData 
         tg_user = verify_telegram_init_data(init_data)
-
-        # Try to read ref from body or initData
         ref_id = get_ref_from_payload(data)
-
-        # Get or create the user, and auto-link referrer if possible
         user = get_or_create_user(db, tg_user, ref_id)
 
-        # For UX: consider any existing user as registered immediately.
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
-        has_registered = True  # immediate registration
+        has_registered = bool(self_activated or total_team_business > 0)
 
-        is_active = self_activated  # your Origin/active flag
+        is_active = self_activated
 
         resp = {
             "ok": True,
@@ -371,9 +357,6 @@ def webapp_init():
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
-
-
-
 
 @app.post("/bot/start")
 def bot_start():
