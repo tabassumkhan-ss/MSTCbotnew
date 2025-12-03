@@ -296,6 +296,11 @@ def webapp_me():
             db.refresh(user)
             logging.info("ME DEBUG user.referrer_id(after)=%s", user.referrer_id)
 
+        # New: Treat any existing user as "registered" for UX purposes.
+        total_team_business = float(user.total_team_business or 0.0)
+        self_activated = bool(user.self_activated)
+        has_registered = True  # <- immediate registration for smoother UX
+
         resp = {
             "ok": True,
             "user": {
@@ -305,14 +310,14 @@ def webapp_me():
                 "role": user.role,
                 "self_activated": user.self_activated,
                 "referrer_id": user.referrer_id,
-                "total_team_business": float(user.total_team_business or 0),
+                "total_team_business": total_team_business,
                 "active_origin_count": int(user.active_origin_count or 0),
+                "has_registered": has_registered,
             },
         }
         return jsonify(resp)
     finally:
         db.close()
-
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
@@ -320,7 +325,7 @@ def webapp_init():
     Called by telegram_mini_app.html on load (via loadActivationStatus()).
 
     We treat a user as:
-      - "registered" if they have *any* team business or self_activated flag
+      - "registered" immediately for smoother UX
       - "active" if self_activated is True (Origin or above)
     """
     db = SessionLocal()
@@ -340,10 +345,10 @@ def webapp_init():
         # Get or create the user, and auto-link referrer if possible
         user = get_or_create_user(db, tg_user, ref_id)
 
-        # "Registered" = user has ever done anything (team business or activated)
+        # For UX: consider any existing user as registered immediately.
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
-        has_registered = bool(self_activated or total_team_business > 0)
+        has_registered = True  # immediate registration
 
         is_active = self_activated  # your Origin/active flag
 
@@ -366,6 +371,7 @@ def webapp_init():
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
+
 
 
 
