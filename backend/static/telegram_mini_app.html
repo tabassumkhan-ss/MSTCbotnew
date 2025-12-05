@@ -101,8 +101,11 @@
    CONFIG — edit as needed
    ---------------------- */
 const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
-const API_VERIFY = API_BASE + '/webapp/me';        // backend verify/me endpoint
-const API_DEPOSIT = API_BASE + '/webapp/deposit';  // deposit endpoint (see below)
+// Use /webapp/init for activation / registration status (it expects initData)
+const API_VERIFY = API_BASE + '/webapp/init';
+// Use /webapp/verify for deposits (it expects initData + amount)
+const API_DEPOSIT = API_BASE + '/webapp/verify';
+
 const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
 const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
 const CHAIN_LABEL = "EVM Chain";
@@ -471,10 +474,20 @@ function renderRegisteredView(uid, name, avatar, userData) {
           if (mstcAmt) mstcAmt.textContent = "0.00";
 
         } else {
-          const errText = (data && (data.error || data.detail)) ? (data.error || data.detail) : 'Unknown error';
-          if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + errText);
-          if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Failed to submit: ' + errText; }
-        }
+  const errText = data && (data.message || data.error || data.detail)
+    ? (data.message || data.error || data.detail)
+    : 'Unknown error';
+
+  if (tg && typeof tg.showAlert === 'function') {
+    tg.showAlert('Failed to submit: ' + errText);
+  }
+  if (msgEl) {
+    msgEl.style.display = 'block';
+    msgEl.textContent = 'Failed to submit: ' + errText;
+  }
+}
+
+        
       } catch (e) {
         const msg = e && e.message ? e.message : String(e);
         if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + msg);
