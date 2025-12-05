@@ -80,73 +80,52 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.refresh(user)
 
 
-def get_or_create_user(db, tg_user_raw, maybe_referrer_id):
-    """
-    Central place to load/create the User AND auto-link referrer.
+def get_or_create_user(db, tg_user, ref_id=None):
+    # tg_user is expected to be a dict from Telegram WebApp initDataUnsafe.user
+    if not isinstance(tg_user, dict):
+        raise ValueError(f"tg_user is not a dict: {tg_user!r}")
 
-    tg_user_raw can be:
-      - a dict with keys like {"id", "username", "first_name"}
-      - a tuple/list that may contain such a dict
-      - an int (Telegram user id)
-    """
-    user_id = None
-    username = ""
-    first_name = ""
+    tg_user_raw = (
+        tg_user.get("id"),
+        tg_user.get("username"),
+        tg_user.get("first_name"),
+        tg_user.get("last_name"),
+    )
 
-    # Case 1: already a dict
-    if isinstance(tg_user_raw, dict):
-        user_id = tg_user_raw.get("id")
-        username = tg_user_raw.get("username") or ""
-        first_name = tg_user_raw.get("first_name") or ""
-
-    # Case 2: tuple or list (e.g. (user_dict, something_else) OR (user_id, ...))
-    elif isinstance(tg_user_raw, (tuple, list)):
-        # Try to find a dict with "id" inside
-        for item in tg_user_raw:
-            if isinstance(item, dict) and "id" in item:
-                user_id = item.get("id")
-                username = item.get("username") or ""
-                first_name = item.get("first_name") or ""
-                break
-
-        # If still no user_id and first element is an int, treat it as id
-        if user_id is None and tg_user_raw:
-            first = tg_user_raw[0]
-            if isinstance(first, int):
-                user_id = first
-
-    # Case 3: raw int → assume it's the Telegram user id
-    elif isinstance(tg_user_raw, int):
-        user_id = tg_user_raw
-
-    else:
-        raise ValueError(f"Unsupported tg_user type: {type(tg_user_raw)} {tg_user_raw!r}")
-
-    if not user_id:
+    if tg_user_raw[0] is None:
+        # Don't crash the whole app – let the route handle this.
         raise ValueError(f"Telegram user data missing 'id': {tg_user_raw!r}")
 
-    # Look up or create the user
-    user = db.get(User, user_id)
+    tg_id = tg_user_raw[0]
+    username = tg_user_raw[1]
+    first_name = tg_user_raw[2]
 
+    user = db.query(User).filter_by(id=tg_id).first()
     if user is None:
         user = User(
-            id=user_id,
+            id=tg_id,
             username=username,
             first_name=first_name,
             created_at=datetime.utcnow(),
-            role="user",          # or "origin" later when conditions met
-            self_activated=False, # will become True on first successful deposit
-            balance_musd=0.0,
             balance_mstc=0.0,
+            balance_musd=0.0,
+            active=True,
+            referrer_id=ref_id,
+            role="user",
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-
-    # Auto-link referrer only if not already set
-    link_referrer_if_needed(db, user, maybe_referrer_id)
+    else:
+        # Optionally update username / first_name if changed
+        if username and user.username != username:
+            user.username = username
+        if first_name and user.first_name != first_name:
+            user.first_name = first_name
+        db.commit()
 
     return user
+
 
 def get_uplines(db, user, max_levels=3):
     """
@@ -250,7 +229,7 @@ ADMIN_IDS = os.getenv("ADMIN_IDS", "7955075357")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "s3cr3t-mstc-2025")
 
 # Used for webapp_url in /bot/start
-BASE_URL = "https://mstcbotnew.onrender.com"
+BASE_URL = "https://mstcbotnew-production.up.railway.app/"
 
 # -------------------------
 # App setup
@@ -276,47 +255,39 @@ def home():
 def webapp_me():
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-        tg_user = verify_telegram_init_data(init_data)
-
-        ref_id = get_ref_from_payload(data)
-        user = get_or_create_user(db, tg_user, ref_id)
-
-        logging.info("ME DEBUG raw data: %r", data)
-        logging.info(
-            "ME DEBUG user_id=%s ref_id=%s user.referrer_id(before)=%s",
-            user.id, ref_id, user.referrer_id
+        payload = request.get_json() or {}
+        # Try to support multiple keys if needed
+        tg_user = (
+            payload.get("telegram_user")
+            or payload.get("user")
+            or payload.get("from")
+            or {}
         )
+        ref_id = payload.get("ref_id") or payload.get("start_param")
 
-        if user.referrer_id is None and ref_id and ref_id != user.id:
-            logging.info("ME DEBUG Force-linking referrer: user %s -> %s", user.id, ref_id)
-            user.referrer_id = ref_id
-            db.commit()
-            db.refresh(user)
-            logging.info("ME DEBUG user.referrer_id(after)=%s", user.referrer_id)
+        try:
+            user = get_or_create_user(db, tg_user, ref_id)
+        except ValueError as e:
+            # Log and return a proper JSON error instead of crashing
+            app.logger.error(f"/webapp/me invalid telegram user: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 400
 
-        total_team_business = float(user.total_team_business or 0.0)
-        self_activated = bool(user.self_activated)
-        has_registered = bool(self_activated or total_team_business > 0)
-
-        resp = {
-            "ok": True,
+        return jsonify({
+            "status": "ok",
             "user": {
                 "id": user.id,
-                "first_name": user.first_name,
                 "username": user.username,
-                "role": user.role,
-                "self_activated": user.self_activated,
-                "referrer_id": user.referrer_id,
-                "total_team_business": total_team_business,
-                "active_origin_count": int(user.active_origin_count or 0),
-                "has_registered": has_registered,
-            },
-        }
-        return jsonify(resp)
+                "first_name": user.first_name,
+                "balance_mstc": user.balance_mstc,
+                "balance_musd": user.balance_musd,
+            }
+        })
+    except Exception as e:
+        app.logger.exception("Unhandled error in /webapp/me")
+        return jsonify({"status": "error", "message": "server_error"}), 500
     finally:
         db.close()
+
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
@@ -328,9 +299,28 @@ def webapp_init():
         if not init_data:
             return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        tg_user = verify_telegram_init_data(init_data)
+            uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+
+        if not uid:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+        tg_user = {
+            "id": uid,
+            "username": username,
+            "first_name": first_name,
+            # last_name is optional
+        }
+
+        # Referral extraction from payload or from start_param
         ref_id = get_ref_from_payload(data)
+        if not ref_id and start_param:
+            try:
+                ref_id = int(start_param)
+            except (TypeError, ValueError):
+                ref_id = None
+
         user = get_or_create_user(db, tg_user, ref_id)
+
 
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
@@ -691,19 +681,35 @@ def webapp_verify():
         amount = float(data.get("amount") or 0)
 
         if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+            return jsonify({"ok": False, "error": "missing_init_data", "message": "missing_init_data"}), 400
 
         if amount <= 0:
-            return jsonify({"ok": False, "error": "invalid_amount"}), 400
+            return jsonify({"ok": False, "error": "invalid_amount", "message": "invalid_amount"}), 400
 
-        # Parse Telegram initData
-        tg_user = verify_telegram_init_data(init_data)
 
-        # Referral extraction
+                # Parse Telegram initData
+        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+
+        if not uid:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+        tg_user = {
+            "id": uid,
+            "username": username,
+            "first_name": first_name,
+        }
+
+        # Referral extraction from payload or from start_param
         ref_id = get_ref_from_payload(data)
+        if not ref_id and start_param:
+            try:
+                ref_id = int(start_param)
+            except (TypeError, ValueError):
+                ref_id = None
 
         # Get or create user
         user = get_or_create_user(db, tg_user, ref_id)
+
 
         logging.info("VERIFY DEBUG raw data: %r", data)
         logging.info(
@@ -822,7 +828,8 @@ def webapp_verify():
     except Exception as e:
         db.rollback()
         logging.exception("Error in /webapp/verify")
-        return jsonify({"ok": False, "error": "server_error"}), 500
+        return jsonify({"ok": False, "error": "server_error", "message": "server_error"}), 500
+
 
     finally:
         db.close()
