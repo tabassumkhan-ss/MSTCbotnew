@@ -1013,6 +1013,183 @@ def telegram_webhook():
 
     return jsonify({"ok": True}), 200
 
+import os
+
+# Temporary debug endpoint — simulate a deposit and return referral distribution.
+# SECURITY: disabled by default. To enable set environment var ENABLE_DEBUG_ENDPOINT=1 and DEBUG_KEY to a strong secret.
+@app.route("/debug/simulate_deposit", methods=["POST"])
+def debug_simulate_deposit():
+    # Safety gates
+    if os.getenv("ENABLE_DEBUG_ENDPOINT", "0") != "1":
+        return jsonify({"ok": False, "error": "disabled"}), 403
+
+    # Optional header-based secret for extra safety
+    required_key = os.getenv("DEBUG_KEY")
+    if required_key:
+        provided = request.headers.get("X-DEBUG-KEY", "")
+        if provided != required_key:
+            return jsonify({"ok": False, "error": "invalid_debug_key"}), 403
+
+    payload = request.get_json(force=True) or {}
+    user_id = payload.get("user_id")
+    amount = float(payload.get("amount", 0) or 0)
+
+    if not user_id or amount <= 0:
+        return jsonify({"ok": False, "error": "missing_user_or_amount"}), 400
+
+    db = SessionLocal()
+    try:
+        # Load user
+        user = db.get(User, int(user_id))
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        # Activation
+        became_origin_now = (not user.self_activated and amount >= 20)
+        if became_origin_now:
+            user.self_activated = True
+            user.role = "origin"
+
+        # Self business
+        user.total_team_business = float(user.total_team_business or 0) + amount
+        db.add(user)
+
+        # Propagate team business & active_origin_count
+        visited = set()
+        current = user
+        while getattr(current, "referrer_id", None) and current.referrer_id not in visited:
+            try:
+                parent = db.get(User, int(current.referrer_id))
+            except Exception:
+                break
+            if not parent:
+                break
+            visited.add(parent.id)
+            parent.total_team_business = float(parent.total_team_business or 0) + amount
+            if became_origin_now:
+                parent.active_origin_count = (parent.active_origin_count or 0) + 1
+            update_rank(parent)
+            db.add(parent)
+            current = parent
+
+        # Club bonus (2%)
+        club_cut = round(amount * 0.02, 2)
+        # distribute_club_bonus uses DB directly; reuse here for accuracy
+        club_distributed = 0.0
+        achievers = (
+            db.query(User)
+            .filter(
+                User.self_activated == True,
+                User.role.in_(["life_changer", "advisor", "visionary", "creator"])
+            )
+            .all()
+        )
+        if not achievers:
+            # no achievers -> company pool
+            add_to_company_pool(db, club_cut)
+            club_distributed = club_cut
+        else:
+            per_user = round(club_cut / len(achievers), 2)
+            if per_user <= 0:
+                add_to_company_pool(db, club_cut)
+                club_distributed = club_cut
+            else:
+                for u in achievers:
+                    u.club_income = float(u.club_income or 0.0) + per_user
+                    db.add(u)
+                distributed_total = round(per_user * len(achievers), 2)
+                leftover = round(club_cut - distributed_total, 2)
+                if leftover > 0:
+                    add_to_company_pool(db, leftover)
+                club_distributed = round(distributed_total, 2)
+
+        # Referral distribution (levels 1..3)
+        ROLE_LEVEL1_PCT_LOCAL = {
+            "origin": 0.05,
+            "life_changer": 0.10,
+            "advisor": 0.15,
+            "visionary": 0.20,
+            "creator": 0.25,
+        }
+        LEVEL_BONUSES_FIXED = {2: 0.03, 3: 0.02}
+
+        referral_dist = []
+        # get uplines (level, user)
+        uplines = get_uplines(db, user, max_levels=3)
+
+        for level, upline in uplines:
+            if level == 1:
+                role_key = (upline.role or "user").lower()
+                pct = ROLE_LEVEL1_PCT_LOCAL.get(role_key, 0.0)
+            else:
+                pct = LEVEL_BONUSES_FIXED.get(level, 0.0)
+
+            if pct <= 0:
+                # goes to pool
+                bonus_amount = round(amount * pct, 2)
+                if bonus_amount > 0:
+                    add_to_company_pool(db, bonus_amount)
+                referral_dist.append({"level": 0, "to_user_id": None, "amount": round(amount * pct, 2)})
+                continue
+
+            bonus_amount = round(amount * pct, 2)
+            role = (upline.role or "user").lower()
+            qualifies = False
+            if level == 1:
+                qualifies = bool(upline.self_activated)
+            elif level == 2:
+                qualifies = role in ("life_changer", "advisor", "visionary", "creator")
+            elif level == 3:
+                qualifies = role in ("advisor", "visionary", "creator")
+
+            if qualifies:
+                upline.club_income = float(upline.club_income or 0.0) + bonus_amount
+                db.add(upline)
+                referral_dist.append({
+                    "level": level,
+                    "to_user_id": upline.id,
+                    "to_username": upline.username or "",
+                    "amount": bonus_amount,
+                })
+            else:
+                add_to_company_pool(db, bonus_amount)
+                referral_dist.append({
+                    "level": 0,
+                    "to_user_id": None,
+                    "to_username": None,
+                    "amount": bonus_amount,
+                })
+
+        db.commit()
+
+        # Return helpful debug info
+        company = get_company_user(db)
+        result = {
+            "ok": True,
+            "user_id": user.id,
+            "amount": amount,
+            "became_origin_now": became_origin_now,
+            "referral_dist": referral_dist,
+            "user": {
+                "id": user.id,
+                "self_activated": user.self_activated,
+                "role": user.role,
+                "total_team_business": float(user.total_team_business or 0),
+            },
+            "company_pool": {
+                "id": company.id if company else None,
+                "balance_musd": float(company.balance_musd or 0) if company else 0.0,
+            },
+        }
+        return jsonify(result)
+    except Exception as e:
+        db.rollback()
+        logging.exception("Error in debug/simulate_deposit")
+        return jsonify({"ok": False, "error": "server_error", "detail": str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
     db = SessionLocal()

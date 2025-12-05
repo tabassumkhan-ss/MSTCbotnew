@@ -12,7 +12,17 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/mstcbot.db")
+
+# ✅ Read DB URL from environment (Railway) first
+DATABASE_URL = (
+    os.getenv("DATABASE_URL")        # correct key (recommended)
+    or os.getenv("Database_url")     # fallback if Railway key is misnamed
+)
+
+if not DATABASE_URL:
+    # ✅ Only for local development
+    DATABASE_URL = "sqlite:///./data/mstcbot.db"
+    print("WARNING: Using local SQLite DB because DATABASE_URL is not set.")
 
 # For SQLite, ensure check_same_thread when using in multiple threads
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -20,6 +30,7 @@ connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite")
 engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
+
 
 
 class User(Base):
