@@ -676,30 +676,56 @@ def add_to_company_pool(db: SessionLocal, amount: float, *, commit: bool = False
 def webapp_verify():
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-        amount = float(data.get("amount") or 0)
+        # Safer JSON load + log
+        data = request.get_json(silent=True) or {}
+        logging.info("WEBAPP_VERIFY payload: %r", data)
+
+        # initData from Telegram WebApp (raw string) + amount
+        init_data = data.get("initData") or data.get("init_data") or ""
+        raw_amount = (
+            data.get("amount")
+            or data.get("amount_mstc")
+            or data.get("deposit_amount")
+        )
+
+        try:
+            amount = float(raw_amount or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
 
         if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data", "message": "missing_init_data"}), 400
+            return jsonify({
+                "ok": False,
+                "error": "missing_init_data",
+                "message": "missing_init_data",
+            }), 400
 
         if amount <= 0:
-            return jsonify({"ok": False, "error": "invalid_amount", "message": "invalid_amount"}), 400
+            return jsonify({
+                "ok": False,
+                "error": "invalid_amount",
+                "message": "invalid_amount",
+            }), 400
 
-
-                # Parse Telegram initData
+        # ---------- Parse Telegram initData ----------
         uid, username, first_name, start_param = verify_telegram_init_data(init_data)
 
         if not uid:
-            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+            # Hash invalid or user missing in initData
+            return jsonify({
+                "ok": False,
+                "error": "invalid_init_data",
+                "message": "invalid_init_data",
+            }), 400
 
+        # Build tg_user dict for get_or_create_user()
         tg_user = {
             "id": uid,
             "username": username,
             "first_name": first_name,
         }
 
-        # Referral extraction from payload or from start_param
+        # ---------- Referral extraction ----------
         ref_id = get_ref_from_payload(data)
         if not ref_id and start_param:
             try:
@@ -707,9 +733,8 @@ def webapp_verify():
             except (TypeError, ValueError):
                 ref_id = None
 
-        # Get or create user
+        # ---------- Get or create user ----------
         user = get_or_create_user(db, tg_user, ref_id)
-
 
         logging.info("VERIFY DEBUG raw data: %r", data)
         logging.info(
@@ -728,12 +753,10 @@ def webapp_verify():
             )
 
         # ---------- ACTIVATION ----------
-        # Check if this deposit makes the user Origin for the first time
         became_origin_now = (not user.self_activated and amount >= 20)
 
         if became_origin_now:
             user.self_activated = True
-            # base role; update_rank will refine (life_changer, advisor, etc.)
             user.role = "origin"
             logging.info("User %s activated as Origin", user.id)
 
@@ -741,29 +764,28 @@ def webapp_verify():
         user.total_team_business = float(user.total_team_business or 0) + amount
 
         # ---------- TEAM BUSINESS UP THE TREE ----------
-        # This adds 'amount' to all uplines' total_team_business
-        # and, if became_origin_now=True, increments active_origin_count for each upline.
         propagate_team_business(db, user, amount, became_origin_now)
 
-        # Update THIS user's rank after their own TB change
+        # Update THIS user's rank
         update_rank(user)
+
+        # ---------- CLUB BONUS (2%) ----------
         club_pool_used = distribute_club_bonus(db, amount)
-        logging.info("Club bonus distributed: %s from amount %s", club_pool_used, amount)    
+        logging.info(
+            "Club bonus distributed: %s from amount %s", club_pool_used, amount
+        )
 
         # ---------- REFERRAL DISTRIBUTION ----------
-        # Level 2 and 3 fixed percentages (kept as before)
         LEVEL_BONUSES_FIXED = {
             2: 0.03,  # 3% to Level 2
             3: 0.02,  # 2% to Level 3
         }
 
-        # Always a LIST (JSON array)
         referral_dist = []
-
         uplines = get_uplines(db, user, max_levels=3)
 
         for level, upline in uplines:
-            # Determine percentage for this level
+            # Determine percentage
             if level == 1:
                 role_key = (upline.role or "user").lower()
                 pct = ROLE_LEVEL1_PCT.get(role_key, 0.0)
@@ -771,7 +793,6 @@ def webapp_verify():
                 pct = LEVEL_BONUSES_FIXED.get(level, 0.0)
 
             if pct <= 0:
-                # nothing to pay at this level — skip
                 continue
 
             bonus_amount = round(amount * pct, 2)
@@ -781,17 +802,13 @@ def webapp_verify():
             role = (upline.role or "user").lower()
 
             if level == 1:
-                # direct sponsor must at least be Origin (self_activated)
                 qualifies = bool(upline.self_activated)
             elif level == 2:
-                # must be Life Changer or above
                 qualifies = role in ("life_changer", "advisor", "visionary", "creator")
             elif level == 3:
-                # must be Advisor or above
                 qualifies = role in ("advisor", "visionary", "creator")
 
             if qualifies:
-                # Pay bonus to this upline
                 referral_dist.append({
                     "level": level,
                     "to_user_id": upline.id,
@@ -799,15 +816,13 @@ def webapp_verify():
                     "amount": bonus_amount,
                 })
 
-                # Track it as club income (keeps previous behavior)
                 upline.club_income = float(upline.club_income or 0) + bonus_amount
                 db.add(upline)
             else:
-                # Bonus goes to company pool
                 add_to_company_pool(db, bonus_amount)
 
                 referral_dist.append({
-                    "level": 0,   # 0 means Pool in your UI
+                    "level": 0,   # 0 means Pool
                     "to_user_id": None,
                     "to_username": None,
                     "amount": bonus_amount,
@@ -817,20 +832,24 @@ def webapp_verify():
 
         return jsonify({
             "ok": True,
+            "message": "deposit_processed",
             "amount": amount,
             "user_id": user.id,
             "self_activated": user.self_activated,
             "role": user.role,
             "referrer_id": user.referrer_id,
-            "referral_dist": referral_dist,  # always a list
-        })
+            "referral_dist": referral_dist,
+        }), 200
 
     except Exception as e:
         db.rollback()
         logging.exception("Error in /webapp/verify")
-        return jsonify({"ok": False, "error": "server_error", "message": "server_error"}), 500
-
-
+        # IMPORTANT: include a 'message' so frontend never shows "Unknown error" silently
+        return jsonify({
+            "ok": False,
+            "error": "server_error",
+            "message": str(e),
+        }), 500
     finally:
         db.close()
 
