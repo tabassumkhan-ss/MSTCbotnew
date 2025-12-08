@@ -268,18 +268,16 @@ def webapp_init():
 
         # Parse initData into basic user info
         uid, username, first_name, start_param = verify_telegram_init_data(init_data)
-
         if not uid:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        # Build dict for get_or_create_user
         tg_user = {
             "id": uid,
             "username": username,
             "first_name": first_name,
         }
 
-        # Referral from payload or start_param
+        # Referral from payload or from start_param
         ref_id = get_ref_from_payload(data)
         if not ref_id and start_param:
             try:
@@ -287,7 +285,11 @@ def webapp_init():
             except (TypeError, ValueError):
                 ref_id = None
 
+        # Create or load user
         user = get_or_create_user(db, tg_user, ref_id)
+
+        # 🔁 Ensure referrer is linked if still empty
+        link_referrer_if_needed(db, user, ref_id)
 
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
@@ -313,6 +315,7 @@ def webapp_init():
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
+
 
 @app.post("/bot/start")
 def bot_start():
