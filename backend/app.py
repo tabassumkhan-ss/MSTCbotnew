@@ -640,6 +640,35 @@ def add_to_company_pool(db: SessionLocal, amount: float, *, commit: bool = False
         db.commit()
         db.refresh(company)
 
+@app.route("/webapp/save_wallet", methods=["POST"])
+def webapp_save_wallet():
+    data = request.get_json(silent=True) or {}
+    tg_id = data.get("telegram_id")
+    wallet_address = data.get("wallet_address")
+
+    if not tg_id or not wallet_address:
+        return jsonify({"ok": False, "error": "missing_data"}), 400
+
+    db = SessionLocal()
+    try:
+        user = db.get(User, int(tg_id))
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        user.wallet_address = wallet_address
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        return jsonify({"ok": True, "wallet_address": wallet_address})
+    except Exception as e:
+        db.rollback()
+        logging.exception("Error in /webapp/save_wallet")
+        return jsonify({"ok": False, "error": "server_error", "message": str(e)}), 500
+    finally:
+        db.close()
+
+
 
 @app.route("/webapp/verify", methods=["POST"])
 def webapp_verify():

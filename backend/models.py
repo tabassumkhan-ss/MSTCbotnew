@@ -41,6 +41,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     balance_mstc = Column(Float, default=0.0, nullable=False)  # MSTC token balance
     balance_musd = Column(Float, default=0.0, nullable=False)  # MUSD balance
+    wallet_address = Column(String(128), nullable=True)
     active = Column(Boolean, default=True, nullable=False)
 
     # referral linkage

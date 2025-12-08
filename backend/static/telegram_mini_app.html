@@ -7,6 +7,7 @@
 
   <!-- Telegram Web App JS -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/standalone.js"></script>
 
   <style>
     
@@ -101,6 +102,16 @@
    CONFIG — edit as needed
    ---------------------- */
 const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
+// Global TON Connect UI instance
+let tonConnectUI = null;
+
+try {
+  tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: API_BASE + '/static/tonconnect-manifest.json'
+  });
+} catch (e) {
+  console.warn('TON Connect init failed', e);
+}
 // Use /webapp/init for activation / registration status (it expects initData)
 const API_VERIFY = API_BASE + '/webapp/init';
 // Use /webapp/verify for deposits (it expects initData + amount)
@@ -252,6 +263,13 @@ function renderRegisteredView(uid, name, avatar, userData) {
         <button class="copy-btn" id="copyRef">📋</button>
       </div>
       <div class="tooltip" id="tipRef">Copied!</div>
+
+       <div class="panel">
+        <h3>🔗 TON Wallet</h3>
+        <div id="walletStatus" class="mini">Not connected</div>
+        <button class="btn secondary" id="connectWalletBtn" type="button">Connect TON Wallet</button>
+        <div id="walletAddress" class="mini mono" style="margin-top:6px;"></div>
+      </div>
 
       <div class="panel">
         <h3>💳 Deposit</h3>
@@ -466,7 +484,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
             msgEl.style.display = 'block';
             msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" + summaryText + "</pre>";
           }
-          
+
            await showRegisteredViewFromBackend();
 
           // Clear inputs
@@ -495,6 +513,72 @@ function renderRegisteredView(uid, name, avatar, userData) {
         const msg = e && e.message ? e.message : String(e);
         if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + msg);
         if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Failed to submit: ' + msg; }
+      }
+    };
+  }
+
+  // --- TON Wallet connect wiring ---
+  const walletStatusEl = document.getElementById('walletStatus');
+  const walletAddrEl = document.getElementById('walletAddress');
+  const connectWalletBtn = document.getElementById('connectWalletBtn');
+
+  if (tonConnectUI && connectWalletBtn) {
+    // If already connected in this session, reflect it
+    if (tonConnectUI.account && tonConnectUI.account.address) {
+      const addr = tonConnectUI.account.address;
+      if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
+      if (walletAddrEl) walletAddrEl.textContent = addr;
+    }
+
+    connectWalletBtn.onclick = async () => {
+      if (!tonConnectUI) return;
+
+      try {
+        // open wallet selector / connect flow
+        const wallet = await tonConnectUI.connectWallet();
+        const account = tonConnectUI.account;
+        const addr = account && account.address ? account.address : null;
+
+        if (!addr) {
+          if (walletStatusEl) walletStatusEl.textContent = 'Failed to get wallet address';
+          return;
+        }
+
+        if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
+        if (walletAddrEl) walletAddrEl.textContent = addr;
+
+        // get Telegram user id
+        const tgUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+
+        if (tgUserId) {
+          // send to backend for saving
+          const resp = await fetch(API_BASE + '/webapp/save_wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              telegram_id: tgUserId,
+              wallet_address: addr
+            })
+          });
+
+          const j = await resp.json().catch(() => ({}));
+          if (!resp.ok || !j.ok) {
+            if (walletStatusEl) {
+              walletStatusEl.textContent = 'Wallet saved locally, but server error: ' + (j.message || j.error || resp.status);
+            }
+            if (tg && tg.showAlert) {
+              tg.showAlert('Wallet connected, but failed to save on server: ' + (j.message || j.error || resp.status));
+            }
+          } else {
+            if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected & saved ✅';
+          }
+        } else {
+          if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected. Telegram user ID not found.';
+        }
+
+      } catch (e) {
+        console.error('TON connect error', e);
+        if (walletStatusEl) walletStatusEl.textContent = 'Wallet connect cancelled or failed.';
       }
     };
   }
