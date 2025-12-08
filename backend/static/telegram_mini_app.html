@@ -7,10 +7,10 @@
 
   <!-- Telegram Web App JS -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- TON Connect UI -->
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/standalone.js"></script>
 
   <style>
-    
     * { box-sizing: border-box; }
 
     body {
@@ -39,47 +39,170 @@
       margin: 8px auto 24px;
     }
 
-    .logo { width:88px; height:88px; border-radius:50%; object-fit:cover; border:4px solid rgba(255,255,255,.35); margin:0 auto 14px; display:block; box-shadow: 0 10px 26px rgba(0,0,0,.35), 0 0 0 8px rgba(255,255,255,.08) inset; position:relative;}
+    .logo {
+      width:88px;
+      height:88px;
+      border-radius:50%;
+      object-fit:cover;
+      border:4px solid rgba(255,255,255,.35);
+      margin:0 auto 14px;
+      display:block;
+      box-shadow: 0 10px 26px rgba(0,0,0,.35), 0 0 0 8px rgba(255,255,255,.08) inset;
+      position:relative;
+    }
     .logo.glow { border-color:transparent; box-shadow:none; isolation:isolate; }
-    .logo.glow::before, .logo.glow::after { content:""; position:absolute; inset:-6px; border-radius:50%; z-index:-1; }
-    .logo.glow::before { background: conic-gradient(from 0deg,#6cf 0%,#8af 25%,#9ff 50%,#7df 75%,#6cf 100%); filter: blur(6px); animation: spin 4s linear infinite; opacity:.95; }
-    .logo.glow::after { inset:-14px; background: radial-gradient(closest-side, rgba(108,240,255,.5), rgba(0,0,0,0)); filter: blur(10px); opacity:.65; }
+    .logo.glow::before, .logo.glow::after {
+      content:"";
+      position:absolute;
+      inset:-6px;
+      border-radius:50%;
+      z-index:-1;
+    }
+    .logo.glow::before {
+      background: conic-gradient(from 0deg,#6cf 0%,#8af 25%,#9ff 50%,#7df 75%,#6cf 100%);
+      filter: blur(6px);
+      animation: spin 4s linear infinite;
+      opacity:.95;
+    }
+    .logo.glow::after {
+      inset:-14px;
+      background: radial-gradient(closest-side, rgba(108,240,255,.5), rgba(0,0,0,0));
+      filter: blur(10px);
+      opacity:.65;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     h2 { margin:0 0 10px; font-weight:700; }
     .row { margin:10px 0; font-size:1.05rem; }
     .big { font-size:1.25rem; font-weight:700; }
     .actions { margin-top:16px; display:flex; gap:12px; justify-content:center; }
-    .btn { padding:11px 22px; border-radius:22px; border:0; cursor:pointer; font-weight:600; background:#00c853; color:#fff; box-shadow:0 8px 24px rgba(0,200,83,.35); }
+    .btn {
+      padding:11px 22px;
+      border-radius:22px;
+      border:0;
+      cursor:pointer;
+      font-weight:600;
+      background:#00c853;
+      color:#fff;
+      box-shadow:0 8px 24px rgba(0,200,83,.35);
+    }
     .btn.alt { background:#e53935; box-shadow:0 8px 24px rgba(229,57,53,.35); }
-    .ref-line { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; }
-    .copy-btn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:none; cursor:pointer; background:rgba(255,255,255,.16); color:#fff; font-size:18px; transition: transform .12s ease, opacity .2s; }
+    .btn.secondary { background:#2a7de1; box-shadow:0 8px 24px rgba(42,125,225,.35); }
+
+    .ref-line {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      margin-top:8px;
+    }
+    .copy-btn {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:36px;
+      height:36px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      background:rgba(255,255,255,.16);
+      color:#fff;
+      font-size:18px;
+      transition: transform .12s ease, opacity .2s;
+    }
     .copy-btn:active { transform: scale(.96); }
+
     .tooltip { margin-top:8px; font-size:.85rem; opacity:0; transition: opacity .25s; }
     .show { opacity:1; }
-    .panel { margin-top:18px; text-align:left; background:rgba(0,0,0,.18); padding:16px; border-radius:14px; }
+
+    .panel {
+      margin-top:18px;
+      text-align:left;
+      background:rgba(0,0,0,.18);
+      padding:16px;
+      border-radius:14px;
+    }
     .panel h3 { margin:0 0 10px; color:#fff; }
-    label { display:block; font-size:.95rem; opacity:.9; margin:10px 0 6px; }
-    input, .addr-box { width:100%; padding:12px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#fff; outline:none; }
-    .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+
+    label {
+      display:block;
+      font-size:.95rem;
+      opacity:.9;
+      margin:10px 0 6px;
+    }
+    input, .addr-box {
+      width:100%;
+      padding:12px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08);
+      color:#fff;
+      outline:none;
+    }
+
+    .split {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-top:12px;
+    }
     .rowline { display:flex; align-items:center; gap:10px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break:break-all; }
     .mini { font-size:.9rem; opacity:.9; }
     .submit { margin-top:14px; text-align:right; }
-    .btn.secondary { background:#2a7de1; box-shadow:0 8px 24px rgba(42,125,225,.35); }
     .error { color:#ffb4b4; font-size:.9rem; margin-top:6px; }
     .ok { color:#b5ffcb; font-size:.9rem; margin-top:6px; }
-    /* rank styles omitted for brevity but preserved from your file */
-    .rank-panel { margin-top:18px; background:rgba(0,0,0,.18); padding:16px; border-radius:14px; }
-    .rank-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+
+    .rank-panel {
+      margin-top:18px;
+      background:rgba(0,0,0,.18);
+      padding:16px;
+      border-radius:14px;
+    }
+    .rank-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+    }
     .rank-header-title { font-size:1rem; font-weight:600; }
-    .rank-tabs { display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
-    .rank-tab { width:100%; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.06); color:#fff; font-size:.85rem; cursor:pointer; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; position:relative; overflow:hidden; }
+    .rank-tabs {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .rank-tab {
+      width:100%;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      font-size:.85rem;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+      gap:6px;
+      position:relative;
+      overflow:hidden;
+    }
     .rank-name { font-weight:600; font-size:.9rem; }
     .rank-percent { font-size:.8rem; opacity:.9; }
     .rank-status { font-size:.75rem; opacity:.85; }
-    .rank-tab.achieved { border-color:#00c853; box-shadow: 0 0 0 1px rgba(0,200,83,.4), 0 0 16px rgba(0,200,83,.45); }
-    .rank-tab.achieved::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background: linear-gradient(180deg, rgba(0,200,83,1), rgba(0,200,83,0.1)); }
+    .rank-tab.achieved {
+      border-color:#00c853;
+      box-shadow: 0 0 0 1px rgba(0,200,83,.4), 0 0 16px rgba(0,200,83,.45);
+    }
+    .rank-tab.achieved::before {
+      content:"";
+      position:absolute;
+      left:0; top:0; bottom:0;
+      width:5px;
+      background: linear-gradient(180deg, rgba(0,200,83,1), rgba(0,200,83,0.1));
+    }
     .rank-details { font-size:.9rem; line-height:1.4; }
   </style>
 </head>
@@ -99,31 +222,37 @@
 
 <script>
 /* ----------------------
-   CONFIG — edit as needed
+   CONFIG
    ---------------------- */
 const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
+
 // Global TON Connect UI instance
 let tonConnectUI = null;
-
 try {
-  tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-    manifestUrl: API_BASE + '/static/tonconnect-manifest.json'
-  });
+  if (window.TON_CONNECT_UI) {
+    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: API_BASE + '/static/tonconnect-manifest.json'
+    });
+    console.log('TON Connect UI initialized');
+  } else {
+    console.warn('TON_CONNECT_UI is not available on window');
+  }
 } catch (e) {
   console.warn('TON Connect init failed', e);
 }
+
 // Use /webapp/init for activation / registration status (it expects initData)
-const API_VERIFY = API_BASE + '/webapp/init';
+const API_VERIFY  = API_BASE + '/webapp/init';
 // Use /webapp/verify for deposits (it expects initData + amount)
 const API_DEPOSIT = API_BASE + '/webapp/verify';
 
-const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+const ADDR_MUSD   = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+const ADDR_MSTC   = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
 const CHAIN_LABEL = "EVM Chain";
 const MIN_DEPOSIT = 20.00;
 
 /* ----------------------
-   Lightweight helpers
+   Helpers
    ---------------------- */
 const app = document.getElementById('app');
 const baseLogo = './Botologo_new.png';
@@ -149,7 +278,7 @@ let ref = urlParams.get("ref") || null;
 window.currentRef = ref;
 
 /* ----------------------
-   Telegram WebApp object (if present)
+   Telegram WebApp object
    ---------------------- */
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 try {
@@ -161,25 +290,21 @@ try {
 
 /* ----------------------
    VERIFY / LOAD user from backend
-   - always posts signed initData when inside Telegram
-   - falls back to unsafe user for display if verify fails
    ---------------------- */
 async function verifyInitData() {
-  // Signed initData (string) — used for backend verification
   const initData = tg ? (tg.initData || '') : '';
-  // Unsafe decoded fields for display only
   const unsafe = tg && tg.initDataUnsafe ? tg.initDataUnsafe : null;
   const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
 
-  // If Telegram supplied a start_param (bot start parameter), use as referral when not provided by URL
-  const startParam = (unsafe && (unsafe.start_param || unsafe.startParam)) ? (unsafe.start_param || unsafe.startParam) : null;
+  const startParam = (unsafe && (unsafe.start_param || unsafe.startParam))
+    ? (unsafe.start_param || unsafe.startParam)
+    : null;
+
   if (!window.currentRef && startParam) {
     window.currentRef = startParam;
     ref = startParam;
   }
 
-  // If not in Telegram environment, still call backend with empty initData to check server-side behavior
-  // (server returns company account or test behavior)
   const payload = { initData, ref: window.currentRef || null };
 
   try {
@@ -192,17 +317,13 @@ async function verifyInitData() {
 
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.ok === false) {
-      // verification failed server-side; return fallback unsafe user for display
       console.warn('verify failed server response', res.status, j);
       return { ok: false, user: j.user || unsafeUser || {} , raw: j };
     }
 
-    // success: server typically returns { ok: true, user: { ... } } or similar
-    // adapt to server shape: if server returned top-level user fields (exists, role...), pass them through
     if (j.user) {
       return { ok: true, user: j.user, raw: j };
     } else {
-      // server returned user fields at top-level
       const userFields = Object.assign({}, j);
       delete userFields.ok;
       return { ok: true, user: userFields, raw: j };
@@ -214,7 +335,7 @@ async function verifyInitData() {
 }
 
 /* ----------------------
-   Render registered view (deposit + ranks)
+   Ranks
    ---------------------- */
 function computeRanks(user) {
   const total = Number(user.total_team_business || 0);
@@ -222,22 +343,25 @@ function computeRanks(user) {
   const role = (user.role || '').toLowerCase();
   const selfActivated = !!user.self_activated;
 
-  const isOrigin = selfActivated || role === 'origin';
-  const isLifeChanger = total >= 1000 && activeOrigins >= 10;
-  const isAdvisor = total >= 5000;
-  const isVisionary = total >= 25000;
-  const isCreator = total >= 100000;
+  const isOrigin     = selfActivated || role === 'origin';
+  const isLifeChanger= total >= 1000 && activeOrigins >= 10;
+  const isAdvisor    = total >= 5000;
+  const isVisionary  = total >= 25000;
+  const isCreator    = total >= 100000;
 
   let current = 'Member';
-  if (isCreator) current = 'Creator';
+  if (isCreator)      current = 'Creator';
   else if (isVisionary) current = 'Visionary';
-  else if (isAdvisor) current = 'Advisor';
+  else if (isAdvisor)   current = 'Advisor';
   else if (isLifeChanger) current = 'Life Changer';
-  else if (isOrigin) current = 'Origin';
+  else if (isOrigin)     current = 'Origin';
 
   return { isOrigin, isLifeChanger, isAdvisor, isVisionary, isCreator, total, activeOrigins, current };
 }
 
+/* ----------------------
+   Registered view
+   ---------------------- */
 function renderRegisteredView(uid, name, avatar, userData) {
   const ranks = computeRanks(userData || {});
   const total = (ranks.total || 0).toFixed(2);
@@ -264,7 +388,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
       </div>
       <div class="tooltip" id="tipRef">Copied!</div>
 
-       <div class="panel">
+      <div class="panel">
         <h3>🔗 TON Wallet</h3>
         <div id="walletStatus" class="mini">Not connected</div>
         <button class="btn secondary" id="connectWalletBtn" type="button">Connect TON Wallet</button>
@@ -331,36 +455,51 @@ function renderRegisteredView(uid, name, avatar, userData) {
 
         <div class="rank-tabs">
           <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
-            <div class="rank-main"><span class="rank-name">Origin</span><span class="rank-percent">5% Level Income</span>
-              <span class="rank-status">${ranks.isOrigin ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-main">
+              <span class="rank-name">Origin</span>
+              <span class="rank-percent">5% Level Income</span>
+              <span class="rank-status">${ranks.isOrigin ? 'Achieved' : 'Locked'}</span>
+            </div>
             <div class="rank-progress"><div class="rank-progress-bar" style="width:${originProgress}%;"></div></div>
             <div class="rank-progress-text">${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}</div>
           </button>
 
           <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
-            <div class="rank-main"><span class="rank-name">Life Changer</span><span class="rank-percent">10% Direct</span>
-              <span class="rank-status">${ranks.isLifeChanger ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-main">
+              <span class="rank-name">Life Changer</span>
+              <span class="rank-percent">10% Direct</span>
+              <span class="rank-status">${ranks.isLifeChanger ? 'Achieved' : 'Locked'}</span>
+            </div>
             <div class="rank-progress"><div class="rank-progress-bar" style="width:${lifeChangerProgress}%;"></div></div>
             <div class="rank-progress-text">${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
           <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
-            <div class="rank-main"><span class="rank-name">Advisor</span><span class="rank-percent">15% Club Rank</span>
-              <span class="rank-status">${ranks.isAdvisor ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-main">
+              <span class="rank-name">Advisor</span>
+              <span class="rank-percent">15% Club Rank</span>
+              <span class="rank-status">${ranks.isAdvisor ? 'Achieved' : 'Locked'}</span>
+            </div>
             <div class="rank-progress"><div class="rank-progress-bar" style="width:${advisorProgress}%;"></div></div>
             <div class="rank-progress-text">${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
           <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
-            <div class="rank-main"><span class="rank-name">Visionary</span><span class="rank-percent">20% Club Rank</span>
-              <span class="rank-status">${ranks.isVisionary ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-main">
+              <span class="rank-name">Visionary</span>
+              <span class="rank-percent">20% Club Rank</span>
+              <span class="rank-status">${ranks.isVisionary ? 'Achieved' : 'Locked'}</span>
+            </div>
             <div class="rank-progress"><div class="rank-progress-bar" style="width:${visionaryProgress}%;"></div></div>
             <div class="rank-progress-text">${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}</div>
           </button>
 
           <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
-            <div class="rank-main"><span class="rank-name">Creator</span><span class="rank-percent">25% Top Rank</span>
-              <span class="rank-status">${ranks.isCreator ? 'Achieved' : 'Locked'}</span></div>
+            <div class="rank-main">
+              <span class="rank-name">Creator</span>
+              <span class="rank-percent">25% Top Rank</span>
+              <span class="rank-status">${ranks.isCreator ? 'Achieved' : 'Locked'}</span>
+            </div>
             <div class="rank-progress"><div class="rank-progress-bar" style="width:${creatorProgress}%;"></div></div>
             <div class="rank-progress-text">${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}</div>
           </button>
@@ -376,14 +515,14 @@ function renderRegisteredView(uid, name, avatar, userData) {
   const copyRefBtn = document.getElementById('copyRef');
   if (copyRefBtn && tip) copyRefBtn.onclick = () => copyText(refLink, tip);
 
-  const amtInput = document.getElementById('amt');
-  const musdAmt = document.getElementById('musdAmt');
-  const mstcAmt = document.getElementById('mstcAmt');
-  const errEl = document.getElementById('err');
+  const amtInput    = document.getElementById('amt');
+  const musdAmt     = document.getElementById('musdAmt');
+  const mstcAmt     = document.getElementById('mstcAmt');
+  const errEl       = document.getElementById('err');
   const txMUSDInput = document.getElementById('txMUSD');
   const txMSTCInput = document.getElementById('txMSTC');
-  const submitBtn = document.getElementById('submitDeposit');
-  const msgEl = document.getElementById('submitMsg');
+  const submitBtn   = document.getElementById('submitDeposit');
+  const msgEl       = document.getElementById('submitMsg');
   const copyMUSDBtn = document.getElementById('copyMUSD');
   const copyMSTCBtn = document.getElementById('copyMSTC');
 
@@ -415,28 +554,36 @@ function renderRegisteredView(uid, name, avatar, userData) {
 
   if (submitBtn) {
     submitBtn.onclick = async () => {
-      // Clear UI messages
       if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
       if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
 
       const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
-      const amount = parseFloat(valueStr || "0");
-      const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
-      const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
+      const amount   = parseFloat(valueStr || "0");
+      const tx1      = txMUSDInput ? txMUSDInput.value.trim() : "";
+      const tx2      = txMSTCInput ? txMSTCInput.value.trim() : "";
 
       if (isNaN(amount) || amount < MIN_DEPOSIT) {
-        if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.'; }
-        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Please enter at least $' + MIN_DEPOSIT + '.');
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
+        }
+        if (tg && typeof tg.showAlert === 'function') {
+          tg.showAlert('Please enter at least $' + MIN_DEPOSIT + '.');
+        }
         return;
       }
 
       if (!tx1 || !tx2) {
-        if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Please paste both transaction hashes.'; }
-        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Please paste both transaction hashes.');
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please paste both transaction hashes.';
+        }
+        if (tg && typeof tg.showAlert === 'function') {
+          tg.showAlert('Please paste both transaction hashes.');
+        }
         return;
       }
 
-      // Prepare payload. Use signed initData string if in Telegram.
       const payload = {
         initData: tg ? (tg.initData || "") : "",
         amount: Number(amount.toFixed(2)),
@@ -445,29 +592,29 @@ function renderRegisteredView(uid, name, avatar, userData) {
         ref: window.currentRef || null
       };
 
-      if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
+      if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.textContent = 'Submitting...';
+      }
 
       try {
-  const res = await fetch(API_DEPOSIT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json().catch(() => ({}));
-  console.debug('DEPOSIT RESPONSE:', data);
+        const res  = await fetch(API_DEPOSIT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        console.debug('DEPOSIT RESPONSE:', data);
 
-       
         if (data && data.ok) {
-          // Build a small summary for the user
           let summaryLines = [];
           if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
             summaryLines.push("Referral distribution:");
             data.referral_dist.forEach(r => {
-              const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
-              const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
+              const level = (r.level === 0 || r.level == null) ? "Pool" : `Level ${r.level}`;
+              const who   = r.to_username || (r.to_user_id != null ? r.to_user_id : "company_pool");
               summaryLines.push(`${level}: ${who} → $${r.amount}`);
             });
-           
           } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
             summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
           } else {
@@ -482,62 +629,81 @@ function renderRegisteredView(uid, name, avatar, userData) {
 
           if (msgEl) {
             msgEl.style.display = 'block';
-            msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" + summaryText + "</pre>";
+            msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
+              summaryText + "</pre>";
           }
 
-           await showRegisteredViewFromBackend();
+          await showRegisteredViewFromBackend();
 
-          // Clear inputs
           if (amtInput) amtInput.value = "";
           if (txMUSDInput) txMUSDInput.value = "";
           if (txMSTCInput) txMSTCInput.value = "";
           if (musdAmt) musdAmt.textContent = "0.00";
           if (mstcAmt) mstcAmt.textContent = "0.00";
-
         } else {
-  const errText = data && (data.message || data.error || data.detail)
-    ? (data.message || data.error || data.detail)
-    : 'Unknown error';
+          const errText = data && (data.message || data.error || data.detail)
+            ? (data.message || data.error || data.detail)
+            : 'Unknown error';
 
-  if (tg && typeof tg.showAlert === 'function') {
-    tg.showAlert('Failed to submit: ' + errText);
-  }
-  if (msgEl) {
-    msgEl.style.display = 'block';
-    msgEl.textContent = 'Failed to submit: ' + errText;
-  }
-}
-
-        
+          if (tg && typeof tg.showAlert === 'function') {
+            tg.showAlert('Failed to submit: ' + errText);
+          }
+          if (msgEl) {
+            msgEl.style.display = 'block';
+            msgEl.textContent = 'Failed to submit: ' + errText;
+          }
+        }
       } catch (e) {
         const msg = e && e.message ? e.message : String(e);
-        if (tg && typeof tg.showAlert === 'function') tg.showAlert('Failed to submit: ' + msg);
-        if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Failed to submit: ' + msg; }
+        if (tg && typeof tg.showAlert === 'function') {
+          tg.showAlert('Failed to submit: ' + msg);
+        }
+        if (msgEl) {
+          msgEl.style.display = 'block';
+          msgEl.textContent = 'Failed to submit: ' + msg;
+        }
       }
     };
   }
 
   // --- TON Wallet connect wiring ---
-  const walletStatusEl = document.getElementById('walletStatus');
-  const walletAddrEl = document.getElementById('walletAddress');
-  const connectWalletBtn = document.getElementById('connectWalletBtn');
+  const walletStatusEl    = document.getElementById('walletStatus');
+  const walletAddrEl      = document.getElementById('walletAddress');
+  const connectWalletBtn  = document.getElementById('connectWalletBtn');
 
-  if (tonConnectUI && connectWalletBtn) {
+  if (connectWalletBtn) {
     // If already connected in this session, reflect it
-    if (tonConnectUI.account && tonConnectUI.account.address) {
+    if (tonConnectUI && tonConnectUI.account && tonConnectUI.account.address) {
       const addr = tonConnectUI.account.address;
       if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
-      if (walletAddrEl) walletAddrEl.textContent = addr;
+      if (walletAddrEl) walletAddrEl.textContent   = addr;
     }
 
     connectWalletBtn.onclick = async () => {
-      if (!tonConnectUI) return;
+      // If TON isn’t available at all, tell the user instead of doing nothing
+      if (!tonConnectUI) {
+        if (walletStatusEl) {
+          walletStatusEl.textContent = 'TON Connect not available (script or manifest error).';
+        }
+        if (tg && tg.showAlert) {
+          tg.showAlert('TON Wallet connect is not available. Please check TON script / manifest.');
+        }
+        return;
+      }
 
       try {
+        // If already connected, just show existing address
+        if (tonConnectUI.account && tonConnectUI.account.address) {
+          const addrExisting = tonConnectUI.account.address;
+          if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
+          if (walletAddrEl)   walletAddrEl.textContent   = addrExisting;
+          return;
+        }
+
         // open wallet selector / connect flow
-        const wallet = await tonConnectUI.connectWallet();
+        await tonConnectUI.connectWallet();
         const account = tonConnectUI.account;
-        const addr = account && account.address ? account.address : null;
+        const addr    = account && account.address ? account.address : null;
 
         if (!addr) {
           if (walletStatusEl) walletStatusEl.textContent = 'Failed to get wallet address';
@@ -545,13 +711,12 @@ function renderRegisteredView(uid, name, avatar, userData) {
         }
 
         if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
-        if (walletAddrEl) walletAddrEl.textContent = addr;
+        if (walletAddrEl)   walletAddrEl.textContent   = addr;
 
         // get Telegram user id
         const tgUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
 
         if (tgUserId) {
-          // send to backend for saving
           const resp = await fetch(API_BASE + '/webapp/save_wallet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -563,11 +728,12 @@ function renderRegisteredView(uid, name, avatar, userData) {
 
           const j = await resp.json().catch(() => ({}));
           if (!resp.ok || !j.ok) {
+            const m = (j.message || j.error || resp.status);
             if (walletStatusEl) {
-              walletStatusEl.textContent = 'Wallet saved locally, but server error: ' + (j.message || j.error || resp.status);
+              walletStatusEl.textContent = 'Wallet saved locally, but server error: ' + m;
             }
             if (tg && tg.showAlert) {
-              tg.showAlert('Wallet connected, but failed to save on server: ' + (j.message || j.error || resp.status));
+              tg.showAlert('Wallet connected, but failed to save on server: ' + m);
             }
           } else {
             if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected & saved ✅';
@@ -575,18 +741,21 @@ function renderRegisteredView(uid, name, avatar, userData) {
         } else {
           if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected. Telegram user ID not found.';
         }
-
       } catch (e) {
         console.error('TON connect error', e);
         if (walletStatusEl) walletStatusEl.textContent = 'Wallet connect cancelled or failed.';
+        if (tg && tg.showAlert) {
+          tg.showAlert('TON wallet connect failed: ' + (e.message || String(e)));
+        }
       }
     };
   }
 
-  // Rank details wiring (unchanged)
+  // Rank details wiring
   const rankDetailsHandler = () => {
     const rankDetails = document.getElementById('rankDetails');
-    const rankTabs = app.querySelectorAll('.rank-tab');
+    const rankTabs    = app.querySelectorAll('.rank-tab');
+
     function setActiveRankTab(rankKey) {
       rankTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.rank === rankKey));
       let html = '';
@@ -603,17 +772,17 @@ function renderRegisteredView(uid, name, avatar, userData) {
       }
       if (rankDetails) rankDetails.innerHTML = html;
     }
-    // attach click handlers
+
     const tabs = app.querySelectorAll('.rank-tab');
     tabs.forEach(t => t.addEventListener('click', () => setActiveRankTab(t.dataset.rank)));
-    // default select first achieved / origin
-    const defaultTab = app.querySelector('.rank-tab.achieved') ? app.querySelector('.rank-tab.achieved').dataset.rank : 'origin';
+
+    const defaultTab = app.querySelector('.rank-tab.achieved')
+      ? app.querySelector('.rank-tab.achieved').dataset.rank
+      : 'origin';
     setActiveRankTab(defaultTab);
   };
 
-  // Call after rendering view to wire rank handlers
   setTimeout(rankDetailsHandler, 100);
-
 } // end renderRegisteredView
 
 /* ----------------------
@@ -623,25 +792,26 @@ async function showRegisteredViewFromBackend() {
   const verifyResp = await verifyInitData();
   const unsafeUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
 
-  const u = (verifyResp && verifyResp.user) ? verifyResp.user : unsafeUser || {};
-  const id = u.id || (u.user_id || 0);
-  const name = ((u.first_name || '') + (u.username ? ' @' + u.username : '')) || u.username || 'Unknown';
-  const avatar = u.photo_url || u.photo || baseLogo;
-  renderRegisteredView(id, name, avatar, verifyResp.user || u || {});
+  const u       = (verifyResp && verifyResp.user) ? verifyResp.user : unsafeUser || {};
+  const id      = u.id || (u.user_id || 0);
+  const name    = ((u.first_name || '') + (u.username ? ' @' + u.username : '')) || u.username || 'Unknown';
+  const avatar  = u.photo_url || u.photo || baseLogo;
+  const userObj = verifyResp.user || u || {};
+
+  renderRegisteredView(id, name, avatar, userObj);
 }
 
 /* ----------------------
    Activation status (first screen)
-   - loadActivationStatus calls backend to find if user already registered
    ---------------------- */
 async function updateActivationStatus(user) {
-  const statusEl = document.getElementById("accountStatus");
+  const statusEl        = document.getElementById("accountStatus");
   const registerSection = document.getElementById("registerSection");
   if (!statusEl || !registerSection) return;
 
-  // support server shapes: has_registered, exists, or custom flags
   const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
-  const isActive = user && (user.is_active === true || user.role === 'origin' || user.self_activated === 1 || user.self_activated === true);
+  const isActive = user && (user.is_active === true || user.role === 'origin'
+                 || user.self_activated === 1 || user.self_activated === true);
 
   if (!hasReg) {
     statusEl.textContent = "Do you want to register?";
@@ -657,34 +827,29 @@ async function updateActivationStatus(user) {
 }
 
 async function loadActivationStatus() {
-  // Reuse verifyInitData so server gets signed initData if available
   const resp = await verifyInitData();
   const user = resp && resp.user ? resp.user : {};
-  // Update UI (handles both registered/unregistered)
   updateActivationStatus(user);
-  // If registered, show full view
+
   const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
   if (hasReg) {
     await showRegisteredViewFromBackend();
   } else {
-    // Keep the first-time registration question visible (user can press Yes)
     console.debug('User not registered or server returned no registration; showing register question.');
   }
 }
 
 /* ----------------------
-   Boot: DOM ready wiring for Yes/No buttons
+   Boot
    ---------------------- */
 document.addEventListener('DOMContentLoaded', () => {
-  // Load activation status (this will call backend /webapp/me)
   loadActivationStatus().catch(e => console.warn('loadActivationStatus error', e));
 
   const yesBtn = document.getElementById('yesBtn');
-  const noBtn = document.getElementById('noBtn');
+  const noBtn  = document.getElementById('noBtn');
 
   if (yesBtn) {
     yesBtn.onclick = async () => {
-      // On Yes: run the full render (this will query backend again and render the registered view)
       await showRegisteredViewFromBackend();
     };
   }
