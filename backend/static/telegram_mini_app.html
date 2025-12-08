@@ -555,118 +555,108 @@ function renderRegisteredView(uid, name, avatar, userData) {
   if (copyMSTCBtn && tip) copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tip);
 
   if (submitBtn) {
-    submitBtn.onclick = async () => {
-      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-      if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+  submitBtn.onclick = async () => {
+    // Clear UI messages
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
 
-      const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
-      const amount   = parseFloat(valueStr || "0");
-      const tx1      = txMUSDInput ? txMUSDInput.value.trim() : "";
-      const tx2      = txMSTCInput ? txMSTCInput.value.trim() : "";
+    const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
+    const amount = parseFloat(valueStr || "0");
+    const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
+    const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
 
-      if (isNaN(amount) || amount < MIN_DEPOSIT) {
-        if (errEl) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
-        }
-        if (tg && typeof tg.showAlert === 'function') {
-          tg.showAlert('Please enter at least $' + MIN_DEPOSIT + '.');
-        }
-        return;
+    if (isNaN(amount) || amount < MIN_DEPOSIT) {
+      if (errEl) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
       }
+      return;
+    }
 
-      if (!tx1 || !tx2) {
-        if (errEl) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please paste both transaction hashes.';
-        }
-        if (tg && typeof tg.showAlert === 'function') {
-          tg.showAlert('Please paste both transaction hashes.');
-        }
-        return;
+    if (!tx1 || !tx2) {
+      if (errEl) {
+        errEl.style.display = 'block';
+        errEl.textContent = 'Please paste both transaction hashes.';
       }
+      return;
+    }
 
-      const payload = {
-        initData: tg ? (tg.initData || "") : "",
-        amount: Number(amount.toFixed(2)),
-        tx_musd: tx1,
-        tx_mstc: tx2,
-        ref: window.currentRef || null
-      };
+    // Prepare payload. Use signed initData string if in Telegram.
+    const payload = {
+      initData: tg ? (tg.initData || "") : "",
+      amount: Number(amount.toFixed(2)),
+      tx_musd: tx1,
+      tx_mstc: tx2,
+      ref: window.currentRef || null
+    };
 
-      if (msgEl) {
-        msgEl.style.display = 'block';
-        msgEl.textContent = 'Submitting...';
-      }
+    if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
 
-      try {
-        const res  = await fetch(API_DEPOSIT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json().catch(() => ({}));
-        console.debug('DEPOSIT RESPONSE:', data);
+    try {
+      const res = await fetch(API_DEPOSIT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      console.debug('DEPOSIT RESPONSE:', data);
 
-        if (data && data.ok) {
-          let summaryLines = [];
-          if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-            summaryLines.push("Referral distribution:");
-            data.referral_dist.forEach(r => {
-              const level = (r.level === 0 || r.level == null) ? "Pool" : `Level ${r.level}`;
-              const who   = r.to_username || (r.to_user_id != null ? r.to_user_id : "company_pool");
-              summaryLines.push(`${level}: ${who} → $${r.amount}`);
-            });
-          } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
-            summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
-          } else {
-            summaryLines.push("No referral distribution (no uplines linked).");
-          }
-
-          const summaryText = summaryLines.join("\n");
-
-          if (tg && typeof tg.showAlert === 'function') {
-            tg.showAlert("Deposit submitted successfully!");
-          }
-
-          if (msgEl) {
-            msgEl.style.display = 'block';
-            msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
-              summaryText + "</pre>";
-          }
-
-          await showRegisteredViewFromBackend();
-
-          if (amtInput) amtInput.value = "";
-          if (txMUSDInput) txMUSDInput.value = "";
-          if (txMSTCInput) txMSTCInput.value = "";
-          if (musdAmt) musdAmt.textContent = "0.00";
-          if (mstcAmt) mstcAmt.textContent = "0.00";
+      if (data && data.ok) {
+        // Build a small summary for the user
+        let summaryLines = [];
+        if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
+          summaryLines.push("Referral distribution:");
+          data.referral_dist.forEach(r => {
+            const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
+            const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
+            summaryLines.push(`${level}: ${who} → $${r.amount}`);
+          });
+        } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
+          summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
         } else {
-          const errText = data && (data.message || data.error || data.detail)
-            ? (data.message || data.error || data.detail)
-            : 'Unknown error';
+          summaryLines.push("No referral distribution (no uplines linked).");
+        }
 
-          if (tg && typeof tg.showAlert === 'function') {
-            tg.showAlert('Failed to submit: ' + errText);
-          }
-          if (msgEl) {
-            msgEl.style.display = 'block';
-            msgEl.textContent = 'Failed to submit: ' + errText;
-          }
-        }
-      } catch (e) {
-        const msg = e && e.message ? e.message : String(e);
-        if (tg && typeof tg.showAlert === 'function') {
-          tg.showAlert('Failed to submit: ' + msg);
-        }
+        const summaryText = summaryLines.join("\n");
+
+        // Show success only inside mini app UI
         if (msgEl) {
           msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + msg;
+          msgEl.innerHTML =
+            "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
+            summaryText +
+            "</pre>";
+        }
+
+        await showRegisteredViewFromBackend();
+
+        // Clear inputs
+        if (amtInput) amtInput.value = "";
+        if (txMUSDInput) txMUSDInput.value = "";
+        if (txMSTCInput) txMSTCInput.value = "";
+        if (musdAmt) musdAmt.textContent = "0.00";
+        if (mstcAmt) mstcAmt.textContent = "0.00";
+
+      } else {
+        const errText = data && (data.message || data.error || data.detail)
+          ? (data.message || data.error || data.detail)
+          : 'Unknown error';
+
+        if (msgEl) {
+          msgEl.style.display = 'block';
+          msgEl.textContent = 'Failed to submit: ' + errText;
         }
       }
-    };
-  }
+
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.textContent = 'Failed to submit: ' + msg;
+      }
+    }
+  };
+}
 
   // --- TON Wallet connect wiring ---
   const walletStatusEl    = document.getElementById('walletStatus');
