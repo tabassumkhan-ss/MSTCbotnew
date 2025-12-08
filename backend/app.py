@@ -148,18 +148,14 @@ def get_uplines(db, user, max_levels=3):
 
 def verify_telegram_init_data(init_data: str):
     """
-    Validate Telegram WebApp initData and return:
+    DEV VERSION (no HMAC check):
+    Parse Telegram WebApp initData and return:
       (user_id, username, first_name, start_param)
-    or (None, None, None, None) if invalid.
+    or (None, None, None, None) if invalid format.
 
-    Uses the algorithm from:
-    https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+    This version ONLY parses the data and does NOT validate the signature.
     """
     if not init_data:
-        return None, None, None, None
-
-    bot_token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
         return None, None, None, None
 
     # Parse query string into dict
@@ -168,36 +164,7 @@ def verify_telegram_init_data(init_data: str):
     except Exception:
         return None, None, None, None
 
-    hash_check = data.pop("hash", None)
-    if not hash_check:
-        return None, None, None, None
-
-    # Build data_check_string
-    data_check_pairs = []
-    for key in sorted(data.keys()):
-        value = data[key]
-        data_check_pairs.append(f"{key}={value}")
-    data_check_string = "\n".join(data_check_pairs)
-
-    # Secret key: HMAC-SHA256("WebAppData", bot_token) per Telegram doc
-    secret_key = hmac.new(
-        b"WebAppData",
-        bot_token.encode("utf-8"),
-        hashlib.sha256,
-    ).digest()
-
-    # HMAC data_check_string with secret_key
-    calculated_hash = hmac.new(
-        secret_key,
-        data_check_string.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    # Timing-safe comparison
-    if not hmac.compare_digest(calculated_hash, hash_check):
-        return None, None, None, None
-
-    # If hash is valid, parse user data
+    # user is JSON string inside "user" param
     user_str = data.get("user")
     if not user_str:
         return None, None, None, None
@@ -207,7 +174,7 @@ def verify_telegram_init_data(init_data: str):
     except Exception:
         return None, None, None, None
 
-    start_param = data.get("start_param")  # this is the referrer's id (as string)
+    start_param = data.get("start_param")  # referrer id as string, if present
 
     return user.get("id"), user.get("username"), user.get("first_name"), start_param
 
