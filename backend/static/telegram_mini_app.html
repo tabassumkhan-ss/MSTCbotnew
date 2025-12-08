@@ -449,6 +449,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
               const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
               summaryLines.push(`${level}: ${who} → $${r.amount}`);
             });
+           
           } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
             summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
           } else {
@@ -465,6 +466,8 @@ function renderRegisteredView(uid, name, avatar, userData) {
             msgEl.style.display = 'block';
             msgEl.innerHTML = "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" + summaryText + "</pre>";
           }
+          
+           await showRegisteredViewFromBackend();
 
           // Clear inputs
           if (amtInput) amtInput.value = "";

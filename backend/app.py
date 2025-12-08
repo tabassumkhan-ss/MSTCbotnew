@@ -266,19 +266,20 @@ def webapp_init():
         if not init_data:
             return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-            uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+        # Parse initData into basic user info
+        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
 
         if not uid:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
+        # Build dict for get_or_create_user
         tg_user = {
             "id": uid,
             "username": username,
             "first_name": first_name,
-            # last_name is optional
         }
 
-        # Referral extraction from payload or from start_param
+        # Referral from payload or start_param
         ref_id = get_ref_from_payload(data)
         if not ref_id and start_param:
             try:
@@ -288,11 +289,9 @@ def webapp_init():
 
         user = get_or_create_user(db, tg_user, ref_id)
 
-
         total_team_business = float(user.total_team_business or 0.0)
         self_activated = bool(user.self_activated)
         has_registered = bool(self_activated or total_team_business > 0)
-
         is_active = self_activated
 
         resp = {
