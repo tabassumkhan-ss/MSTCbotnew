@@ -450,7 +450,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
 
       <div class="rank-panel">
         <div class="rank-header">
-          <div class="rank-header-title">🏅 Your Rank & Levels</div>
+          <div class="rank-header-title">    🏅 Your Rank & Levels</div>
           <!--<div class="rank-current-label">Current: <b>${ranks.current}</b></div>
            <div class="row mini">Current: <b>${ranks.current}</b></div> -->
         </div>
@@ -626,7 +626,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
           const summaryText = summaryLines.join("\n");
 
           if (tg && typeof tg.showAlert === 'function') {
-            tg.showAlert("Deposit submitted successfully!\n\n" + summaryText);
+            tg.showAlert("Deposit submitted successfully!");
           }
 
           if (msgEl) {
