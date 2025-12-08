@@ -380,6 +380,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${(name || 'Unknown')}</div>
+      <div class="row mini">Current: <b>${ranks.current}</b></div>
       <!-- <div class="row mini">Total Team Business: <b>$${total}</b> · Active Origins: <b>${activeOrigins}</b></div> -->
 
       <div class="row ref-line">
@@ -450,8 +451,8 @@ function renderRegisteredView(uid, name, avatar, userData) {
       <div class="rank-panel">
         <div class="rank-header">
           <div class="rank-header-title">🏅 Your Rank & Levels</div>
-          <!-- <div class="rank-current-label">Current: <b>${ranks.current}</b></div> -->
-          <div class="row mini">Current: <b>${ranks.current}</b></div>
+          <div class="rank-current-label">Current: <b>${ranks.current}</b></div>
+          <!-- <div class="row mini">Current: <b>${ranks.current}</b></div> -->
         </div>
 
         <div class="rank-tabs">
