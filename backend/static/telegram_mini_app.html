@@ -232,6 +232,80 @@ const tg = window.Telegram.WebApp;
 // Unsafe init data from Telegram (contains user + start_param)
 const initDataUnsafe = tg.initDataUnsafe || {};
 
+async function initApp() {
+  try {
+    const res = await fetch("/webapp/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: tg.initData, // contains user + start_param/ref
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      document.getElementById("app").innerHTML = "<h3>Failed to initialize</h3>";
+      return;
+    }
+
+    if (data.exists) {
+      // Already registered → load dashboard from backend
+      await showRegisteredViewFromBackend();
+    } else {
+      // 👇 New → Show welcome and register button
+      showRegisterScreen(data.referrer_username);
+    }
+  } catch (err) {
+    console.error(err);
+    document.getElementById("app").innerHTML = "<h3>Network Error</h3>";
+  }
+}
+
+function showRegisterScreen(referrerUsername) {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <div style="padding:20px; text-align:center;">
+      <h2>Welcome to MSTC</h2>
+      ${
+        referrerUsername
+          ? `<p>You were invited by <b>@${referrerUsername}</b></p>`
+          : `<p>Welcome! Proceed to create your account.</p>`
+      }
+      <button id="registerBtn" style="padding:10px 20px;margin-top:15px;">Register & Continue</button>
+    </div>
+  `;
+  document.getElementById("registerBtn").onclick = doRegister;
+}
+
+async function doRegister() {
+  try {
+    const res = await fetch("/webapp/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: tg.initData,
+      }),
+    });
+
+    const data = await res.json();
+    if (!data.ok) {
+      alert("Registration Failed");
+      return;
+    }
+
+    // Now user is created → reload view from backend
+    await showRegisteredViewFromBackend();
+  } catch (err) {
+    console.error(err);
+    alert("Network error while registering");
+  }
+}
+
+
+// 🔥 Start app when page loads
+window.addEventListener("load", initApp);
+
 // TEMP: log what Telegram is sending us (for debugging)
 console.log("INIT DATA:", initDataUnsafe);
 

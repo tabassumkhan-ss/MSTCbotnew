@@ -258,6 +258,13 @@ def webapp_me():
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
+    """
+    New behaviour:
+      - DO NOT create user here.
+      - If user already exists -> return their status.
+      - If user does not exist -> just return basic info + referrer info
+        so frontend can show a 'Register' / 'Join via A' screen.
+    """
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -271,13 +278,33 @@ def webapp_init():
         if not uid:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        tg_user = {
-            "id": uid,
-            "username": username,
-            "first_name": first_name,
-        }
+        # Check if this Telegram account already exists in DB
+        user = db.get(User, uid)
 
-        # Referral from payload or from start_param
+        if user:
+            total_team_business = float(user.total_team_business or 0.0)
+            self_activated = bool(user.self_activated)
+            has_registered = bool(self_activated or total_team_business > 0)
+            is_active = self_activated
+
+            resp = {
+                "ok": True,
+                "exists": True,
+                "has_registered": has_registered,
+                "is_active": is_active,
+                "total_team_business": total_team_business,
+                "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+                "role": user.role,
+                "self_activated": self_activated,
+                "user_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "referrer_id": user.referrer_id,
+            }
+            return jsonify(resp)
+
+        # 👇 If we reach here, user does NOT exist yet – DO NOT create
+        # Figure out referrer for welcome screen only
         ref_id = get_ref_from_payload(data)
         if not ref_id and start_param:
             try:
@@ -285,10 +312,85 @@ def webapp_init():
             except (TypeError, ValueError):
                 ref_id = None
 
-        # Create or load user
-        user = get_or_create_user(db, tg_user, ref_id)
+        referrer_username = None
+        if ref_id:
+            ref = db.get(User, ref_id)
+            if ref:
+                referrer_username = ref.username or ref.first_name
 
-        # 🔁 Ensure referrer is linked if still empty
+        return jsonify({
+            "ok": True,
+            "exists": False,
+            "has_registered": False,
+            "is_active": False,
+            "user_id": uid,
+            "username": username,
+            "first_name": first_name,
+            "referrer_id": ref_id,
+            "referrer_username": referrer_username,
+        })
+    except Exception:
+        logging.exception("Error in /webapp/init")
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()
+
+        
+@app.route("/webapp/register", methods=["POST"])
+def webapp_register():
+    """
+    Called when user explicitly taps 'Register' in the mini-app.
+    This is the ONLY place where we actually create the User from WebApp.
+    """
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+        # If already registered, just return existing user
+        existing = db.get(User, uid)
+        if existing:
+            total_team_business = float(existing.total_team_business or 0.0)
+            self_activated = bool(existing.self_activated)
+            has_registered = bool(self_activated or total_team_business > 0)
+            is_active = self_activated
+
+            return jsonify({
+                "ok": True,
+                "registered": False,
+                "exists": True,
+                "has_registered": has_registered,
+                "is_active": is_active,
+                "user_id": existing.id,
+                "username": existing.username,
+                "first_name": existing.first_name,
+                "referrer_id": existing.referrer_id,
+                "role": existing.role,
+            })
+
+        tg_user = {
+            "id": uid,
+            "username": username,
+            "first_name": first_name,
+        }
+
+        # Referral logic
+        ref_id = get_ref_from_payload(data)
+        if not ref_id and start_param:
+            try:
+                ref_id = int(start_param)
+            except (TypeError, ValueError):
+                ref_id = None
+
+        # Now we actually create user
+        user = get_or_create_user(db, tg_user, ref_id)
         link_referrer_if_needed(db, user, ref_id)
 
         total_team_business = float(user.total_team_business or 0.0)
@@ -296,25 +398,25 @@ def webapp_init():
         has_registered = bool(self_activated or total_team_business > 0)
         is_active = self_activated
 
-        resp = {
+        return jsonify({
             "ok": True,
+            "registered": True,
+            "exists": True,
             "has_registered": has_registered,
             "is_active": is_active,
-            "total_team_business": total_team_business,
-            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
-            "role": user.role,
-            "self_activated": self_activated,
             "user_id": user.id,
             "username": user.username,
             "first_name": user.first_name,
             "referrer_id": user.referrer_id,
-        }
-        return jsonify(resp)
+            "role": user.role,
+        })
     except Exception:
-        logging.exception("Error in /webapp/init")
+        logging.exception("Error in /webapp/register")
+        db.rollback()
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
+
 
 
 @app.post("/bot/start")
