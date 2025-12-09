@@ -226,6 +226,27 @@
    ---------------------- */
 const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
 
+// Telegram WebApp instance
+const tg = window.Telegram.WebApp;
+
+// Unsafe init data from Telegram (contains user + start_param)
+const initDataUnsafe = tg.initDataUnsafe || {};
+
+// TEMP: log what Telegram is sending us (for debugging)
+console.log("INIT DATA:", initDataUnsafe);
+
+// Current user info we will send to backend
+const currentUser = {
+  telegram_id: initDataUnsafe.user?.id || null,
+  first_name: initDataUnsafe.user?.first_name || null,
+  username: initDataUnsafe.user?.username || null,
+
+  // 🔥 IMPORTANT: this is where we read the referral from Telegram
+  // e.g., if A sent link, start_param should be A's ID or code
+  referrer_id: initDataUnsafe.start_param || null,
+};
+
+
 // Global TON Connect UI instance
 let tonConnectUI = null;
 try {
@@ -280,7 +301,7 @@ window.currentRef = ref;
 /* ----------------------
    Telegram WebApp object
    ---------------------- */
-const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+
 try {
   if (tg && typeof tg.ready === 'function') tg.ready();
   if (tg && typeof tg.expand === 'function') tg.expand();
@@ -714,7 +735,8 @@ function renderRegisteredView(uid, name, avatar, userData) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               telegram_id: tgUserId,
-              wallet_address: addr
+              wallet_address: addr,
+               referrer_id: currentUser.referrer_id,
             })
           });
 
