@@ -23,32 +23,21 @@ print("Flask CWD:", os.getcwd())
 print("Flask DB URL:", engine.url)
 
 
-def get_ref_from_payload(data):
+def get_ref_from_payload(data: dict) -> int | None:
     """
-    Extract referral ID from the JSON sent by the mini-app.
-    Priority:
-      1) data["ref"] or data["referrer_id"]
-      2) "ref" or "start_param" inside initData (Telegram start_param)
+    Extract referrer from JSON payload.
+    Accepts keys: 'ref', 'referrer_id', or 'ref_id'.
+    Returns int or None.
     """
-    ref_raw = data.get("ref") or data.get("referrer_id")
-
-    # Step 1: Try from top-level JSON fields
-    if not ref_raw:
-        init_data = data.get("initData")
-        if isinstance(init_data, str):
-            try:
-                # initData is a querystring-like structure
-                pairs = dict(parse_qsl(init_data, keep_blank_values=True))
-                ref_raw = pairs.get("ref") or pairs.get("start_param")
-            except Exception:
-                ref_raw = None
-
-    # Step 2: Convert to int safely
-    if not ref_raw:
+    raw = (
+        data.get("ref")
+        or data.get("referrer_id")
+        or data.get("ref_id")
+    )
+    if raw is None or raw == "":
         return None
-
     try:
-        return int(ref_raw)
+        return int(raw)
     except (TypeError, ValueError):
         return None
 
@@ -230,7 +219,7 @@ def webapp_me():
             or payload.get("from")
             or {}
         )
-        ref_id = payload.get("ref_id") or payload.get("start_param")
+        ref_id = get_ref_from_payload(payload) or payload.get("start_param")
 
         try:
             user = get_or_create_user(db, tg_user, ref_id)
@@ -334,89 +323,6 @@ def webapp_init():
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
-
-        
-@app.route("/webapp/register", methods=["POST"])
-def webapp_register():
-    """
-    Called when user explicitly taps 'Register' in the mini-app.
-    This is the ONLY place where we actually create the User from WebApp.
-    """
-    db = SessionLocal()
-    try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
-
-        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
-        if not uid:
-            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
-
-        # If already registered, just return existing user
-        existing = db.get(User, uid)
-        if existing:
-            total_team_business = float(existing.total_team_business or 0.0)
-            self_activated = bool(existing.self_activated)
-            has_registered = bool(self_activated or total_team_business > 0)
-            is_active = self_activated
-
-            return jsonify({
-                "ok": True,
-                "registered": False,
-                "exists": True,
-                "has_registered": has_registered,
-                "is_active": is_active,
-                "user_id": existing.id,
-                "username": existing.username,
-                "first_name": existing.first_name,
-                "referrer_id": existing.referrer_id,
-                "role": existing.role,
-            })
-
-        tg_user = {
-            "id": uid,
-            "username": username,
-            "first_name": first_name,
-        }
-
-        # Referral logic
-        ref_id = get_ref_from_payload(data)
-        if not ref_id and start_param:
-            try:
-                ref_id = int(start_param)
-            except (TypeError, ValueError):
-                ref_id = None
-
-        # Now we actually create user
-        user = get_or_create_user(db, tg_user, ref_id)
-        link_referrer_if_needed(db, user, ref_id)
-
-        total_team_business = float(user.total_team_business or 0.0)
-        self_activated = bool(user.self_activated)
-        has_registered = bool(self_activated or total_team_business > 0)
-        is_active = self_activated
-
-        return jsonify({
-            "ok": True,
-            "registered": True,
-            "exists": True,
-            "has_registered": has_registered,
-            "is_active": is_active,
-            "user_id": user.id,
-            "username": user.username,
-            "first_name": user.first_name,
-            "referrer_id": user.referrer_id,
-            "role": user.role,
-        })
-    except Exception:
-        logging.exception("Error in /webapp/register")
-        db.rollback()
-        return jsonify({"ok": False, "error": "server_error"}), 500
-    finally:
-        db.close()
-
 
 
 @app.post("/bot/start")
@@ -770,6 +676,107 @@ def webapp_save_wallet():
     finally:
         db.close()
 
+@app.route("/webapp/register", methods=["POST"])
+def webapp_register():
+    """
+    Called when user explicitly taps 'Register' in the mini-app.
+    This is the ONLY place where we actually create the User from WebApp.
+    Also: if a user already exists and has no referrer yet, we attach it once.
+    """
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        # You already have this helper in your project
+        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+        # 🔹 Check if user already exists
+        existing = db.get(User, uid)
+        if existing:
+            # ✅ If user has no referrer yet, try to set from payload/start_param
+            if existing.referrer_id is None:
+                ref_id = get_ref_from_payload(data)  # must read "ref" from JSON
+                if not ref_id and start_param:
+                    try:
+                        ref_id = int(start_param)
+                    except (TypeError, ValueError):
+                        ref_id = None
+
+                # avoid self-referral
+                if ref_id and ref_id != existing.id:
+                    link_referrer_if_needed(db, existing, ref_id)
+                    db.refresh(existing)
+
+            total_team_business = float(existing.total_team_business or 0.0)
+            self_activated = bool(existing.self_activated)
+            has_registered = bool(self_activated or total_team_business > 0)
+            is_active = self_activated
+
+            return jsonify({
+                "ok": True,
+                "registered": False,
+                "exists": True,
+                "has_registered": has_registered,
+                "is_active": is_active,
+                "user_id": existing.id,
+                "username": existing.username,
+                "first_name": existing.first_name,
+                "referrer_id": existing.referrer_id,
+                "role": existing.role,
+            })
+
+        # 🔹 New user: build basic tg_user
+        tg_user = {
+            "id": uid,
+            "username": username,
+            "first_name": first_name,
+        }
+
+        # 🔹 Referral logic (for NEW user)
+        ref_id = get_ref_from_payload(data)
+        if not ref_id and start_param:
+            try:
+                ref_id = int(start_param)
+            except (TypeError, ValueError):
+                ref_id = None
+
+        # avoid self-referral
+        if ref_id == uid:
+            ref_id = None
+
+        # Now we actually create user
+        user = get_or_create_user(db, tg_user, ref_id)
+        link_referrer_if_needed(db, user, ref_id)
+
+        total_team_business = float(user.total_team_business or 0.0)
+        self_activated = bool(user.self_activated)
+        has_registered = bool(self_activated or total_team_business > 0)
+        is_active = self_activated
+
+        return jsonify({
+            "ok": True,
+            "registered": True,
+            "exists": True,
+            "has_registered": has_registered,
+            "is_active": is_active,
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "referrer_id": user.referrer_id,
+            "role": user.role,
+        })
+    except Exception:
+        logging.exception("Error in /webapp/register")
+        db.rollback()
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()
 
 
 @app.route("/webapp/verify", methods=["POST"])

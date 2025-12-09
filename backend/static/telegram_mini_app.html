@@ -233,7 +233,7 @@ const tg = window.Telegram?.WebApp || null;
 const initDataUnsafe = tg?.initDataUnsafe || {};
 
 /* ----------------------
-   REF from URL / storage
+   REF from URL / storage / start_param
    ---------------------- */
 const urlParams = new URLSearchParams(window.location.search);
 const urlRef = urlParams.get("ref") || null;
@@ -245,9 +245,33 @@ try {
   console.warn("localStorage not available for ref", e);
 }
 
-// Priority: URL > stored > nothing
-let ref = urlRef || storedRef || null;
+// 🔥 NEW: read start_param immediately from Telegram
+const startParamInitial =
+  initDataUnsafe.start_param ||
+  initDataUnsafe.startParam ||
+  null;
+
+// Priority: URL > stored > start_param > nothing
+let ref = urlRef || storedRef || startParamInitial || null;
+
+// If this is the first time and we only have start_param, persist it
+if (!urlRef && !storedRef && startParamInitial) {
+  try {
+    localStorage.setItem("ref", startParamInitial);
+  } catch (e) {
+    console.warn("Could not store ref in localStorage", e);
+  }
+}
+
 window.currentRef = ref;
+
+console.log("REF DEBUG:", {
+  urlRef,
+  storedRef,
+  startParamInitial,
+  finalRef: window.currentRef,
+  initDataUnsafe,
+});
 
 /* ----------------------
    First init / activation check
@@ -306,6 +330,7 @@ async function doRegister() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         initData: tg?.initData || "",
+        // NOW this will include URL ref, stored ref OR start_param
         ref: window.currentRef || null
       }),
     });
@@ -337,7 +362,11 @@ const currentUser = {
   username: initDataUnsafe.user?.username || null,
 
   // Prefer resolved ref (URL/localStorage/start_param)
-  referrer_id: window.currentRef || initDataUnsafe.start_param || initDataUnsafe.startParam || null,
+  referrer_id:
+    window.currentRef ||
+    initDataUnsafe.start_param ||
+    initDataUnsafe.startParam ||
+    null,
 };
 
 // Global TON Connect UI instance
@@ -403,7 +432,7 @@ async function verifyInitData() {
   const unsafeUser = unsafe?.user || null;
   const startParam = unsafe?.start_param || unsafe?.startParam || null;
 
-  // If we don't already have a ref but Telegram gave us start_param, use & store it
+  // Fallback: if somehow ref is still empty, use start_param
   if (!window.currentRef && startParam) {
     window.currentRef = startParam;
     ref = startParam;
@@ -442,6 +471,7 @@ async function verifyInitData() {
     return { ok: false, user: unsafeUser || {}, error: err && err.message };
   }
 }
+
 
 /* ----------------------
    Ranks
