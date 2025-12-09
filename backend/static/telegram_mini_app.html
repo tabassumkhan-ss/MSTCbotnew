@@ -5,966 +5,407 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MSTC Earning Project — Deposit & Reward System</title>
 
-  <!-- Telegram Web App JS -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- TON Connect UI -->
-  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
   <style>
     * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      min-height: 100vh;
-      display: block;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-      text-align: center;
-      color: #fff;
-      background:
-        radial-gradient(1200px 600px at 50% -20%, rgba(255,255,255,.08), transparent 60%),
-        linear-gradient(135deg, #5c3cff, #0e1630 60%);
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding: 12px 10px 24px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050816;
+      color: #f8fafc;
     }
-
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px;
+    }
     .card {
-      width: min(720px, 96vw);
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 20px;
-      padding: 22px;
-      box-shadow: 0 18px 50px rgba(0,0,0,.25);
-      backdrop-filter: blur(6px);
-      margin: 8px auto 24px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.7);
     }
-
-    .logo {
-      width:88px;
-      height:88px;
-      border-radius:50%;
-      object-fit:cover;
-      border:4px solid rgba(255,255,255,.35);
-      margin:0 auto 14px;
-      display:block;
-      box-shadow: 0 10px 26px rgba(0,0,0,.35), 0 0 0 8px rgba(255,255,255,.08) inset;
-      position:relative;
+    h1, h2, h3 {
+      margin: 0 0 8px;
     }
-    .logo.glow { border-color:transparent; box-shadow:none; isolation:isolate; }
-    .logo.glow::before, .logo.glow::after {
-      content:"";
-      position:absolute;
-      inset:-6px;
-      border-radius:50%;
-      z-index:-1;
-    }
-    .logo.glow::before {
-      background: conic-gradient(from 0deg,#6cf 0%,#8af 25%,#9ff 50%,#7df 75%,#6cf 100%);
-      filter: blur(6px);
-      animation: spin 4s linear infinite;
-      opacity:.95;
-    }
-    .logo.glow::after {
-      inset:-14px;
-      background: radial-gradient(closest-side, rgba(108,240,255,.5), rgba(0,0,0,0));
-      filter: blur(10px);
-      opacity:.65;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    h2 { margin:0 0 10px; font-weight:700; }
-    .row { margin:10px 0; font-size:1.05rem; }
-    .big { font-size:1.25rem; font-weight:700; }
-    .actions { margin-top:16px; display:flex; gap:12px; justify-content:center; }
     .btn {
-      padding:11px 22px;
-      border-radius:22px;
-      border:0;
-      cursor:pointer;
-      font-weight:600;
-      background:#00c853;
-      color:#fff;
-      box-shadow:0 8px 24px rgba(0,200,83,.35);
+      display: inline-block;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 8px;
+      font-size: 14px;
     }
-    .btn.alt { background:#e53935; box-shadow:0 8px 24px rgba(229,57,53,.35); }
-    .btn.secondary { background:#2a7de1; box-shadow:0 8px 24px rgba(42,125,225,.35); }
-
-    .ref-line {
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      margin-top:8px;
+    .btn-primary {
+      background: #0f766e;
+      color: white;
     }
-    .copy-btn {
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      width:36px;
-      height:36px;
-      border-radius:10px;
-      border:none;
-      cursor:pointer;
-      background:rgba(255,255,255,.16);
-      color:#fff;
-      font-size:18px;
-      transition: transform .12s ease, opacity .2s;
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
-    .copy-btn:active { transform: scale(.96); }
-
-    .tooltip { margin-top:8px; font-size:.85rem; opacity:0; transition: opacity .25s; }
-    .show { opacity:1; }
-
-    .panel {
-      margin-top:18px;
-      text-align:left;
-      background:rgba(0,0,0,.18);
-      padding:16px;
-      border-radius:14px;
+    .btn-secondary {
+      background: #1e293b;
+      color: #e5e7eb;
     }
-    .panel h3 { margin:0 0 10px; color:#fff; }
-
-    label {
-      display:block;
-      font-size:.95rem;
-      opacity:.9;
-      margin:10px 0 6px;
+    .field {
+      margin-bottom: 12px;
     }
-    input, .addr-box {
-      width:100%;
-      padding:12px 12px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.08);
-      color:#fff;
-      outline:none;
+    .field label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      color: #9ca3af;
     }
-
-    .split {
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-      margin-top:12px;
+    .field input {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
     }
-    .rowline { display:flex; align-items:center; gap:10px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break:break-all; }
-    .mini { font-size:.9rem; opacity:.9; }
-    .submit { margin-top:14px; text-align:right; }
-    .error { color:#ffb4b4; font-size:.9rem; margin-top:6px; }
-    .ok { color:#b5ffcb; font-size:.9rem; margin-top:6px; }
-
-    .rank-panel {
-      margin-top:18px;
-      background:rgba(0,0,0,.18);
-      padding:16px;
-      border-radius:14px;
+    .field input:focus {
+      outline: none;
+      border-color: #0f766e;
     }
-    .rank-header {
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:8px;
+    .status {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-top: 8px;
+      white-space: pre-line;
     }
-    .rank-header-title { font-size:1rem; font-weight:600; }
-    .rank-tabs {
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-bottom:10px;
+    .error {
+      color: #fecaca;
     }
-    .rank-tab {
-      width:100%;
-      padding:12px 14px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.06);
-      color:#fff;
-      font-size:.85rem;
-      cursor:pointer;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      text-align:center;
-      gap:6px;
-      position:relative;
-      overflow:hidden;
+    .success {
+      color: #bbf7d0;
     }
-    .rank-name { font-weight:600; font-size:.9rem; }
-    .rank-percent { font-size:.8rem; opacity:.9; }
-    .rank-status { font-size:.75rem; opacity:.85; }
-    .rank-tab.achieved {
-      border-color:#00c853;
-      box-shadow: 0 0 0 1px rgba(0,200,83,.4), 0 0 16px rgba(0,200,83,.45);
+    .muted {
+      font-size: 12px;
+      color: #6b7280;
     }
-    .rank-tab.achieved::before {
-      content:"";
-      position:absolute;
-      left:0; top:0; bottom:0;
-      width:5px;
-      background: linear-gradient(180deg, rgba(0,200,83,1), rgba(0,200,83,0.1));
-    }
-    .rank-details { font-size:.9rem; line-height:1.4; }
   </style>
 </head>
 <body>
-  <div class="card" id="app">
-    <img src="./Botologo_new.png" alt="MSTC EARNING PROJECT" class="logo" id="avatar" />
+  <div id="app">
+    <div class="card">
+      <h2>MSTC Deposit Mini App</h2>
+      <p class="muted" id="welcomeText">Loading Telegram data…</p>
+      <p class="muted" id="refInfo"></p>
+    </div>
 
-    <!-- Registration question + Yes/No; hidden later for registered users -->
-    <div id="registerSection">
-      <h2 id="accountStatus">Do you want to register?</h2>
-      <div class="actions">
-        <button id="yesBtn" class="btn" type="button">Yes</button>
-        <button id="noBtn" class="btn alt" type="button">No</button>
+    <div class="card" id="registerCard" style="display:none;">
+      <h3>Register & Join Team</h3>
+      <p class="muted">
+        Tap below to register your account in MSTC system.
+      </p>
+      <button class="btn btn-primary" id="registerBtn">Register Now</button>
+      <div class="status" id="registerStatus"></div>
+    </div>
+
+    <div class="card" id="walletCard" style="display:none;">
+      <h3>Your TON Wallet</h3>
+      <div class="field">
+        <label for="walletInput">Wallet address</label>
+        <input id="walletInput" placeholder="Paste your TON wallet address" />
       </div>
+      <button class="btn btn-secondary" id="saveWalletBtn">Save Wallet</button>
+      <div class="status" id="walletStatus"></div>
+    </div>
+
+    <div class="card" id="depositCard" style="display:none;">
+      <h3>Make a Deposit</h3>
+      <div class="field">
+        <label for="amountInput">Deposit amount (MSTC)</label>
+        <input id="amountInput" type="number" step="0.01" min="0" placeholder="e.g. 20" />
+      </div>
+      <button class="btn btn-primary" id="verifyBtn">Submit Deposit</button>
+      <div class="status" id="verifyStatus"></div>
+    </div>
+
+    <div class="card" id="userInfoCard" style="display:none;">
+      <h3>Your Status</h3>
+      <div class="status" id="userInfo"></div>
     </div>
   </div>
 
-<script>
-/* ----------------------
-   CONFIG
-   ---------------------- */
-const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
+  <script>
+    const tg = window.Telegram.WebApp || {};
+    if (tg.expand) tg.expand();
 
-// Telegram WebApp instance (safe)
-const tg = window.Telegram?.WebApp || null;
+    // ─────────────────────────────────────────────
+    // REF HANDLING (THIS IS WHAT FIXES referrer_id)
+    // ─────────────────────────────────────────────
+    const urlParams = new URLSearchParams(window.location.search);
+    const refFromUrl = urlParams.get("ref") || urlParams.get("startapp");
+    const refFromInit = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+    // This is what we will send to backend as "ref"
+    const ref = refFromUrl || refFromInit || null;
 
-// Unsafe init data from Telegram (contains user + start_param)
-const initDataUnsafe = tg?.initDataUnsafe || {};
+    console.log("REF DEBUG:", { refFromUrl, refFromInit, ref });
 
-/* ----------------------
-   REF from URL / storage / start_param
-   ---------------------- */
-const urlParams = new URLSearchParams(window.location.search);
-const urlRef = urlParams.get("ref") || null;
+    // ─────────────────────────────────────────────
+    // DOM elements
+    // ─────────────────────────────────────────────
+    const registerCard   = document.getElementById("registerCard");
+    const registerBtn    = document.getElementById("registerBtn");
+    const registerStatus = document.getElementById("registerStatus");
 
-let storedRef = null;
-try {
-  storedRef = localStorage.getItem("ref") || null;
-} catch (e) {
-  console.warn("localStorage not available for ref", e);
-}
+    const walletCard   = document.getElementById("walletCard");
+    const walletInput  = document.getElementById("walletInput");
+    const walletStatus = document.getElementById("walletStatus");
+    const saveWalletBtn = document.getElementById("saveWalletBtn");
 
-// 🔥 NEW: read start_param immediately from Telegram
-const startParamInitial =
-  initDataUnsafe.start_param ||
-  initDataUnsafe.startParam ||
-  null;
+    const depositCard   = document.getElementById("depositCard");
+    const amountInput   = document.getElementById("amountInput");
+    const verifyBtn     = document.getElementById("verifyBtn");
+    const verifyStatus  = document.getElementById("verifyStatus");
 
-// Priority: URL > stored > start_param > nothing
-let ref = urlRef || storedRef || startParamInitial || null;
+    const welcomeText = document.getElementById("welcomeText");
+    const refInfo     = document.getElementById("refInfo");
+    const userInfoCard = document.getElementById("userInfoCard");
+    const userInfo     = document.getElementById("userInfo");
 
-// If this is the first time and we only have start_param, persist it
-if (!urlRef && !storedRef && startParamInitial) {
-  try {
-    localStorage.setItem("ref", startParamInitial);
-  } catch (e) {
-    console.warn("Could not store ref in localStorage", e);
-  }
-}
+    let currentUserId = null;
+    let currentUsername = null;
+    let currentFirstName = null;
 
-window.currentRef = ref;
-
-console.log("REF DEBUG:", {
-  urlRef,
-  storedRef,
-  startParamInitial,
-  finalRef: window.currentRef,
-  initDataUnsafe,
-});
-
-/* ----------------------
-   First init / activation check
-   ---------------------- */
-async function initApp() {
-  try {
-    const res = await fetch("/webapp/init", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: tg?.initData || "",      // contains user + start_param
-        ref: window.currentRef || null     // send ref also on first init
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-      document.getElementById("app").innerHTML = "<h3>Failed to initialize</h3>";
-      return;
+    function showStatus(el, text, type) {
+      el.textContent = text || "";
+      el.classList.remove("error", "success");
+      if (type === "error") el.classList.add("error");
+      if (type === "success") el.classList.add("success");
     }
 
-    if (data.exists) {
-      // Already registered → load dashboard from backend
-      await showRegisteredViewFromBackend();
-    } else {
-      // New → Show welcome and register button
-      showRegisterScreen(data.referrer_username);
-    }
-  } catch (err) {
-    console.error(err);
-    document.getElementById("app").innerHTML = "<h3>Network Error</h3>";
-  }
-}
-
-function showRegisterScreen(referrerUsername) {
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <div style="padding:20px; text-align:center;">
-      <h2>Welcome to MSTC</h2>
-      ${
-        referrerUsername
-          ? `<p>You were invited by <b>@${referrerUsername}</b></p>`
-          : `<p>Welcome! Proceed to create your account.</p>`
-      }
-      <button id="registerBtn" style="padding:10px 20px;margin-top:15px;">Register & Continue</button>
-    </div>
-  `;
-  document.getElementById("registerBtn").onclick = doRegister;
-}
-
-async function doRegister() {
-  try {
-    const res = await fetch("/webapp/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: tg?.initData || "",
-        // NOW this will include URL ref, stored ref OR start_param
-        ref: window.currentRef || null
-      }),
-    });
-
-    const data = await res.json();
-    if (!data.ok) {
-      alert("Registration Failed");
-      return;
-    }
-
-    // Now user is created → reload view from backend
-    await showRegisteredViewFromBackend();
-  } catch (err) {
-    console.error(err);
-    alert("Network error while registering");
-  }
-}
-
-// 🔥 Start app when page loads
-window.addEventListener("load", initApp);
-
-// TEMP: log what Telegram is sending us (for debugging)
-console.log("INIT DATA:", initDataUnsafe);
-
-// Current user info we will send to backend (for wallet save etc.)
-const currentUser = {
-  telegram_id: initDataUnsafe.user?.id || null,
-  first_name: initDataUnsafe.user?.first_name || null,
-  username: initDataUnsafe.user?.username || null,
-
-  // Prefer resolved ref (URL/localStorage/start_param)
-  referrer_id:
-    window.currentRef ||
-    initDataUnsafe.start_param ||
-    initDataUnsafe.startParam ||
-    null,
-};
-
-// Global TON Connect UI instance
-let tonConnectUI = null;
-try {
-  if (window.TON_CONNECT_UI) {
-    tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-      manifestUrl: API_BASE + '/static/tonconnect-manifest.json'
-    });
-    console.log('TON Connect UI initialized');
-  } else {
-    console.warn('TON_CONNECT_UI is not available on window');
-  }
-} catch (e) {
-  console.warn('TON Connect init failed', e);
-}
-
-// Use /webapp/init for activation / registration status (it expects initData)
-const API_VERIFY  = API_BASE + '/webapp/init';
-// Use /webapp/verify for deposits (it expects initData + amount)
-const API_DEPOSIT = API_BASE + '/webapp/verify';
-
-const ADDR_MUSD   = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-const ADDR_MSTC   = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
-const CHAIN_LABEL = "EVM Chain";
-const MIN_DEPOSIT = 20.00;
-
-/* ----------------------
-   Helpers
-   ---------------------- */
-const app = document.getElementById('app');
-const baseLogo = './Botologo_new.png';
-
-function copyText(txt, tipEl) {
-  navigator.clipboard.writeText(String(txt)).then(() => {
-    if (tipEl) {
-      tipEl.classList.add('show');
-      setTimeout(() => tipEl.classList.remove('show'), 1200);
-    }
-  }).catch(() => alert('Copy failed'));
-}
-
-function fmt(n) {
-  return Number(n || 0).toFixed(2);
-}
-
-/* ----------------------
-   Telegram ready / expand
-   ---------------------- */
-try {
-  if (tg && typeof tg.ready === 'function') tg.ready();
-  if (tg && typeof tg.expand === 'function') tg.expand();
-} catch (e) {
-  console.warn('tg.ready/expand error', e);
-}
-
-/* ----------------------
-   VERIFY / LOAD user from backend
-   ---------------------- */
-async function verifyInitData() {
-  const initData = tg?.initData || '';
-  const unsafe = tg?.initDataUnsafe || null;
-  const unsafeUser = unsafe?.user || null;
-  const startParam = unsafe?.start_param || unsafe?.startParam || null;
-
-  // Fallback: if somehow ref is still empty, use start_param
-  if (!window.currentRef && startParam) {
-    window.currentRef = startParam;
-    ref = startParam;
-    try {
-      localStorage.setItem('ref', startParam);
-    } catch (e) {
-      console.warn('Could not store ref in localStorage', e);
-    }
-  }
-
-  const payload = { initData, ref: window.currentRef || null };
-
-  try {
-    console.debug('POST', API_VERIFY, payload);
-    const res = await fetch(API_VERIFY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok || j.ok === false) {
-      console.warn('verify failed server response', res.status, j);
-      return { ok: false, user: j.user || unsafeUser || {} , raw: j };
-    }
-
-    if (j.user) {
-      return { ok: true, user: j.user, raw: j };
-    } else {
-      const userFields = Object.assign({}, j);
-      delete userFields.ok;
-      return { ok: true, user: userFields, raw: j };
-    }
-  } catch (err) {
-    console.warn('verify error — network or parse', err);
-    return { ok: false, user: unsafeUser || {}, error: err && err.message };
-  }
-}
-
-
-/* ----------------------
-   Ranks
-   ---------------------- */
-function computeRanks(user) {
-  const total = Number(user.total_team_business || 0);
-  const activeOrigins = Number(user.active_origin_count || 0);
-  const role = (user.role || '').toLowerCase();
-  const selfActivated = !!user.self_activated;
-
-  const isOrigin     = selfActivated || role === 'origin';
-  const isLifeChanger= total >= 1000 && activeOrigins >= 10;
-  const isAdvisor    = total >= 5000;
-  const isVisionary  = total >= 25000;
-  const isCreator    = total >= 100000;
-
-  let current = 'Member';
-  if (isCreator)      current = 'Creator';
-  else if (isVisionary) current = 'Visionary';
-  else if (isAdvisor)   current = 'Advisor';
-  else if (isLifeChanger) current = 'Life Changer';
-  else if (isOrigin)     current = 'Origin';
-
-  return { isOrigin, isLifeChanger, isAdvisor, isVisionary, isCreator, total, activeOrigins, current };
-}
-
-/* ----------------------
-   Registered view
-   ---------------------- */
-function renderRegisteredView(uid, name, avatar, userData) {
-  const ranks = computeRanks(userData || {});
-  const total = (ranks.total || 0).toFixed(2);
-  const activeOrigins = ranks.activeOrigins || 0;
-  const originProgress = ranks.isOrigin ? 100 : 0;
-  const lcBusiness = Math.min(ranks.total / 1000, 1);
-  const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
-  const lifeChangerProgress = ranks.isLifeChanger ? 100 : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
-  const advisorProgress = ranks.isAdvisor ? 100 : Math.round(Math.min(ranks.total / 5000, 1) * 100);
-  const visionaryProgress = ranks.isVisionary ? 100 : Math.round(Math.min(ranks.total / 25000, 1) * 100);
-  const creatorProgress = ranks.isCreator ? 100 : Math.round(Math.min(ranks.total / 100000, 1) * 100);
-
-  const refLink = `https://t.me/mstcrefbot?start=${uid}`;
-
-  app.innerHTML = `
-      <img src="${avatar || baseLogo}" class="logo glow" />
-      <div class="row big">${uid ?? '(unknown)'}</div>
-      <div class="row">${(name || 'Unknown')}</div>
-      
-      <div class="row ref-line">
-        <span class="mini">Referral Link</span>
-        <button class="copy-btn" id="copyRef">📋</button>
-      </div>
-      <div class="tooltip" id="tipRef">Copied!</div>
-      <div class="row mini">Current: <b>${ranks.current}</b></div>
-
-      <div class="panel">
-        <h3>🔗 TON Wallet</h3>
-        <!-- <div id="walletStatus" class="mini">Not connected</div> -->
-        <button class="btn secondary" id="connectWalletBtn" type="button">Connect TON Wallet</button>
-        <div id="walletAddress" class="mini mono" style="margin-top:6px;"></div>
-      </div>
-
-      <div class="panel">
-        <h3>💳 Deposit</h3>
-        <div class="mini">Minimum deposit — <b>$${MIN_DEPOSIT}</b>.</div>
-
-        <label>Enter USD amount</label>
-        <input id="amt" type="number" min="${MIN_DEPOSIT}" step="0.01" placeholder="e.g., 20.00" />
-        <div id="err" class="error" style="display:none;"></div>
-
-        <div class="split">
-          <div>
-            <div class="mini">MUSD (70%)</div>
-            <div class="rowline">
-              <span id="musdAmt" class="big">0.00</span>
-              <span class="mini">USD</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
-            <div class="addr-box mono">${ADDR_MUSD}</div>
-            <div class="rowline" style="margin-top:6px;">
-              <button class="copy-btn" id="copyMUSD">📋</button>
-              <span class="mini">${CHAIN_LABEL}</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
-            <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
-          </div>
-
-          <div>
-            <div class="mini">MSTC (30%)</div>
-            <div class="rowline">
-              <span id="mstcAmt" class="big">0.00</span>
-              <span class="mini">USD</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
-            <div class="addr-box mono">${ADDR_MSTC}</div>
-            <div class="rowline" style="margin-top:6px;">
-              <button class="copy-btn" id="copyMSTC">📋</button>
-              <span class="mini">${CHAIN_LABEL}</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
-            <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
-          </div>
-        </div>
-
-        <div class="submit">
-          <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
-        </div>
-        <div id="submitMsg" class="ok" style="display:none;"></div>
-      </div>
-
-      <div class="rank-panel">
-        <div class="rank-header">
-          <div class="rank-header-title">    🏅 Your Rank & Levels</div>
-        </div>
-
-        <div class="rank-tabs">
-          <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
-            <div class="rank-main">
-              <span class="rank-name">Origin</span>
-            </div>
-          </button>
-
-          <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
-            <div class="rank-main">
-              <span class="rank-name">Life Changer</span></div>
-          </button>
-
-          <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
-            <div class="rank-main">
-              <span class="rank-name">Advisor</span></div>
-          </button>
-
-          <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
-            <div class="rank-main">
-              <span class="rank-name">Visionary</span></div>
-          </button>
-
-          <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
-            <div class="rank-main">
-              <span class="rank-name">Creator</span></div>
-          </button>
-        </div>
-
-        <div id="rankDetails" class="rank-details"></div>
-      </div>
-  `;
-
-  // --- Wire events ---
-
-  const tip = document.getElementById('tipRef');
-  const copyRefBtn = document.getElementById('copyRef');
-  if (copyRefBtn && tip) copyRefBtn.onclick = () => copyText(refLink, tip);
-
-  const amtInput    = document.getElementById('amt');
-  const musdAmt     = document.getElementById('musdAmt');
-  const mstcAmt     = document.getElementById('mstcAmt');
-  const errEl       = document.getElementById('err');
-  const txMUSDInput = document.getElementById('txMUSD');
-  const txMSTCInput = document.getElementById('txMSTC');
-  const submitBtn   = document.getElementById('submitDeposit');
-  const msgEl       = document.getElementById('submitMsg');
-  const copyMUSDBtn = document.getElementById('copyMUSD');
-  const copyMSTCBtn = document.getElementById('copyMSTC');
-
-  if (amtInput && musdAmt && mstcAmt && errEl) {
-    amtInput.oninput = () => {
-      const v = parseFloat(amtInput.value || '0');
-      if (isNaN(v) || v <= 0) {
-        musdAmt.textContent = '0.00';
-        mstcAmt.textContent = '0.00';
-        errEl.style.display = 'none';
-        errEl.textContent = '';
-        return;
-      }
-      musdAmt.textContent = fmt(v * 0.70);
-      mstcAmt.textContent = fmt(v * 0.30);
-
-      if (v < MIN_DEPOSIT) {
-        errEl.style.display = 'block';
-        errEl.textContent = 'Minimum deposit is $' + MIN_DEPOSIT + '.';
-      } else {
-        errEl.style.display = 'none';
-        errEl.textContent = '';
-      }
-    };
-  }
-
-  if (copyMUSDBtn && tip) copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tip);
-  if (copyMSTCBtn && tip) copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tip);
-
-  if (submitBtn) {
-    submitBtn.onclick = async () => {
-      // Clear UI messages
-      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-      if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
-
-      const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
-      const amount = parseFloat(valueStr || "0");
-      const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
-      const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
-
-      if (isNaN(amount) || amount < MIN_DEPOSIT) {
-        if (errEl) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
-        }
-        return;
-      }
-
-      if (!tx1 || !tx2) {
-        if (errEl) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please paste both transaction hashes.';
-        }
-        return;
-      }
-
-      // Prepare payload. Use signed initData string if in Telegram.
-      const payload = {
-        initData: tg ? (tg.initData || "") : "",
-        amount: Number(amount.toFixed(2)),
-        tx_musd: tx1,
-        tx_mstc: tx2,
-        ref: window.currentRef || null
-      };
-
-      if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
-
+    // ─────────────────────────────────────────────
+    // INIT APP: /webapp/init
+    // ─────────────────────────────────────────────
+    async function initApp() {
       try {
-        const res = await fetch(API_DEPOSIT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        const initData = tg.initData || "";
+        const body = {
+          initData,     // raw initData string
+          // Not strictly needed by /webapp/init, but harmless to include:
+          ref           // <── we pass ref so backend can use get_ref_from_payload if it wants
+        };
+
+        const res = await fetch("/webapp/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         });
-        const data = await res.json().catch(() => ({}));
-        console.debug('DEPOSIT RESPONSE:', data);
 
-        if (data && data.ok) {
-          // Build a small summary for the user
-          let summaryLines = [];
-          if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-            summaryLines.push("Referral distribution:");
-            data.referral_dist.forEach(r => {
-              const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
-              const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
-              summaryLines.push(`${level}: ${who} → $${r.amount}`);
-            });
-          } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
-            summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
-          } else {
-            summaryLines.push("No referral distribution (no uplines linked).");
-          }
+        const data = await res.json();
+        console.log("INIT RESPONSE", data);
 
-          const summaryText = summaryLines.join("\n");
+        if (!data.ok) {
+          welcomeText.textContent = "Failed to initialize: " + (data.error || "unknown");
+          return;
+        }
 
-          // Show success inside mini app UI
-          if (msgEl) {
-            msgEl.style.display = 'block';
-            msgEl.innerHTML =
-              "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
-              summaryText +
-              "</pre>";
-          }
+        currentUserId = data.user_id;
+        currentUsername = data.username;
+        currentFirstName = data.first_name;
 
-          await showRegisteredViewFromBackend();
+        welcomeText.textContent =
+          `Hello ${currentFirstName || ""} (@${currentUsername || "user"})`;
 
-          // Clear inputs
-          if (amtInput) amtInput.value = "";
-          if (txMUSDInput) txMUSDInput.value = "";
-          if (txMSTCInput) txMSTCInput.value = "";
-          if (musdAmt) musdAmt.textContent = "0.00";
-          if (mstcAmt) mstcAmt.textContent = "0.00";
-
+        if (data.referrer_username || data.referrer_id) {
+          refInfo.textContent =
+            `You are joining via: ${data.referrer_username || ("ID " + data.referrer_id)}`;
+        } else if (ref) {
+          refInfo.textContent =
+            `Referral code detected: ${ref}`;
         } else {
-          const errText = data && (data.message || data.error || data.detail)
-            ? (data.message || data.error || data.detail)
-            : 'Unknown error';
-
-          if (msgEl) {
-            msgEl.style.display = 'block';
-            msgEl.textContent = 'Failed to submit: ' + errText;
-          }
+          refInfo.textContent = "No referrer detected.";
         }
 
-      } catch (e) {
-        const msg = e && e.message ? e.message : String(e);
-        if (msgEl) {
-          msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + msg;
+        if (!data.exists) {
+          // brand new user -> show register
+          registerCard.style.display = "block";
+          walletCard.style.display   = "none";
+          depositCard.style.display  = "none";
+          userInfoCard.style.display = "none";
+        } else {
+          // existing user
+          registerCard.style.display = "none";
+          walletCard.style.display   = "block";
+          depositCard.style.display  = "block";
+          userInfoCard.style.display = "block";
+
+          userInfo.textContent =
+            `Status: ${data.role}\n` +
+            `Self activated: ${data.self_activated ? "Yes" : "No"}\n` +
+            `Total team business: ${data.total_team_business}`;
         }
+
+      } catch (err) {
+        console.error("initApp error", err);
+        welcomeText.textContent = "Server error during init.";
       }
-    };
-  }
-
-  // --- TON Wallet connect wiring ---
-  const walletStatusEl    = document.getElementById('walletStatus');
-  const walletAddrEl      = document.getElementById('walletAddress');
-  const connectWalletBtn  = document.getElementById('connectWalletBtn');
-
-  if (connectWalletBtn) {
-    // If already connected in this session, reflect it
-    if (tonConnectUI && tonConnectUI.account && tonConnectUI.account.address) {
-      const addr = tonConnectUI.account.address;
-      if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
-      if (walletAddrEl) walletAddrEl.textContent   = addr;
     }
 
-    connectWalletBtn.onclick = async () => {
-      // If TON isn’t available at all, tell the user instead of doing nothing
-      if (!tonConnectUI) {
-        if (walletStatusEl) {
-          walletStatusEl.textContent = 'TON Connect not available (script or manifest error).';
+    // ─────────────────────────────────────────────
+    // REGISTER: /webapp/register  (HERE WE SEND ref)
+    // ─────────────────────────────────────────────
+    registerBtn.addEventListener("click", async () => {
+      registerBtn.disabled = true;
+      showStatus(registerStatus, "Registering…");
+
+      try {
+        const initData = tg.initData || "";
+        const body = {
+          initData,
+          ref,   // <── IMPORTANT: back-end will pick this up via get_ref_from_payload
+        };
+
+        const res = await fetch("/webapp/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        console.log("REGISTER RESPONSE", data);
+
+        if (!data.ok) {
+          showStatus(registerStatus, "Failed: " + (data.error || "unknown"), "error");
+          registerBtn.disabled = false;
+          return;
         }
-        if (tg && tg.showAlert) {
-          tg.showAlert('TON Wallet connect is not available. Please check TON script / manifest.');
-        }
+
+        currentUserId = data.user_id;
+        showStatus(registerStatus, "Registered successfully!", "success");
+
+        // After register -> show wallet + deposit
+        registerCard.style.display = "none";
+        walletCard.style.display   = "block";
+        depositCard.style.display  = "block";
+        userInfoCard.style.display = "block";
+
+        userInfo.textContent =
+          `Status: ${data.role}\n` +
+          `Self activated: ${data.is_active ? "Yes" : "No"}\n` +
+          `Total team business: 0`;
+
+      } catch (err) {
+        console.error("register error", err);
+        showStatus(registerStatus, "Server error during register.", "error");
+      } finally {
+        registerBtn.disabled = false;
+      }
+    });
+
+    // ─────────────────────────────────────────────
+    // SAVE WALLET: /webapp/save_wallet
+    // ─────────────────────────────────────────────
+    saveWalletBtn.addEventListener("click", async () => {
+      const wallet_address = walletInput.value.trim();
+      if (!wallet_address) {
+        showStatus(walletStatus, "Please enter wallet address.", "error");
+        return;
+      }
+      if (!currentUserId) {
+        showStatus(walletStatus, "User not initialized.", "error");
         return;
       }
 
+      saveWalletBtn.disabled = true;
+      showStatus(walletStatus, "Saving wallet…");
+
       try {
-        // If already connected, just show existing address
-        if (tonConnectUI.account && tonConnectUI.account.address) {
-          const addrExisting = tonConnectUI.account.address;
-          if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
-          if (walletAddrEl)   walletAddrEl.textContent   = addrExisting;
+        const res = await fetch("/webapp/save_wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telegram_id: currentUserId,
+            wallet_address,
+          }),
+        });
+
+        const data = await res.json();
+        console.log("SAVE_WALLET RESPONSE", data);
+
+        if (!data.ok) {
+          showStatus(walletStatus, "Failed: " + (data.error || "unknown"), "error");
           return;
         }
 
-        // open wallet selector / connect flow
-        await tonConnectUI.connectWallet();
-        const account = tonConnectUI.account;
-        const addr    = account && account.address ? account.address : null;
+        showStatus(walletStatus, "Wallet saved successfully.", "success");
+      } catch (err) {
+        console.error("save wallet error", err);
+        showStatus(walletStatus, "Server error saving wallet.", "error");
+      } finally {
+        saveWalletBtn.disabled = false;
+      }
+    });
 
-        if (!addr) {
-          if (walletStatusEl) walletStatusEl.textContent = 'Failed to get wallet address';
+    // ─────────────────────────────────────────────
+    // VERIFY / DEPOSIT: /webapp/verify  (HERE WE SEND ref)
+    // ─────────────────────────────────────────────
+    verifyBtn.addEventListener("click", async () => {
+      const raw = amountInput.value.trim();
+      const amount = parseFloat(raw || "0");
+      if (!amount || amount <= 0) {
+        showStatus(verifyStatus, "Enter a valid amount.", "error");
+        return;
+      }
+
+      verifyBtn.disabled = true;
+      showStatus(verifyStatus, "Submitting deposit…");
+
+      try {
+        const initData = tg.initData || "";
+        const body = {
+          initData,
+          amount,
+          ref,   // <── IMPORTANT: back-end uses this if user has no referrer yet
+        };
+
+        const res = await fetch("/webapp/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        console.log("VERIFY RESPONSE", data);
+
+        if (!data.ok) {
+          showStatus(
+            verifyStatus,
+            "Failed: " + (data.message || data.error || "unknown"),
+            "error"
+          );
           return;
         }
 
-        if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected ✅';
-        if (walletAddrEl)   walletAddrEl.textContent   = addr;
+        showStatus(
+          verifyStatus,
+          `Deposit processed. Amount: ${data.amount}. Role: ${data.role}.`,
+          "success"
+        );
 
-        // get Telegram user id
-        const tgUserId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
-
-        if (tgUserId) {
-          const resp = await fetch(API_BASE + '/webapp/save_wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              telegram_id: tgUserId,
-              wallet_address: addr,
-              referrer_id: currentUser.referrer_id,
-            })
-          });
-
-          const j = await resp.json().catch(() => ({}));
-          if (!resp.ok || !j.ok) {
-            const m = (j.message || j.error || resp.status);
-            if (walletStatusEl) {
-              walletStatusEl.textContent = 'Wallet saved locally, but server error: ' + m;
-            }
-            if (tg && tg.showAlert) {
-              tg.showAlert('Wallet connected, but failed to save on server: ' + m);
-            }
-          } else {
-            if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected & saved ✅';
-          }
-        } else {
-          if (walletStatusEl) walletStatusEl.textContent = 'Wallet connected. Telegram user ID not found.';
-        }
-      } catch (e) {
-        console.error('TON connect error', e);
-        if (walletStatusEl) walletStatusEl.textContent = 'Wallet connect cancelled or failed.';
-        if (tg && tg.showAlert) {
-          tg.showAlert('TON wallet connect failed: ' + (e.message || String(e)));
-        }
+        if (data.user_id) currentUserId = data.user_id;
+      } catch (err) {
+        console.error("verify error", err);
+        showStatus(verifyStatus, "Server error during verify.", "error");
+      } finally {
+        verifyBtn.disabled = false;
       }
-    };
-  }
+    });
 
-  // Rank details wiring
-  const rankDetailsHandler = () => {
-    const rankDetails = document.getElementById('rankDetails');
-    const rankTabs    = app.querySelectorAll('.rank-tab');
-
-    function setActiveRankTab(rankKey) {
-      rankTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.rank === rankKey));
-      let html = '';
-      if (rankKey === 'origin') {
-        html = `<b>Origin – 5% Level Income</b><ul><li>Self activation required (your own qualifying deposit).</li><li>You start earning 5% from your direct team as Origin.</li></ul>`;
-      } else if (rankKey === 'life_changer') {
-        html = `<b>Life Changer – 10% Direct</b><ul><li>1000 MUSD total team business.</li><li>10 active Origins in your group.</li></ul>`;
-      } else if (rankKey === 'advisor') {
-        html = `<b>Advisor – 15%</b><ul><li>5000 MUSD total team business (target).</li></ul>`;
-      } else if (rankKey === 'visionary') {
-        html = `<b>Visionary – 20%</b><ul><li>25000 MUSD total team business (target).</li></ul>`;
-      } else if (rankKey === 'creator') {
-        html = `<b>Creator – 25%</b><ul><li>100000 MUSD total team business (top rank target).</li></ul>`;
-      }
-      if (rankDetails) rankDetails.innerHTML = html;
-    }
-
-    const tabs = app.querySelectorAll('.rank-tab');
-    tabs.forEach(t => t.addEventListener('click', () => setActiveRankTab(t.dataset.rank)));
-
-    const defaultTab = app.querySelector('.rank-tab.achieved')
-      ? app.querySelector('.rank-tab.achieved').dataset.rank
-      : 'origin';
-    setActiveRankTab(defaultTab);
-  };
-
-  setTimeout(rankDetailsHandler, 100);
-} // end renderRegisteredView
-
-/* ----------------------
-   Show full view (verify -> render)
-   ---------------------- */
-async function showRegisteredViewFromBackend() {
-  const verifyResp = await verifyInitData();
-  const unsafeUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : {};
-
-  const u       = (verifyResp && verifyResp.user) ? verifyResp.user : unsafeUser || {};
-  const id      = u.id || (u.user_id || 0);
-  const name    = ((u.first_name || '') + (u.username ? ' @' + u.username : '')) || u.username || 'Unknown';
-  const avatar  = u.photo_url || u.photo || baseLogo;
-  const userObj = verifyResp.user || u || {};
-
-  renderRegisteredView(id, name, avatar, userObj);
-}
-
-/* ----------------------
-   Activation status (first screen)
-   ---------------------- */
-async function updateActivationStatus(user) {
-  const statusEl        = document.getElementById("accountStatus");
-  const registerSection = document.getElementById("registerSection");
-  if (!statusEl || !registerSection) return;
-
-  const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
-  const isActive = user && (user.is_active === true || user.role === 'origin'
-                 || user.self_activated === 1 || user.self_activated === true);
-
-  if (!hasReg) {
-    statusEl.textContent = "Do you want to register?";
-    registerSection.style.display = "";
-  } else {
-    registerSection.style.display = "none";
-    if (isActive) {
-      statusEl.textContent = "You are activated as Origin ✅";
-    } else {
-      statusEl.textContent = "You are registered but not activated yet. Deposit at least $" + MIN_DEPOSIT + " to activate Origin.";
-    }
-  }
-}
-
-async function loadActivationStatus() {
-  const resp = await verifyInitData();
-  const user = resp && resp.user ? resp.user : {};
-  updateActivationStatus(user);
-
-  const hasReg = user && (user.has_registered === true || user.exists === true || user.registered === true || user.user_id);
-  if (hasReg) {
-    await showRegisteredViewFromBackend();
-  } else {
-    console.debug('User not registered or server returned no registration; showing register question.');
-  }
-}
-
-/* ----------------------
-   Boot (OLD FLOW, still available if needed)
-   ---------------------- 
-  document.addEventListener('DOMContentLoaded', () => {
-  loadActivationStatus().catch(e => console.warn('loadActivationStatus error', e));
-
-  const yesBtn = document.getElementById('yesBtn');
-  const noBtn  = document.getElementById('noBtn');
-
-  if (yesBtn) {
-    yesBtn.onclick = async () => {
-      await showRegisteredViewFromBackend();
-    };
-  }
-
-  if (noBtn) {
-    noBtn.onclick = () => {
-      app.innerHTML = `<img src="${baseLogo}" class="logo" /><div class="row big">❌ Registration Cancelled</div>`;
-    };
-  }
-}); */
-</script>
+    // ─────────────────────────────────────────────
+    // Start
+    // ─────────────────────────────────────────────
+    window.addEventListener("load", initApp);
+  </script>
 </body>
 </html>

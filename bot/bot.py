@@ -58,7 +58,7 @@ def handle_command(update):
             # Parse optional referral code from deep link (/start 12345)
             ref_code = args[0] if args else None
 
-            from_user = message.get('from', {}) or {}
+            from_user = msg.get('from', {}) or {}
             tg_id = from_user.get('id')
             username = from_user.get('username')
             first_name = from_user.get('first_name')
@@ -83,9 +83,19 @@ def handle_command(update):
                     webapp_url = data.get("webapp_url", webapp_url)
                     button_label = data.get("button_label", button_label)
                 else:
-                    logger.warning("Backend /bot/start failed: %s", r.text if r is not None else "no response")
+                    logger.warning(
+                        "Backend /bot/start failed: %s",
+                        r.text if r is not None else "no response"
+                    )
             except Exception as e:
                 logger.exception("Error calling backend /bot/start: %s", e)
+
+            # ⬇️ ALWAYS append ?ref=... (even if backend failed)
+            if ref_code:
+                if "?" in webapp_url:
+                    webapp_url = f"{webapp_url}&ref={ref_code}"
+                else:
+                    webapp_url = f"{webapp_url}?ref={ref_code}"
 
             keyboard = [[InlineKeyboardButton(
                 text=button_label,
