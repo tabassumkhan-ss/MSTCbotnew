@@ -9,403 +9,1127 @@
 
   <style>
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #050816;
-      color: #f8fafc;
+      min-height: 100vh;
+      display: block; /* content flows from top */
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      text-align: center;
+      color: #fff;
+      background:
+        radial-gradient(1200px 600px at 50% -20%, rgba(255,255,255,.08), transparent 60%),
+        linear-gradient(135deg, #5c3cff, #0e1630 60%);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px 10px 24px;
     }
-    #app {
-      max-width: 480px;
-      margin: 0 auto;
-      padding: 16px;
-    }
+
     .card {
-      background: rgba(15, 23, 42, 0.9);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.7);
+      width: min(720px, 96vw);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+      backdrop-filter: blur(6px);
+      margin: 8px auto 24px;
     }
-    h1, h2, h3 {
-      margin: 0 0 8px;
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid rgba(255,255,255,.35);
+      margin: 0 auto 14px;
+      display: block;
+      box-shadow:
+        0 10px 26px rgba(0,0,0,.35),
+        0 0 0 8px rgba(255,255,255,.08) inset;
+      position: relative;
     }
+
+    .logo.glow {
+      border-color: transparent;
+      box-shadow: none;
+      isolation:isolate;
+    }
+
+    .logo.glow::before,
+    .logo.glow::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      z-index: -1;
+    }
+
+    .logo.glow::before {
+      background: conic-gradient(
+        from 0deg,
+        #6cf 0%,
+        #8af 25%,
+        #9ff 50%,
+        #7df 75%,
+        #6cf 100%
+      );
+      filter: blur(6px);
+      animation: spin 4s linear infinite;
+      opacity: .95;
+    }
+
+    .logo.glow::after {
+      inset: -14px;
+      background: radial-gradient(
+        closest-side,
+        rgba(108,240,255,.5),
+        rgba(0,0,0,0)
+      );
+      filter: blur(10px);
+      opacity: .65;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-weight: 700;
+    }
+
+    .row {
+      margin: 10px 0;
+      font-size: 1.05rem;
+    }
+
+    .big {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
     .btn {
-      display: inline-block;
-      padding: 10px 16px;
-      border-radius: 999px;
-      border: none;
-      outline: none;
+      padding: 11px 22px;
+      border-radius: 22px;
+      border: 0;
       cursor: pointer;
       font-weight: 600;
+      background: #00c853;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0,200,83,.35);
+    }
+
+    .btn.alt {
+      background: #e53935;
+      box-shadow: 0 8px 24px rgba(229,57,53,.35);
+    }
+
+    .ref-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       margin-top: 8px;
-      font-size: 14px;
     }
-    .btn-primary {
-      background: #0f766e;
-      color: white;
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      background: rgba(255,255,255,.16);
+      color: #fff;
+      font-size: 18px;
+      transition: transform .12s ease, opacity .2s;
     }
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+
+    .copy-btn:active {
+      transform: scale(.96);
     }
-    .btn-secondary {
-      background: #1e293b;
-      color: #e5e7eb;
+
+    .tooltip {
+      margin-top: 8px;
+      font-size: .85rem;
+      opacity: 0;
+      transition: opacity .25s;
     }
-    .field {
-      margin-bottom: 12px;
+
+    .show {
+      opacity: 1;
     }
-    .field label {
+
+    .panel {
+      margin-top: 18px;
+      text-align: left;
+      background: rgba(0,0,0,.18);
+      padding: 16px;
+      border-radius: 14px;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      color: #fff;
+    }
+
+    label {
       display: block;
-      font-size: 13px;
-      margin-bottom: 4px;
-      color: #9ca3af;
+      font-size: .95rem;
+      opacity: .9;
+      margin: 10px 0 6px;
     }
-    .field input {
+
+    input,
+    .addr-box {
       width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #1f2937;
-      background: #020617;
-      color: #e5e7eb;
-      font-size: 14px;
-    }
-    .field input:focus {
+      padding: 12px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
       outline: none;
-      border-color: #0f766e;
     }
-    .status {
-      font-size: 13px;
-      color: #9ca3af;
-      margin-top: 8px;
-      white-space: pre-line;
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
     }
+
+    .rowline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      word-break: break-all;
+    }
+
+    .mini {
+      font-size: .9rem;
+      opacity: .9;
+    }
+
+    .submit {
+      margin-top: 14px;
+      text-align: right;
+    }
+
+    .btn.secondary {
+      background: #2a7de1;
+      box-shadow: 0 8px 24px rgba(42,125,225,.35);
+    }
+
     .error {
-      color: #fecaca;
+      color: #ffb4b4;
+      font-size: .9rem;
+      margin-top: 6px;
     }
-    .success {
-      color: #bbf7d0;
+
+    .ok {
+      color: #b5ffcb;
+      font-size: .9rem;
+      margin-top: 6px;
     }
-    .muted {
-      font-size: 12px;
-      color: #6b7280;
+
+    /* Rank panel */
+    .rank-panel {
+      margin-top: 18px;
+      background: rgba(0,0,0,.18);
+      padding: 16px;
+      border-radius: 14px;
+    }
+
+    .rank-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .rank-header-title {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .rank-current-label {
+      font-size: .85rem;
+      opacity: .9;
+    }
+
+    .rank-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .rank-tab {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      font-size: .85rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rank-name {
+      font-weight: 600;
+      font-size: .9rem;
+    }
+
+    .rank-percent {
+      font-size: .8rem;
+      opacity: .9;
+    }
+
+    .rank-status {
+      font-size: .75rem;
+      opacity: .85;
+    }
+
+    .rank-tab.achieved {
+      border-color: #00c853;
+      box-shadow:
+        0 0 0 1px rgba(0,200,83,.4),
+        0 0 16px rgba(0,200,83,.45);
+    }
+
+    .rank-tab.achieved::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: linear-gradient(
+        180deg,
+        rgba(0,200,83,1),
+        rgba(0,200,83,0.1)
+      );
+    }
+
+    .rank-tab.locked .rank-status {
+      color: #ffb4b4;
+    }
+
+    .rank-tab.achieved .rank-status {
+      color: #b5ffcb;
+    }
+
+    .rank-tab.active {
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.35),
+        0 0 10px rgba(255,255,255,.25);
+    }
+
+    .rank-main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .rank-progress {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .rank-progress-bar {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg,#00c853,#b2ff59);
+      transform-origin: left;
+    }
+
+    .rank-progress-text {
+      font-size: .75rem;
+      opacity: .85;
+      margin-top: 2px;
+    }
+
+    .rank-details {
+      font-size: .9rem;
+      line-height: 1.4;
+    }
+
+    .rank-details ul {
+      padding-left: 18px;
+      margin: 6px 0;
+    }
+
+    .rank-details li {
+      margin: 2px 0;
     }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div class="card">
-      <h2>MSTC Deposit Mini App</h2>
-      <p class="muted" id="welcomeText">Loading Telegram data…</p>
-      <p class="muted" id="refInfo"></p>
-    </div>
+  <div class="card" id="app">
+    <img src="./Botologo_new.png"
+         alt="MSTC EARNING PROJECT"
+         class="logo"
+         id="avatar" />
 
-    <div class="card" id="registerCard" style="display:none;">
-      <h3>Register & Join Team</h3>
-      <p class="muted">
-        Tap below to register your account in MSTC system.
-      </p>
-      <button class="btn btn-primary" id="registerBtn">Register Now</button>
-      <div class="status" id="registerStatus"></div>
-    </div>
-
-    <div class="card" id="walletCard" style="display:none;">
-      <h3>Your TON Wallet</h3>
-      <div class="field">
-        <label for="walletInput">Wallet address</label>
-        <input id="walletInput" placeholder="Paste your TON wallet address" />
+    <!-- Registration question + Yes/No; hidden later for registered users -->
+    <div id="registerSection">
+      <h2 id="accountStatus">Do you want to register?</h2>
+      <div class="actions">
+        <button id="yesBtn" class="btn" type="button">Yes</button>
+        <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
-      <button class="btn btn-secondary" id="saveWalletBtn">Save Wallet</button>
-      <div class="status" id="walletStatus"></div>
-    </div>
-
-    <div class="card" id="depositCard" style="display:none;">
-      <h3>Make a Deposit</h3>
-      <div class="field">
-        <label for="amountInput">Deposit amount (MSTC)</label>
-        <input id="amountInput" type="number" step="0.01" min="0" placeholder="e.g. 20" />
-      </div>
-      <button class="btn btn-primary" id="verifyBtn">Submit Deposit</button>
-      <div class="status" id="verifyStatus"></div>
-    </div>
-
-    <div class="card" id="userInfoCard" style="display:none;">
-      <h3>Your Status</h3>
-      <div class="status" id="userInfo"></div>
     </div>
   </div>
+<script>
+  // --- Referral from URL (?ref=...) ---
+ const urlParams = new URLSearchParams(window.location.search);
+let ref = urlParams.get("ref") || null;   
+window.currentRef = ref;
 
-  <script>
-    const tg = window.Telegram.WebApp || {};
-    if (tg.expand) tg.expand();
+  // --- Telegram WebApp object ---
+  const tg = window.Telegram && window.Telegram.WebApp
+    ? window.Telegram.WebApp
+    : null;
 
-    // ─────────────────────────────────────────────
-    // REF HANDLING (THIS IS WHAT FIXES referrer_id)
-    // ─────────────────────────────────────────────
-    const urlParams = new URLSearchParams(window.location.search);
-    const refFromUrl = urlParams.get("ref") || urlParams.get("startapp");
-    const refFromInit = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-    // This is what we will send to backend as "ref"
-    const ref = refFromUrl || refFromInit || null;
+  try {
+    tg && tg.ready();
+    tg && tg.expand();
+  } catch (e) {}
 
-    console.log("REF DEBUG:", { refFromUrl, refFromInit, ref });
+  const app = document.getElementById('app');
+  const baseLogo = './Botologo_new.png';
 
-    // ─────────────────────────────────────────────
-    // DOM elements
-    // ─────────────────────────────────────────────
-    const registerCard   = document.getElementById("registerCard");
-    const registerBtn    = document.getElementById("registerBtn");
-    const registerStatus = document.getElementById("registerStatus");
+  // Token addresses and labels
+  const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+  const ADDR_MSTC = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
+  const CHAIN_LABEL = "EVM Chain";
 
-    const walletCard   = document.getElementById("walletCard");
-    const walletInput  = document.getElementById("walletInput");
-    const walletStatus = document.getElementById("walletStatus");
-    const saveWalletBtn = document.getElementById("saveWalletBtn");
+  function copyText(txt, tip) {
+    navigator.clipboard.writeText(txt).then(() => {
+      tip.classList.add('show');
+      setTimeout(() => tip.classList.remove('show'), 1200);
+    }).catch(() => alert('Copy failed'));
+  }
 
-    const depositCard   = document.getElementById("depositCard");
-    const amountInput   = document.getElementById("amountInput");
-    const verifyBtn     = document.getElementById("verifyBtn");
-    const verifyStatus  = document.getElementById("verifyStatus");
+  function fmt(n) {
+    return Number(n).toFixed(2);
+  }
 
-    const welcomeText = document.getElementById("welcomeText");
-    const refInfo     = document.getElementById("refInfo");
-    const userInfoCard = document.getElementById("userInfoCard");
-    const userInfo     = document.getElementById("userInfo");
+  // --- Rank computation ---
+  function computeRanks(user) {
+    const total = Number(user.total_team_business || 0);
+    const activeOrigins = Number(user.active_origin_count || 0);
+    const role = user.role || '';
+    const selfActivated = !!user.self_activated;
 
-    let currentUserId = null;
-    let currentUsername = null;
-    let currentFirstName = null;
+    const isOrigin = selfActivated || role === 'origin';
+    const isLifeChanger = total >= 1000 && activeOrigins >= 10;
+    const isAdvisor = total >= 5000;
+    const isVisionary = total >= 25000;
+    const isCreator = total >= 100000;
 
-    function showStatus(el, text, type) {
-      el.textContent = text || "";
-      el.classList.remove("error", "success");
-      if (type === "error") el.classList.add("error");
-      if (type === "success") el.classList.add("success");
+    let current = 'Member';
+    if (isCreator) current = 'Creator';
+    else if (isVisionary) current = 'Visionary';
+    else if (isAdvisor) current = 'Advisor';
+    else if (isLifeChanger) current = 'Life Changer';
+    else if (isOrigin) current = 'Origin';
+
+    return {
+      isOrigin,
+      isLifeChanger,
+      isAdvisor,
+      isVisionary,
+      isCreator,
+      total,
+      activeOrigins,
+      current
+    };
+  }
+
+  // --- Verify with backend; fallback to Telegram user ---
+  async function verifyInitData() {
+  const tgApp = tg;
+  const initData = tgApp ? tgApp.initData : "";
+  const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+  const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
+
+  // Telegram start/startapp param
+  const startParam =
+    unsafe && (unsafe.start_param || unsafe.startParam)
+      ? (unsafe.start_param || unsafe.startParam)
+      : null;
+
+  // 🔹 If we have a Telegram start_param and no ref from URL yet,
+  //    use it as our referral id.
+  if (!window.currentRef && startParam) {
+    window.currentRef = startParam;
+    ref = startParam;
+  }
+
+  const effectiveRef = window.currentRef || null;
+
+  if (!tgApp) {
+    console.warn("Not inside Telegram WebApp – using test user.");
+    return {
+      ok: false,
+      user: {
+        id: 123456,
+        first_name: "Test User",
+        username: "testuser",
+        photo_url: null,
+        total_team_business: 0,
+        active_origin_count: 0,
+        role: "",
+        self_activated: false
+      }
+    };
+  }
+
+  console.log("🚀 Sending to /webapp/me:", {
+  initData,
+  ref: effectiveRef
+});
+
+  try {
+    const res = await fetch('/webapp/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData,
+        ref: effectiveRef      
+            })
+    });
+
+    const j = await res.json();
+
+    if (!res.ok || !j.ok) {
+      const msg = j.error || j.detail || 'verify failed';
+      throw new Error(msg);
+    }
+    return j;
+  } catch (err) {
+    console.warn('verify error, using unsafe Telegram user as fallback:', err);
+    return { ok: false, user: unsafeUser || {} };
+  }
+}
+
+  // --- Render full registered view (deposit + ranks) ---
+  function renderRegisteredView(uid, name, avatar, userData) {
+    const ranks = computeRanks(userData || {});
+
+    const total = ranks.total.toFixed(2);
+    const activeOrigins = ranks.activeOrigins;
+
+    const originProgress = ranks.isOrigin ? 100 : 0;
+
+    const lcBusiness = Math.min(ranks.total / 1000, 1);
+    const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
+    const lifeChangerProgress = ranks.isLifeChanger
+      ? 100
+      : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
+
+    const advisorProgress = ranks.isAdvisor
+      ? 100
+      : Math.round(Math.min(ranks.total / 5000, 1) * 100);
+
+    const visionaryProgress = ranks.isVisionary
+      ? 100
+      : Math.round(Math.min(ranks.total / 25000, 1) * 100);
+
+    const creatorProgress = ranks.isCreator
+      ? 100
+      : Math.round(Math.min(ranks.total / 100000, 1) * 100);
+
+    // referral link for this uid
+    const refLink = `https://t.me/mstcrefbot?start=${uid}`;
+
+    app.innerHTML = `
+      <img src="${avatar || baseLogo}" class="logo glow" />
+      <div class="row big">${uid ?? '(unknown)'}</div>
+      <div class="row">${name || 'Unknown'}</div>
+      <div class="row mini">
+        Total Team Business:
+        <b>$${total}</b>
+        · Active Origins:
+        <b>${activeOrigins}</b>
+      </div>
+
+      <div class="row ref-line">
+        <span class="mini">Referral Link</span>
+        <button class="copy-btn" id="copyRef">📋</button>
+      </div>
+      <div class="tooltip" id="tipRef">Copied!</div>
+
+      <div class="panel">
+        <h3>💳 Deposit</h3>
+        <div class="mini">Minimum deposit — <b>$20</b>.</div>
+
+        <label>Enter USD amount</label>
+        <input id="amt" type="number" min="20" step="0.01" placeholder="e.g., 20.00" />
+        <div id="err" class="error" style="display:none;"></div>
+
+        <div class="split">
+          <div>
+            <div class="mini">MUSD (70%)</div>
+            <div class="rowline">
+              <span id="musdAmt" class="big">0.00</span>
+              <span class="mini">USD</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
+            <div class="addr-box mono">${ADDR_MUSD}</div>
+            <div class="rowline" style="margin-top:6px;">
+              <button class="copy-btn" id="copyMUSD">📋</button>
+              <span class="mini">${CHAIN_LABEL}</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
+            <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
+          </div>
+
+          <div>
+            <div class="mini">MSTC (30%)</div>
+            <div class="rowline">
+              <span id="mstcAmt" class="big">0.00</span>
+              <span class="mini">USD</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
+            <div class="addr-box mono">${ADDR_MSTC}</div>
+            <div class="rowline" style="margin-top:6px;">
+              <button class="copy-btn" id="copyMSTC">📋</button>
+              <span class="mini">${CHAIN_LABEL}</span>
+            </div>
+
+            <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
+            <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
+          </div>
+        </div>
+
+        <div class="submit">
+          <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
+        </div>
+        <div id="submitMsg" class="ok" style="display:none;"></div>
+      </div>
+
+      <div class="rank-panel">
+        <div class="rank-header">
+          <div class="rank-header-title">🏅 Your Rank & Levels</div>
+          <div class="rank-current-label">
+            Current: <b>${ranks.current}</b>
+          </div>
+        </div>
+
+        <div class="rank-tabs">
+          <button
+            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
+            data-rank="origin"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Origin</span>
+              <span class="rank-percent">5% Level Income</span>
+              <span class="rank-status">
+                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${originProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
+            data-rank="life_changer"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Life Changer</span>
+              <span class="rank-percent">10% Direct</span>
+              <span class="rank-status">
+                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${lifeChangerProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${lifeChangerProgress}% ${
+                lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
+            data-rank="advisor"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Advisor</span>
+              <span class="rank-percent">15% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${advisorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${advisorProgress}% ${
+                advisorProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
+            data-rank="visionary"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Visionary</span>
+              <span class="rank-percent">20% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isVisionary ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${visionaryProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${visionaryProgress}% ${
+                visionaryProgress === 100 ? 'achieved' : 'towards next rank'
+              }
+            </div>
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
+            data-rank="creator"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Creator</span>
+              <span class="rank-percent">25% Top Rank</span>
+              <span class="rank-status">
+                ${ranks.isCreator ? 'Achieved' : 'Locked'}
+              </span>
+            </div>
+            <div class="rank-progress">
+              <div
+                class="rank-progress-bar"
+                style="width:${creatorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${creatorProgress}% ${
+                creatorProgress === 100 ? 'achieved' : 'towards top rank'
+              }
+            </div>
+          </button>
+        </div>
+
+        <div id="rankDetails" class="rank-details"></div>
+      </div>
+    `;
+
+    // --- Wire up events inside rendered view ---
+
+    const tip = document.getElementById('tipRef');
+    const copyRefBtn = document.getElementById('copyRef');
+    if (copyRefBtn && tip) {
+      copyRefBtn.onclick = () => copyText(refLink, tip);
     }
 
-    // ─────────────────────────────────────────────
-    // INIT APP: /webapp/init
-    // ─────────────────────────────────────────────
-    async function initApp() {
-      try {
-        const initData = tg.initData || "";
-        const body = {
-          initData,     // raw initData string
-          // Not strictly needed by /webapp/init, but harmless to include:
-          ref           // <── we pass ref so backend can use get_ref_from_payload if it wants
-        };
+    const amtInput = document.getElementById('amt');
+    const musdAmt = document.getElementById('musdAmt');
+    const mstcAmt = document.getElementById('mstcAmt');
+    const errEl = document.getElementById('err');
 
-        const res = await fetch("/webapp/init", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        const data = await res.json();
-        console.log("INIT RESPONSE", data);
-
-        if (!data.ok) {
-          welcomeText.textContent = "Failed to initialize: " + (data.error || "unknown");
+    if (amtInput && musdAmt && mstcAmt && errEl) {
+      amtInput.oninput = () => {
+        const v = parseFloat(amtInput.value || '0');
+        if (isNaN(v) || v <= 0) {
+          musdAmt.textContent = '0.00';
+          mstcAmt.textContent = '0.00';
+          errEl.style.display = 'none';
+          errEl.textContent = '';
           return;
         }
 
-        currentUserId = data.user_id;
-        currentUsername = data.username;
-        currentFirstName = data.first_name;
+        musdAmt.textContent = fmt(v * 0.70);
+        mstcAmt.textContent = fmt(v * 0.30);
 
-        welcomeText.textContent =
-          `Hello ${currentFirstName || ""} (@${currentUsername || "user"})`;
-
-        if (data.referrer_username || data.referrer_id) {
-          refInfo.textContent =
-            `You are joining via: ${data.referrer_username || ("ID " + data.referrer_id)}`;
-        } else if (ref) {
-          refInfo.textContent =
-            `Referral code detected: ${ref}`;
+        if (v < 20) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Minimum deposit is $20.';
         } else {
-          refInfo.textContent = "No referrer detected.";
+          errEl.style.display = 'none';
+          errEl.textContent = '';
+        }
+      };
+    }
+
+    const tipCopy = document.getElementById('tipRef');
+    const copyMUSDBtn = document.getElementById('copyMUSD');
+    const copyMSTCBtn = document.getElementById('copyMSTC');
+
+    if (copyMUSDBtn && tipCopy) {
+      copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tipCopy);
+    }
+    if (copyMSTCBtn && tipCopy) {
+      copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tipCopy);
+    }
+
+    const submitBtn = document.getElementById('submitDeposit');
+    const msgEl = document.getElementById('submitMsg');
+    const txMUSDInput = document.getElementById('txMUSD');
+    const txMSTCInput = document.getElementById('txMSTC');
+
+    if (submitBtn && amtInput && errEl && msgEl && txMUSDInput && txMSTCInput) {
+      submitBtn.onclick = async () => {
+        const tgApp = tg;
+
+        // Clear previous messages
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+
+        const valueStr = amtInput.value ? amtInput.value.trim() : "0";
+        const amount = parseFloat(valueStr || "0");
+
+        const tx1 = txMUSDInput.value.trim();
+        const tx2 = txMSTCInput.value.trim();
+
+        if (isNaN(amount) || amount < 20) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please enter at least $20.';
+          if (tgApp) {
+            tgApp.showAlert('Please enter at least $20.');
+          }
+          return;
         }
 
-        if (!data.exists) {
-          // brand new user -> show register
-          registerCard.style.display = "block";
-          walletCard.style.display   = "none";
-          depositCard.style.display  = "none";
-          userInfoCard.style.display = "none";
-        } else {
-          // existing user
-          registerCard.style.display = "none";
-          walletCard.style.display   = "block";
-          depositCard.style.display  = "block";
-          userInfoCard.style.display = "block";
-
-          userInfo.textContent =
-            `Status: ${data.role}\n` +
-            `Self activated: ${data.self_activated ? "Yes" : "No"}\n` +
-            `Total team business: ${data.total_team_business}`;
+        if (!tx1 || !tx2) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please paste both transaction hashes.';
+          if (tgApp) {
+            tgApp.showAlert('Please paste both transaction hashes.');
+          }
+          return;
         }
 
-      } catch (err) {
-        console.error("initApp error", err);
-        welcomeText.textContent = "Server error during init.";
+        const payload = {
+          initData: tgApp ? tgApp.initData : "",
+          amount: Number(amount.toFixed(2)),
+          tx_musd: tx1,
+          tx_mstc: tx2,
+          ref: window.currentRef || null
+        };
+
+        msgEl.style.display = 'block';
+        msgEl.textContent = 'Submitting...';
+
+        try {
+          const res = await fetch('/webapp/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          console.log('VERIFY RESPONSE:', data);
+
+          if (data.ok) {
+  
+  let summaryLines = [];
+
+  if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
+    summaryLines.push("Referral distribution:");
+
+    data.referral_dist.forEach(r => {
+      const level = (r.level === 0 || r.level === null || r.level === undefined)
+        ? "Pool"
+        : `Level ${r.level}`;
+
+      const who =
+        r.to_username ||
+        (r.to_user_id !== null && r.to_user_id !== undefined
+          ? r.to_user_id
+          : "company_pool");
+
+      summaryLines.push(`${level}: ${who} → $${r.amount}`);
+    });
+  } else {
+    summaryLines.push("No referral distribution (no uplines linked).");
+  }
+
+  const summaryText = summaryLines.join("\n");
+
+  // Show in Telegram alert 
+  if (tgApp) {
+    tgApp.showAlert("Deposit submitted successfully!\n\n" + summaryText);
+  }
+
+  // Also show in the page below the button
+  msgEl.style.display = "block";
+  msgEl.innerHTML =
+    "Deposit submitted successfully!<br><pre style=\"text-align:left; white-space:pre-wrap; margin-top:4px;\">" +
+    summaryText +
+    "</pre>";
+
+  // Optionally clear inputs
+  amtInput.value = "";
+  txMUSDInput.value = "";
+  txMSTCInput.value = "";
+  musdAmt.textContent = "0.00";
+  mstcAmt.textContent = "0.00";
+} else {
+  const errorText = data.error || "unknown error";
+  if (tgApp) {
+    tgApp.showAlert("Failed to submit: " + errorText);
+  }
+  msgEl.style.display = "block";
+  msgEl.textContent = "Failed to submit: " + errorText;
+}
+
+        } catch (e) {
+          const errorText = e && e.message ? e.message : String(e);
+          if (tgApp) {
+            tgApp.showAlert('Failed to submit: ' + errorText);
+          }
+          msgEl.style.display = 'block';
+          msgEl.textContent = 'Failed to submit: ' + errorText;
+        }
+      };
+    }
+
+    // --- Rank tab details ---
+    const rankDetails = document.getElementById('rankDetails');
+    const rankTabs = app.querySelectorAll('.rank-tab');
+
+    function setActiveRankTab(rankKey) {
+      rankTabs.forEach(btn => {
+        if (btn.dataset.rank === rankKey) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      let html = '';
+      if (rankKey === 'origin') {
+        html = `
+          <b>Origin – 5% Level Income</b>
+          <ul>
+            <li>Self activation required (your own qualifying deposit).</li>
+            <li>You start earning 5% from your direct team as Origin.</li>
+          </ul>
+        `;
+      } else if (rankKey === 'life_changer') {
+        html = `
+          <b>Life Changer – 10% Direct</b>
+          <ul>
+            <li>1000 MUSD total team business.</li>
+            <li>10 active Origins in your group.</li>
+            <li>Eligible for Life Changer club and monthly pool
+                (2% company turnover shared among achievers – handled by admin).</li>
+          </ul>
+        `;
+      } else if (rankKey === 'advisor') {
+        html = `
+          <b>Advisor – 15%</b>
+          <ul>
+            <li>5000 MUSD total team business (target).</li>
+            <li>Higher monthly club requirements decided by company rules.</li>
+            <li>2% company club pool shared among all active Advisors (as per plan).</li>
+          </ul>
+        `;
+      } else if (rankKey === 'visionary') {
+        html = `
+          <b>Visionary – 20%</b>
+          <ul>
+            <li>25000 MUSD total team business (target).</li>
+            <li>Next-level leadership and club participation.</li>
+          </ul>
+        `;
+      } else if (rankKey === 'creator') {
+        html = `
+          <b>Creator – 25%</b>
+          <ul>
+            <li>100000 MUSD total team business (top rank target).</li>
+            <li>Highest reward slab and special company recognition.</li>
+          </ul>
+        `;
+      }
+
+      if (rankDetails) {
+        rankDetails.innerHTML = html;
       }
     }
 
-    // ─────────────────────────────────────────────
-    // REGISTER: /webapp/register  (HERE WE SEND ref)
-    // ─────────────────────────────────────────────
-    registerBtn.addEventListener("click", async () => {
-      registerBtn.disabled = true;
-      showStatus(registerStatus, "Registering…");
+    let defaultRank = 'origin';
+    if (ranks.isCreator) defaultRank = 'creator';
+    else if (ranks.isVisionary) defaultRank = 'visionary';
+    else if (ranks.isAdvisor) defaultRank = 'advisor';
+    else if (ranks.isLifeChanger) defaultRank = 'life_changer';
 
-      try {
-        const initData = tg.initData || "";
-        const body = {
-          initData,
-          ref,   // <── IMPORTANT: back-end will pick this up via get_ref_from_payload
-        };
+    setActiveRankTab(defaultRank);
 
-        const res = await fetch("/webapp/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        const data = await res.json();
-        console.log("REGISTER RESPONSE", data);
-
-        if (!data.ok) {
-          showStatus(registerStatus, "Failed: " + (data.error || "unknown"), "error");
-          registerBtn.disabled = false;
-          return;
-        }
-
-        currentUserId = data.user_id;
-        showStatus(registerStatus, "Registered successfully!", "success");
-
-        // After register -> show wallet + deposit
-        registerCard.style.display = "none";
-        walletCard.style.display   = "block";
-        depositCard.style.display  = "block";
-        userInfoCard.style.display = "block";
-
-        userInfo.textContent =
-          `Status: ${data.role}\n` +
-          `Self activated: ${data.is_active ? "Yes" : "No"}\n` +
-          `Total team business: 0`;
-
-      } catch (err) {
-        console.error("register error", err);
-        showStatus(registerStatus, "Server error during register.", "error");
-      } finally {
-        registerBtn.disabled = false;
-      }
+    rankTabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        setActiveRankTab(btn.dataset.rank);
+      });
     });
+  }
 
-    // ─────────────────────────────────────────────
-    // SAVE WALLET: /webapp/save_wallet
-    // ─────────────────────────────────────────────
-    saveWalletBtn.addEventListener("click", async () => {
-      const wallet_address = walletInput.value.trim();
-      if (!wallet_address) {
-        showStatus(walletStatus, "Please enter wallet address.", "error");
-        return;
+  // --- Helper: show full view from backend (YES or auto for registered users) ---
+  async function showRegisteredViewFromBackend() {
+    const verifyResp = await verifyInitData();
+
+    const tgApp = tg;
+    const unsafeUser =
+      tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
+        ? tgApp.initDataUnsafe.user
+        : {};
+
+    const u = verifyResp.user || unsafeUser || {};
+    const id = u.id || 0;
+    const name =
+      ((u.first_name || '') +
+        (u.username ? ' @' + u.username : '')) ||
+      u.username ||
+      'Unknown';
+    const avatar = u.photo_url || baseLogo;
+
+    renderRegisteredView(id, name, avatar, verifyResp.user || {});
+  }
+
+  // --- Activation status (first screen, Yes/No) ---
+  function updateActivationStatus(user) {
+    const statusEl = document.getElementById("accountStatus");
+    const registerSection = document.getElementById("registerSection");
+    if (!user || !statusEl || !registerSection) return;
+
+    if (!user.has_registered) {
+      // FIRST TIME USER – show question + Yes/No
+      statusEl.textContent = "Do you want to register?";
+      registerSection.style.display = "";
+    } else {
+      // REGISTERED USER – hide question
+      registerSection.style.display = "none";
+      if (user.is_active) {
+        statusEl.textContent = "You are activated as Origin ✅";
+      } else {
+        statusEl.textContent =
+          "You are registered but not activated yet. Deposit at least $20 to activate Origin.";
       }
-      if (!currentUserId) {
-        showStatus(walletStatus, "User not initialized.", "error");
-        return;
-      }
+    }
+  }
 
-      saveWalletBtn.disabled = true;
-      showStatus(walletStatus, "Saving wallet…");
+  async function loadActivationStatus() {
+    const tgApp = tg;
+    if (!tgApp) {
+      console.error("Telegram WebApp not available");
+      return;
+    }
 
-      try {
-        const res = await fetch("/webapp/save_wallet", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            telegram_id: currentUserId,
-            wallet_address,
-          }),
-        });
+    const initData = tgApp.initData || "";
 
-        const data = await res.json();
-        console.log("SAVE_WALLET RESPONSE", data);
+    try {
+      const res = await fetch('/webapp/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+  initData,
+  ref: window.currentRef || null
+})
 
-        if (!data.ok) {
-          showStatus(walletStatus, "Failed: " + (data.error || "unknown"), "error");
-          return;
+      });
+      const data = await res.json();
+      console.log("VERIFY RESPONSE:", data);
+
+      if (data && data.ok !== false) {
+        updateActivationStatus(data);
+
+        // if user already registered, skip question and show full view
+        if (data.has_registered) {
+          await showRegisteredViewFromBackend();
         }
-
-        showStatus(walletStatus, "Wallet saved successfully.", "success");
-      } catch (err) {
-        console.error("save wallet error", err);
-        showStatus(walletStatus, "Server error saving wallet.", "error");
-      } finally {
-        saveWalletBtn.disabled = false;
+      } else {
+        console.error("init failed", data);
       }
-    });
+    } catch (err) {
+      console.error("Error loading activation status:", err);
+    }
+  }
 
-    // ─────────────────────────────────────────────
-    // VERIFY / DEPOSIT: /webapp/verify  (HERE WE SEND ref)
-    // ─────────────────────────────────────────────
-    verifyBtn.addEventListener("click", async () => {
-      const raw = amountInput.value.trim();
-      const amount = parseFloat(raw || "0");
-      if (!amount || amount <= 0) {
-        showStatus(verifyStatus, "Enter a valid amount.", "error");
-        return;
-      }
+  // --- YES / NO button handlers + init ---
+  document.addEventListener('DOMContentLoaded', () => {
+    // Load activation status
+    loadActivationStatus();
 
-      verifyBtn.disabled = true;
-      showStatus(verifyStatus, "Submitting deposit…");
+    const yesBtn = document.getElementById('yesBtn');
+    const noBtn = document.getElementById('noBtn');
 
-      try {
-        const initData = tg.initData || "";
-        const body = {
-          initData,
-          amount,
-          ref,   // <── IMPORTANT: back-end uses this if user has no referrer yet
-        };
+    if (yesBtn) {
+      yesBtn.onclick = async () => {
+        await showRegisteredViewFromBackend();
+      };
+    }
 
-        const res = await fetch("/webapp/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+    if (noBtn) {
+      noBtn.onclick = () => {
+        app.innerHTML = `
+          <img src="${baseLogo}" class="logo" />
+          <div class="row big">❌ Registration Cancelled</div>
+        `;
+      };
+    }
+  });
+</script>
 
-        const data = await res.json();
-        console.log("VERIFY RESPONSE", data);
-
-        if (!data.ok) {
-          showStatus(
-            verifyStatus,
-            "Failed: " + (data.message || data.error || "unknown"),
-            "error"
-          );
-          return;
-        }
-
-        showStatus(
-          verifyStatus,
-          `Deposit processed. Amount: ${data.amount}. Role: ${data.role}.`,
-          "success"
-        );
-
-        if (data.user_id) currentUserId = data.user_id;
-      } catch (err) {
-        console.error("verify error", err);
-        showStatus(verifyStatus, "Server error during verify.", "error");
-      } finally {
-        verifyBtn.disabled = false;
-      }
-    });
-
-    // ─────────────────────────────────────────────
-    // Start
-    // ─────────────────────────────────────────────
-    window.addEventListener("load", initApp);
-  </script>
+ 
 </body>
 </html>
+
+
