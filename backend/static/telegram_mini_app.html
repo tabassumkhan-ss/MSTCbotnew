@@ -226,19 +226,40 @@
    ---------------------- */
 const API_BASE   = 'https://mstcbotnew-production.up.railway.app';
 
-// Telegram WebApp instance
-const tg = window.Telegram.WebApp;
+// Telegram WebApp instance (safe)
+const tg = window.Telegram?.WebApp || null;
 
 // Unsafe init data from Telegram (contains user + start_param)
-const initDataUnsafe = tg.initDataUnsafe || {};
+const initDataUnsafe = tg?.initDataUnsafe || {};
 
+/* ----------------------
+   REF from URL / storage
+   ---------------------- */
+const urlParams = new URLSearchParams(window.location.search);
+const urlRef = urlParams.get("ref") || null;
+
+let storedRef = null;
+try {
+  storedRef = localStorage.getItem("ref") || null;
+} catch (e) {
+  console.warn("localStorage not available for ref", e);
+}
+
+// Priority: URL > stored > nothing
+let ref = urlRef || storedRef || null;
+window.currentRef = ref;
+
+/* ----------------------
+   First init / activation check
+   ---------------------- */
 async function initApp() {
   try {
     const res = await fetch("/webapp/init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        initData: tg.initData, // contains user + start_param/ref
+        initData: tg?.initData || "",      // contains user + start_param
+        ref: window.currentRef || null     // send ref also on first init
       }),
     });
 
@@ -253,7 +274,7 @@ async function initApp() {
       // Already registered → load dashboard from backend
       await showRegisteredViewFromBackend();
     } else {
-      // 👇 New → Show welcome and register button
+      // New → Show welcome and register button
       showRegisterScreen(data.referrer_username);
     }
   } catch (err) {
@@ -284,7 +305,8 @@ async function doRegister() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        initData: tg.initData,
+        initData: tg?.initData || "",
+        ref: window.currentRef || null
       }),
     });
 
@@ -302,24 +324,21 @@ async function doRegister() {
   }
 }
 
-
 // 🔥 Start app when page loads
 window.addEventListener("load", initApp);
 
 // TEMP: log what Telegram is sending us (for debugging)
 console.log("INIT DATA:", initDataUnsafe);
 
-// Current user info we will send to backend
+// Current user info we will send to backend (for wallet save etc.)
 const currentUser = {
   telegram_id: initDataUnsafe.user?.id || null,
   first_name: initDataUnsafe.user?.first_name || null,
   username: initDataUnsafe.user?.username || null,
 
-  // 🔥 IMPORTANT: this is where we read the referral from Telegram
-  // e.g., if A sent link, start_param should be A's ID or code
-  referrer_id: initDataUnsafe.start_param || null,
+  // Prefer resolved ref (URL/localStorage/start_param)
+  referrer_id: window.currentRef || initDataUnsafe.start_param || initDataUnsafe.startParam || null,
 };
-
 
 // Global TON Connect UI instance
 let tonConnectUI = null;
@@ -366,16 +385,8 @@ function fmt(n) {
 }
 
 /* ----------------------
-   Referral from URL
+   Telegram ready / expand
    ---------------------- */
-const urlParams = new URLSearchParams(window.location.search);
-let ref = urlParams.get("ref") || null;
-window.currentRef = ref;
-
-/* ----------------------
-   Telegram WebApp object
-   ---------------------- */
-
 try {
   if (tg && typeof tg.ready === 'function') tg.ready();
   if (tg && typeof tg.expand === 'function') tg.expand();
@@ -387,17 +398,20 @@ try {
    VERIFY / LOAD user from backend
    ---------------------- */
 async function verifyInitData() {
-  const initData = tg ? (tg.initData || '') : '';
-  const unsafe = tg && tg.initDataUnsafe ? tg.initDataUnsafe : null;
-  const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
+  const initData = tg?.initData || '';
+  const unsafe = tg?.initDataUnsafe || null;
+  const unsafeUser = unsafe?.user || null;
+  const startParam = unsafe?.start_param || unsafe?.startParam || null;
 
-  const startParam = (unsafe && (unsafe.start_param || unsafe.startParam))
-    ? (unsafe.start_param || unsafe.startParam)
-    : null;
-
+  // If we don't already have a ref but Telegram gave us start_param, use & store it
   if (!window.currentRef && startParam) {
     window.currentRef = startParam;
     ref = startParam;
+    try {
+      localStorage.setItem('ref', startParam);
+    } catch (e) {
+      console.warn('Could not store ref in localStorage', e);
+    }
   }
 
   const payload = { initData, ref: window.currentRef || null };
@@ -476,7 +490,6 @@ function renderRegisteredView(uid, name, avatar, userData) {
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${(name || 'Unknown')}</div>
       
-      <!-- <div class="row mini">Total Team Business: <b>$${total}</b> · Active Origins: <b>${activeOrigins}</b></div> -->
       <div class="row ref-line">
         <span class="mini">Referral Link</span>
         <button class="copy-btn" id="copyRef">📋</button>
@@ -546,59 +559,33 @@ function renderRegisteredView(uid, name, avatar, userData) {
       <div class="rank-panel">
         <div class="rank-header">
           <div class="rank-header-title">    🏅 Your Rank & Levels</div>
-          <!--<div class="rank-current-label">Current: <b>${ranks.current}</b></div>
-           <div class="row mini">Current: <b>${ranks.current}</b></div> -->
         </div>
 
         <div class="rank-tabs">
           <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
             <div class="rank-main">
               <span class="rank-name">Origin</span>
-              <!--<span class="rank-percent">5% Level Income</span>
-              <span class="rank-status">${ranks.isOrigin ? 'Achieved' : 'Locked'}</span> -->
             </div>
-           <!-- <div class="rank-progress"><div class="rank-progress-bar" style="width:${originProgress}%;"></div></div>
-            <div class="rank-progress-text">${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}</div> -->
           </button>
 
           <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
             <div class="rank-main">
               <span class="rank-name">Life Changer</span></div>
-             <!-- <span class="rank-percent">10% Direct</span>
-              <span class="rank-status">${ranks.isLifeChanger ? 'Achieved' : 'Locked'}</span>
-            </div>
-            <div class="rank-progress"><div class="rank-progress-bar" style="width:${lifeChangerProgress}%;"></div></div>
-            <div class="rank-progress-text">${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}</div>-->
           </button>
 
           <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
             <div class="rank-main">
               <span class="rank-name">Advisor</span></div>
-             <!-- <span class="rank-percent">15% Club Rank</span>
-              <span class="rank-status">${ranks.isAdvisor ? 'Achieved' : 'Locked'}</span>
-            </div>
-            <div class="rank-progress"><div class="rank-progress-bar" style="width:${advisorProgress}%;"></div></div>
-            <div class="rank-progress-text">${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}</div>-->
           </button>
 
           <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
             <div class="rank-main">
               <span class="rank-name">Visionary</span></div>
-            <!-- <span class="rank-percent">20% Club Rank</span>
-              <span class="rank-status">${ranks.isVisionary ? 'Achieved' : 'Locked'}</span>
-            </div>
-            <div class="rank-progress"><div class="rank-progress-bar" style="width:${visionaryProgress}%;"></div></div>
-            <div class="rank-progress-text">${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}</div>-->
           </button>
 
           <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
             <div class="rank-main">
               <span class="rank-name">Creator</span></div>
-              <!-- <span class="rank-percent">25% Top Rank</span>
-              <span class="rank-status">${ranks.isCreator ? 'Achieved' : 'Locked'}</span>
-            </div>
-            <div class="rank-progress"><div class="rank-progress-bar" style="width:${creatorProgress}%;"></div></div>
-            <div class="rank-progress-text">${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}</div>-->
           </button>
         </div>
 
@@ -650,108 +637,108 @@ function renderRegisteredView(uid, name, avatar, userData) {
   if (copyMSTCBtn && tip) copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tip);
 
   if (submitBtn) {
-  submitBtn.onclick = async () => {
-    // Clear UI messages
-    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-    if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+    submitBtn.onclick = async () => {
+      // Clear UI messages
+      if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+      if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
 
-    const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
-    const amount = parseFloat(valueStr || "0");
-    const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
-    const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
+      const valueStr = amtInput ? (amtInput.value ? amtInput.value.trim() : "0") : "0";
+      const amount = parseFloat(valueStr || "0");
+      const tx1 = txMUSDInput ? txMUSDInput.value.trim() : "";
+      const tx2 = txMSTCInput ? txMSTCInput.value.trim() : "";
 
-    if (isNaN(amount) || amount < MIN_DEPOSIT) {
-      if (errEl) {
-        errEl.style.display = 'block';
-        errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
+      if (isNaN(amount) || amount < MIN_DEPOSIT) {
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please enter at least $' + MIN_DEPOSIT + '.';
+        }
+        return;
       }
-      return;
-    }
 
-    if (!tx1 || !tx2) {
-      if (errEl) {
-        errEl.style.display = 'block';
-        errEl.textContent = 'Please paste both transaction hashes.';
+      if (!tx1 || !tx2) {
+        if (errEl) {
+          errEl.style.display = 'block';
+          errEl.textContent = 'Please paste both transaction hashes.';
+        }
+        return;
       }
-      return;
-    }
 
-    // Prepare payload. Use signed initData string if in Telegram.
-    const payload = {
-      initData: tg ? (tg.initData || "") : "",
-      amount: Number(amount.toFixed(2)),
-      tx_musd: tx1,
-      tx_mstc: tx2,
-      ref: window.currentRef || null
-    };
+      // Prepare payload. Use signed initData string if in Telegram.
+      const payload = {
+        initData: tg ? (tg.initData || "") : "",
+        amount: Number(amount.toFixed(2)),
+        tx_musd: tx1,
+        tx_mstc: tx2,
+        ref: window.currentRef || null
+      };
 
-    if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
+      if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = 'Submitting...'; }
 
-    try {
-      const res = await fetch(API_DEPOSIT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(() => ({}));
-      console.debug('DEPOSIT RESPONSE:', data);
+      try {
+        const res = await fetch(API_DEPOSIT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        console.debug('DEPOSIT RESPONSE:', data);
 
-      if (data && data.ok) {
-        // Build a small summary for the user
-        let summaryLines = [];
-        if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-          summaryLines.push("Referral distribution:");
-          data.referral_dist.forEach(r => {
-            const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
-            const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
-            summaryLines.push(`${level}: ${who} → $${r.amount}`);
-          });
-        } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
-          summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
+        if (data && data.ok) {
+          // Build a small summary for the user
+          let summaryLines = [];
+          if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
+            summaryLines.push("Referral distribution:");
+            data.referral_dist.forEach(r => {
+              const level = (r.level === 0 || r.level === null || r.level === undefined) ? "Pool" : `Level ${r.level}`;
+              const who = r.to_username || (r.to_user_id !== null && r.to_user_id !== undefined ? r.to_user_id : "company_pool");
+              summaryLines.push(`${level}: ${who} → $${r.amount}`);
+            });
+          } else if (data.referral_dist && typeof data.referral_dist === 'object' && data.referral_dist.amount) {
+            summaryLines.push(`Referral: ${data.referral_dist.to || 'company_pool'} → $${data.referral_dist.amount}`);
+          } else {
+            summaryLines.push("No referral distribution (no uplines linked).");
+          }
+
+          const summaryText = summaryLines.join("\n");
+
+          // Show success inside mini app UI
+          if (msgEl) {
+            msgEl.style.display = 'block';
+            msgEl.innerHTML =
+              "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
+              summaryText +
+              "</pre>";
+          }
+
+          await showRegisteredViewFromBackend();
+
+          // Clear inputs
+          if (amtInput) amtInput.value = "";
+          if (txMUSDInput) txMUSDInput.value = "";
+          if (txMSTCInput) txMSTCInput.value = "";
+          if (musdAmt) musdAmt.textContent = "0.00";
+          if (mstcAmt) mstcAmt.textContent = "0.00";
+
         } else {
-          summaryLines.push("No referral distribution (no uplines linked).");
+          const errText = data && (data.message || data.error || data.detail)
+            ? (data.message || data.error || data.detail)
+            : 'Unknown error';
+
+          if (msgEl) {
+            msgEl.style.display = 'block';
+            msgEl.textContent = 'Failed to submit: ' + errText;
+          }
         }
 
-        const summaryText = summaryLines.join("\n");
-
-        // Show success only inside mini app UI
+      } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
         if (msgEl) {
           msgEl.style.display = 'block';
-          msgEl.innerHTML =
-            "Deposit submitted successfully!<br><pre style='text-align:left; white-space:pre-wrap; margin-top:4px;'>" +
-            summaryText +
-            "</pre>";
-        }
-
-        await showRegisteredViewFromBackend();
-
-        // Clear inputs
-        if (amtInput) amtInput.value = "";
-        if (txMUSDInput) txMUSDInput.value = "";
-        if (txMSTCInput) txMSTCInput.value = "";
-        if (musdAmt) musdAmt.textContent = "0.00";
-        if (mstcAmt) mstcAmt.textContent = "0.00";
-
-      } else {
-        const errText = data && (data.message || data.error || data.detail)
-          ? (data.message || data.error || data.detail)
-          : 'Unknown error';
-
-        if (msgEl) {
-          msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + errText;
+          msgEl.textContent = 'Failed to submit: ' + msg;
         }
       }
-
-    } catch (e) {
-      const msg = e && e.message ? e.message : String(e);
-      if (msgEl) {
-        msgEl.style.display = 'block';
-        msgEl.textContent = 'Failed to submit: ' + msg;
-      }
-    }
-  };
-}
+    };
+  }
 
   // --- TON Wallet connect wiring ---
   const walletStatusEl    = document.getElementById('walletStatus');
@@ -810,7 +797,7 @@ function renderRegisteredView(uid, name, avatar, userData) {
             body: JSON.stringify({
               telegram_id: tgUserId,
               wallet_address: addr,
-               referrer_id: currentUser.referrer_id,
+              referrer_id: currentUser.referrer_id,
             })
           });
 
@@ -928,9 +915,9 @@ async function loadActivationStatus() {
 }
 
 /* ----------------------
-   Boot
-   ---------------------- */
-document.addEventListener('DOMContentLoaded', () => {
+   Boot (OLD FLOW, still available if needed)
+   ---------------------- 
+  document.addEventListener('DOMContentLoaded', () => {
   loadActivationStatus().catch(e => console.warn('loadActivationStatus error', e));
 
   const yesBtn = document.getElementById('yesBtn');
@@ -947,7 +934,7 @@ document.addEventListener('DOMContentLoaded', () => {
       app.innerHTML = `<img src="${baseLogo}" class="logo" /><div class="row big">❌ Registration Cancelled</div>`;
     };
   }
-});
+}); */
 </script>
 </body>
 </html>
