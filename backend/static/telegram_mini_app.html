@@ -409,7 +409,10 @@
 <script>
   // --- Referral from URL (?ref=...) ---
  const urlParams = new URLSearchParams(window.location.search);
-let ref = urlParams.get("ref") || null;   
+let ref =
+  urlParams.get("ref") ||
+  urlParams.get("tgWebAppStartParam") ||   
+  null;
 window.currentRef = ref;
 
   // --- Telegram WebApp object ---
@@ -503,7 +506,7 @@ window.currentRef = ref;
     window.currentRef = startParam;
     ref = startParam;
   }
-
+  
   const effectiveRef = window.currentRef || null;
 
   if (!tgApp) {
@@ -579,8 +582,8 @@ window.currentRef = ref;
       : Math.round(Math.min(ranks.total / 100000, 1) * 100);
 
     // referral link for this uid
-    const refLink = `https://t.me/mstcrefbot?start=${uid}`;
-
+    const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
+                            
     app.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
