@@ -417,6 +417,17 @@ window.currentRef = ref;
     ? window.Telegram.WebApp
     : null;
 
+    const unsafe = tg ? tg.initDataUnsafe || {} : {};
+  console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
+  // Test: console will reveal start_param
+
+  // also capture Telegram's start_param
+  if (!ref && unsafe.start_param) {
+      ref = unsafe.start_param;
+      window.currentRef = ref;
+      console.log("REF captured from Telegram start_param:", ref);
+  }
+
   try {
     tg && tg.ready();
     tg && tg.expand();
