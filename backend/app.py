@@ -1174,6 +1174,13 @@ def debug_reset_origin(user_id):
 
 @app.route("/debug/latest-users")
 def debug_latest_users():
+    try:
+        # Import here to avoid any circular import issues
+        from backend.models import SessionLocal, User
+    except Exception as e:
+        app.logger.exception("Import error in /debug/latest-users")
+        return jsonify({"ok": False, "error": f"import_error: {e}"}), 500
+
     db = SessionLocal()
     try:
         rows = (
@@ -1182,7 +1189,18 @@ def debug_latest_users():
             .limit(10)
             .all()
         )
-        return jsonify([{"id": r.id, "telegram_id": r.telegram_id, "referrer_id": r.referrer_id} for r in rows])
+        out = [
+            {
+                "id": r.id,
+                "telegram_id": r.telegram_id,
+                "referrer_id": r.referrer_id,
+            }
+            for r in rows
+        ]
+        return jsonify({"ok": True, "users": out})
+    except Exception as e:
+        app.logger.exception("Error in /debug/latest-users")
+        return jsonify({"ok": False, "error": f"server_error: {e}"}), 500
     finally:
         db.close()
 
