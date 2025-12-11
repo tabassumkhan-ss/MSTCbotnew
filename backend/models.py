@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    ForeignKey, BigInteger, Boolean, UniqueConstraint, Index
+    ForeignKey, BigInteger, Boolean, UniqueConstraint, Index, text
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from dotenv import load_dotenv
@@ -23,10 +23,14 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# --- Declarative base (MUST be defined before model classes) ---
+Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = 'users'
     id = Column(BigInteger, primary_key=True, index=True)  # telegram user id
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # explicit telegram_id column
     username = Column(String, nullable=True, index=True)
     first_name = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -47,7 +51,7 @@ class User(Base):
     club_income = Column(Float, default=0.0)
 
     def __repr__(self):
-        return f"<User id={self.id} username={self.username} role={self.role}>"
+        return f"<User id={self.id} telegram_id={self.telegram_id} username={self.username} role={self.role}>"
 
 
 class Transaction(Base):
@@ -58,7 +62,7 @@ class Transaction(Base):
     external_id can be used to ensure idempotency for external webhook/payment providers.
     """
     __tablename__ = 'transactions'
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
     amount = Column(Float, nullable=False)
     currency = Column(String, nullable=False)  # 'MUSD' or 'MSTC' etc.
@@ -104,9 +108,8 @@ def init_db():
     """
     Create all tables. Call this from a bootstrap script or run `python backend/models.py`.
     """
-    # ensure directory for sqlite DB exists
+    # ensure directory for sqlite DB exists (kept for dev-only support)
     if DATABASE_URL.startswith("sqlite:///"):
-        # path is like sqlite:///./data/mstcbot.db
         path = DATABASE_URL.replace("sqlite:///", "")
         dirpath = os.path.dirname(os.path.abspath(path))
         if dirpath and not os.path.exists(dirpath):
