@@ -6,16 +6,46 @@ import hashlib
 import hmac
 from urllib.parse import parse_qsl
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, current_app
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
+from typing import Optional  # for safe annotations
 
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
+# Load .env for local dev (harmless on Railway)
+load_dotenv()
+
+# Basic logging config so logger.info/debug appear in console/logs
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+# Use app.logger where convenient (Flask/Gunicorn friendly)
+_debug_key = os.getenv("DEBUG_KEY")
+if _debug_key:
+    # show only first 6 chars to avoid leaking secret
+    app.logger.info("DEBUG_KEY present (first6): %s", _debug_key[:6])
+else:
+    app.logger.info("DEBUG_KEY NOT present in environment.")
+
+# safe DB url display (mask credentials if you must print)
+try:
+    db_url = str(engine.url)
+    # mask password/creds if present (naive mask)
+    if "@" in db_url and ":" in db_url:
+        # show driver and host/db only; mask credentials
+        parts = db_url.split("@", 1)
+        visible = parts[1]
+        app.logger.info("Flask DB URL (masked): %s", visible)
+    else:
+        app.logger.info("Flask DB URL: %s", db_url)
+except Exception:
+    app.logger.exception("Could not read engine.url")
 
 init_db()
 
@@ -23,24 +53,13 @@ print("Flask CWD:", os.getcwd())
 print("Flask DB URL:", engine.url)
 
 
-def get_ref_from_payload(data: dict) -> int | None:
-    """
-    Extract referrer from JSON payload.
-    Accepts keys: 'ref', 'referrer_id', or 'ref_id'.
-    Returns int or None.
-    """
-    raw = (
-        data.get("ref")
-        or data.get("referrer_id")
-        or data.get("ref_id")
-    )
-    if raw is None or raw == "":
-        return None
+def get_ref_from_payload(data: dict) -> Optional[int]:
+    """Return ref id (int) or None if not present/invalid."""
+    ref = data.get("ref")
     try:
-        return int(raw)
-    except (TypeError, ValueError):
+        return int(ref) if ref is not None else None
+    except (ValueError, TypeError):
         return None
-
 
 def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     """
@@ -67,8 +86,6 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     user.referrer_id = ref.id
     db.commit()
     db.refresh(user)
-
-from datetime import datetime
 
 def get_or_create_user(db, tg_user, ref_id=None):
     # tg_user is expected to be a dict from Telegram WebApp initDataUnsafe.user
