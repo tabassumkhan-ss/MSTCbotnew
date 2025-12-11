@@ -61,6 +61,18 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # Helpers
 # -------------------------
 
+@app.route("/debug/routes", methods=["GET"])
+def debug_routes():
+    routes = []
+    for r in app.url_map.iter_rules():
+        routes.append({
+            "rule": r.rule,
+            "methods": sorted(list(r.methods)),
+            "endpoint": r.endpoint
+        })
+    return jsonify(ok=True, routes=routes)
+
+
 def check_debug_key():
     """
     Robust check for debug key. Accept header variants, query param 'debug_key' or 'key',
