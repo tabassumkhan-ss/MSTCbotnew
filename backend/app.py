@@ -684,7 +684,7 @@ def debug_simulate_deposit():
     finally:
         db.close()
 
-
+  
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
     db = SessionLocal()
@@ -693,6 +693,31 @@ def debug_user(user_id):
         if not user:
             return jsonify({"exists": False})
         return jsonify({"exists": True, "id": user.id, "username": user.username, "first_name": user.first_name, "self_activated": user.self_activated, "role": user.role, "referrer_id": user.referrer_id, "total_team_business": float(user.total_team_business or 0)})
+    finally:
+        db.close()
+
+@app.route("/debug/transactions/<int:user_id>", methods=["GET"])
+def debug_transactions(user_id):
+    db = SessionLocal()
+    try:
+        txs = (
+            db.query(Transaction)
+            .filter_by(user_id=user_id)
+            .order_by(Transaction.created_at.desc())
+            .all()
+        )
+        out = []
+        for t in txs:
+            out.append({
+                "id": getattr(t, "id", None),
+                "user_id": t.user_id,
+                "amount": float(t.amount or 0.0),
+                "currency": t.currency,
+                "type": t.type,
+                "external_id": t.external_id,
+                "created_at": t.created_at.isoformat() if getattr(t, "created_at", None) else None
+            })
+        return jsonify(ok=True, transactions=out)
     finally:
         db.close()
 
