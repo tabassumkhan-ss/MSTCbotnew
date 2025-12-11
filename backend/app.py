@@ -1161,6 +1161,72 @@ def debug_company_pool():
         )
     finally:
         db.close()
+        @app.route("/debug/simulate_deposit", methods=["POST"])
+        def debug_simulate_deposit():
+         """
+    POST JSON:
+    {
+      "telegram_id": 7955075358,
+      "amount": 20.0,
+      "tx_musd": "TX1",
+      "tx_mstc": "TX2",
+      "ref": 7955075357   # optional: DB id of referrer
+    }
+    """
+    try:
+        from backend.models import SessionLocal, User, Transaction
+    except Exception as e:
+        app.logger.exception("Import error in simulate_deposit")
+        return jsonify({"ok": False, "error": f"import_error: {e}"}), 500
+
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        tg_id = data.get("telegram_id")
+        amount = float(data.get("amount") or 0)
+        tx1 = data.get("tx_musd")
+        tx2 = data.get("tx_mstc")
+        ref = data.get("ref")
+
+        if not tg_id or amount <= 0 or not tx1 or not tx2:
+            return jsonify({"ok": False, "error": "missing_fields"}), 400
+
+        # Build minimal tg_user dict for get_or_create_user
+        tg_user = {"id": tg_id, "username": None, "first_name": None}
+
+        # Ensure user exists and link ref if provided
+        user = get_or_create_user(db, tg_user, ref)
+
+        # Create a Transaction row (adjust field names if different)
+        tx = Transaction(
+            user_id=user.id,
+            amount=amount,
+            tx_musd=tx1,
+            tx_mstc=tx2,
+            created_at=datetime.utcnow()
+        )
+        db.add(tx)
+
+        # Example: update balances the same way your app does (adjust if needed)
+        user.balance_musd = (user.balance_musd or 0) + amount * 0.7
+        user.balance_mstc = (user.balance_mstc or 0) + amount * 0.3
+
+        db.commit()
+        db.refresh(user)
+
+        # Optionally run whatever referral distribution logic you have here
+        # For now return basic success and the user's referrer
+        return jsonify({
+            "ok": True,
+            "message": "simulated_deposit_ok",
+            "user_id": user.id,
+            "referrer_id": user.referrer_id
+        })
+    except Exception as e:
+        app.logger.exception("Error in /debug/simulate_deposit")
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        db.close()
         
 
 
