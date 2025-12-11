@@ -635,12 +635,24 @@ def debug_simulate_deposit():
             return jsonify({"error": "user_not_found", "ok": False}), 404
 
         if tx_musd:
-            existing = db.query(Transaction).filter_by(external_id=str(tx_musd)).first()
-            if existing:
-                app.logger.info("simulate_deposit: external_id %s already processed -> returning existing state", tx_musd)
-                db.refresh(user)
-                resp = {"ok": True, "user_id": user.id, "user": {"id": user.id, "role": user.role, "self_activated": user.self_activated, "total_team_business": user.total_team_business}, "amount": amount}
-                return jsonify(resp), 200
+    existing_deposit = (
+        db.query(Transaction)
+        .filter_by(external_id=str(tx_musd), currency="MUSD", type="deposit")
+        .first()
+    )
+    if existing_deposit:
+        app.logger.info(
+            "simulate_deposit: external_id %s already processed (MUSD deposit) -> returning existing state",
+            tx_musd,
+        )
+        db.refresh(user)
+        resp = {
+            "ok": True,
+            "user_id": user.id,
+            "user": {"id": user.id, "role": user.role, "self_activated": user.self_activated, "total_team_business": user.total_team_business},
+            "amount": amount
+        }
+        return jsonify(resp), 200
 
         became_origin_now = False
         if not getattr(user, "self_activated", False) and amount >= 20:
