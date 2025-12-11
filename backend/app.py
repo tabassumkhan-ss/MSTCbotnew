@@ -629,31 +629,60 @@ def debug_simulate_deposit():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter_by(telegram_id=tg_id).first()
+        # --- robust user lookup ---
+        user = None
+        try:
+            user = db.get(User, int(tg_id))
+        except Exception:
+            user = None
+
+        if not user:
+            try:
+                user = db.query(User).filter_by(telegram_id=str(int(tg_id))).first()
+            except Exception:
+                user = None
+
+        if not user:
+            try:
+                user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
+            except Exception:
+                user = None
+
         if not user:
             app.logger.warning("simulate_deposit user not found tg_id=%s", tg_id)
             return jsonify({"error": "user_not_found", "ok": False}), 404
 
+        # --- idempotency check (ONLY block duplicate MUSD deposit) ---
         if tx_musd:
-    existing_deposit = (
-        db.query(Transaction)
-        .filter_by(external_id=str(tx_musd), currency="MUSD", type="deposit")
-        .first()
-    )
-    if existing_deposit:
-        app.logger.info(
-            "simulate_deposit: external_id %s already processed (MUSD deposit) -> returning existing state",
-            tx_musd,
-        )
-        db.refresh(user)
-        resp = {
-            "ok": True,
-            "user_id": user.id,
-            "user": {"id": user.id, "role": user.role, "self_activated": user.self_activated, "total_team_business": user.total_team_business},
-            "amount": amount
-        }
-        return jsonify(resp), 200
+            existing_deposit = (
+                db.query(Transaction)
+                .filter_by(
+                    external_id=str(tx_musd),
+                    currency="MUSD",
+                    type="deposit"
+                )
+                .first()
+            )
 
+            if existing_deposit:
+                app.logger.info(
+                    "simulate_deposit: external_id %s already processed (MUSD deposit)",
+                    tx_musd,
+                )
+                db.refresh(user)
+                return jsonify({
+                    "ok": True,
+                    "user_id": user.id,
+                    "user": {
+                        "id": user.id,
+                        "role": user.role,
+                        "self_activated": user.self_activated,
+                        "total_team_business": user.total_team_business
+                    },
+                    "amount": amount
+                }), 200
+
+        # --- apply business logic ---
         became_origin_now = False
         if not getattr(user, "self_activated", False) and amount >= 20:
             user.self_activated = True
@@ -661,32 +690,56 @@ def debug_simulate_deposit():
 
         user.total_team_business = (user.total_team_business or 0.0) + amount
 
+        # update company pool
         company_pool = db.get(User, COMPANY_USER_ID)
         if company_pool:
             company_pool.balance_musd = (company_pool.balance_musd or 0.0) + (amount * 0.72)
         else:
-            app.logger.debug("simulate_deposit: company_pool user not found with id %s", COMPANY_USER_ID)
+            app.logger.debug("simulate_deposit: company_pool user not found")
 
-        deposit_tx = Transaction(user_id=user.id, amount=amount, currency="MUSD", type="deposit", external_id=str(tx_musd) if tx_musd else None, created_at=datetime.utcnow())
+        # create deposit transaction AFTER updates
+        deposit_tx = Transaction(
+            user_id=user.id,
+            amount=amount,
+            currency="MUSD",
+            type="deposit",
+            external_id=str(tx_musd) if tx_musd else None,
+            created_at=datetime.utcnow()
+        )
         db.add(deposit_tx)
 
+        # optional MSTC credit tx
         if tx_mstc:
-            credit_tx = Transaction(user_id=user.id, amount=0.0, currency="MSTC", type="credit_mstc", external_id=str(tx_mstc), created_at=datetime.utcnow())
+            credit_tx = Transaction(
+                user_id=user.id,
+                amount=0.0,
+                currency="MSTC",
+                type="credit_mstc",
+                external_id=str(tx_mstc),
+                created_at=datetime.utcnow()
+            )
             db.add(credit_tx)
 
         db.commit()
         db.refresh(user)
 
-        response = {
+        return jsonify({
             "ok": True,
             "amount": amount,
             "became_origin_now": became_origin_now,
-            "company_pool": {"id": getattr(company_pool, "id", None), "balance_musd": getattr(company_pool, "balance_musd", None)},
+            "company_pool": {
+                "id": getattr(company_pool, "id", None),
+                "balance_musd": getattr(company_pool, "balance_musd", None)
+            },
             "referral_dist": [],
-            "user": {"id": user.id, "role": user.role, "self_activated": user.self_activated, "total_team_business": user.total_team_business},
-            "user_id": user.id,
-        }
-        return jsonify(response), 200
+            "user": {
+                "id": user.id,
+                "role": user.role,
+                "self_activated": user.self_activated,
+                "total_team_business": user.total_team_business
+            },
+            "user_id": user.id
+        }), 200
 
     except Exception:
         db.rollback()
