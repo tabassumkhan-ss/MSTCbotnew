@@ -68,36 +68,36 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.commit()
     db.refresh(user)
 
+from datetime import datetime
+
 def get_or_create_user(db, tg_user, ref_id=None):
-    """
-    tg_user is expected to be a dict with keys:
-      - id          (Telegram user id)
-      - username
-      - first_name
-      - last_name   (optional)
-    ref_id is the *DB primary key* of the referrer (or None).
-    """
+    # tg_user is expected to be a dict from Telegram WebApp initDataUnsafe.user
     if not isinstance(tg_user, dict):
         raise ValueError(f"tg_user is not a dict: {tg_user!r}")
 
-    tg_id = tg_user.get("id")
-    username = tg_user.get("username")
-    first_name = tg_user.get("first_name")
-    last_name = tg_user.get("last_name")
+    tg_user_raw = (
+        tg_user.get("id"),
+        tg_user.get("username"),
+        tg_user.get("first_name"),
+        tg_user.get("last_name"),
+    )
 
-    if tg_id is None:
-        raise ValueError(f"Telegram user data missing 'id': {tg_user!r}")
+    if tg_user_raw[0] is None:
+        # Don't crash the whole app – let the route handle this.
+        raise ValueError(f"Telegram user data missing 'id': {tg_user_raw!r}")
 
-    # Always treat Telegram id as *telegram_id* column, not primary key
-    tg_id_str = str(tg_id)
+    tg_id = tg_user_raw[0]          # Telegram user ID
+    username = tg_user_raw[1]
+    first_name = tg_user_raw[2]
+    last_name = tg_user_raw[3]
 
-    # Look up existing user by telegram_id
-    user = db.query(User).filter_by(telegram_id=tg_id_str).first()
+    # You are using User.id as Telegram ID (primary key)
+    user = db.query(User).filter_by(id=tg_id).first()
 
     if user is None:
-        # New user: create with referrer_id if provided
+        # New user: create and set referrer_id if provided
         user = User(
-            telegram_id=tg_id_str,
+            id=tg_id,
             username=username,
             first_name=first_name,
             last_name=last_name,
@@ -105,13 +105,31 @@ def get_or_create_user(db, tg_user, ref_id=None):
             balance_mstc=0.0,
             balance_musd=0.0,
             active=True,
-            referrer_id=ref_id,   # 👈 set referrer on creation
+            referrer_id=ref_id,   # 👈 set once on creation
             role="user",
         )
         db.add(user)
         db.commit()
         db.refresh(user)
         return user
+
+    # Existing user:
+    # Update profile info if changed
+    if username and user.username != username:
+        user.username = username
+    if first_name and user.first_name != first_name:
+        user.first_name = first_name
+    if last_name and getattr(user, "last_name", None) != last_name:
+        user.last_name = last_name
+
+    # Only set referrer_id if it's currently None and we got a valid ref_id
+    if user.referrer_id is None and ref_id is not None:
+        user.referrer_id = ref_id
+
+    db.commit()
+    db.refresh(user)
+    return user
+
 
     # Existing user:
     #  - Optionally update basic profile fields
@@ -245,18 +263,18 @@ def webapp_me():
         if not telegram_id:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        # 3) Build a minimal "tg_user" dict for get_or_create_user
+        # 3) Build tg_user dict expected by get_or_create_user
         tg_user = {
             "id": telegram_id,
             "username": username,
             "first_name": first_name,
+            # last_name is optional; you can include it if verify_telegram_init_data returns it
         }
 
-        # 4) Work out the referral identifier
-        #    Prefer explicit "ref" from frontend, then start_param from Telegram,
-        #    then anything else get_ref_from_payload might extract.
+        # 4) Determine referral code
+        # Prefer explicit "ref" from frontend, then start_param, then helper.
         raw_ref = (
-            payload.get("ref")
+            payload.get("ref")         # from window.currentRef
             or payload.get("start_param")
             or start_param
             or get_ref_from_payload(payload)
@@ -265,12 +283,12 @@ def webapp_me():
         ref_id = None
         if raw_ref:
             try:
-                # We treat ref as DB user.id (pk) in your current design
+                # You are using User.id (PK) as referral code in links
                 ref_id = int(raw_ref)
             except (TypeError, ValueError):
                 ref_id = None
 
-        # 5) Create or fetch user, linking referrer if appropriate
+        # 5) Create or get user, linking referrer if available
         try:
             user = get_or_create_user(db, tg_user, ref_id)
         except ValueError as e:
@@ -278,10 +296,9 @@ def webapp_me():
             return jsonify({"ok": False, "error": str(e)}), 400
 
         return jsonify({
-            "ok": True,   # <-- IMPORTANT: JS expects .ok, not .status
+            "ok": True,   # IMPORTANT: your JS checks j.ok
             "user": {
-                "id": user.id,
-                "telegram_id": user.telegram_id,
+                "id": user.id,                 # this is also their Telegram ID
                 "username": user.username,
                 "first_name": user.first_name,
                 "balance_mstc": user.balance_mstc,
@@ -1175,7 +1192,6 @@ def debug_reset_origin(user_id):
 @app.route("/debug/latest-users")
 def debug_latest_users():
     try:
-        # Import here to avoid any circular import issues
         from backend.models import SessionLocal, User
     except Exception as e:
         app.logger.exception("Import error in /debug/latest-users")
@@ -1184,15 +1200,15 @@ def debug_latest_users():
     db = SessionLocal()
     try:
         rows = (
-            db.query(User.id, User.telegram_id, User.referrer_id)
+            db.query(User.id, User.referrer_id)
             .order_by(User.id.desc())
             .limit(10)
             .all()
         )
         out = [
             {
-                "id": r.id,
-                "telegram_id": r.telegram_id,
+                "id": r.id,                 # this is your Telegram ID
+                "telegram_id": r.id,        # exposing it also as telegram_id for clarity
                 "referrer_id": r.referrer_id,
             }
             for r in rows
