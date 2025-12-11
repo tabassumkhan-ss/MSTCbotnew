@@ -1206,7 +1206,7 @@ def debug_company_pool():
 
         # inside backend/app.py
 
-@app.route("/debug/simulate_deposit", methods=["POST"])
+# @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
     try:
         # validate debug key
