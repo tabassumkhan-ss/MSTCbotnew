@@ -33,6 +33,7 @@ class User(Base):
     telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # explicit telegram_id column
     username = Column(String, nullable=True, index=True)
     first_name = Column(String, nullable=True)
+    last_name = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     balance_mstc = Column(Float, default=0.0, nullable=False)  # MSTC token balance
     balance_musd = Column(Float, default=0.0, nullable=False)  # MUSD balance

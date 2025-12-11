@@ -6,7 +6,7 @@ import hashlib
 import hmac
 from urllib.parse import parse_qsl
 
-from flask import Flask, request, jsonify, send_from_directory, current_app
+from flask import Flask, request, jsonify, send_from_directory, current_app as app
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 import requests
@@ -15,6 +15,31 @@ from datetime import datetime
 from typing import Optional  # for safe annotations
 
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
+
+def check_debug_key():
+    """
+    Return True if the request contains the correct debug key.
+    Accepts header names with various casing that proxies may produce.
+    """
+    expected = app.config.get("DEBUG_KEY")
+    if not expected:
+        # no debug key configured: be strict and reject
+        app.logger.warning("check_debug_key: DEBUG_KEY not set in config")
+        return False
+
+    # try common header names (some proxies change casing)
+    header_keys = ["X-DEBUG-KEY", "X-Debug-Key", "X-Debug-key", "X-Debug-Key".lower()]
+    for k in header_keys:
+        val = request.headers.get(k)
+        if val and val == expected:
+            return True
+
+    # also check query param for convenience (only for debug)
+    q = request.args.get("debug_key") or request.args.get("key")
+    if q and q == expected:
+        return True
+
+    return False
 
 # Load .env for local dev (harmless on Railway)
 load_dotenv()
@@ -1178,23 +1203,29 @@ def debug_company_pool():
         )
     finally:
         db.close()
-        @app.route("/debug/simulate_deposit", methods=["POST"])
-        def debug_simulate_deposit():
-         """
-    POST JSON:
-    {
-      "telegram_id": 7955075358,
-      "amount": 20.0,
-      "tx_musd": "TX1",
-      "tx_mstc": "TX2",
-      "ref": 7955075357   # optional: DB id of referrer
-    }
-    """
+
+        # inside backend/app.py
+
+@app.route("/debug/simulate_deposit", methods=["POST"])
+def debug_simulate_deposit():
     try:
-        from backend.models import SessionLocal, User, Transaction
+        # validate debug key
+        if not check_debug_key():
+            current_app.logger.info("simulate_deposit: invalid_debug_key")
+            return jsonify({"ok": False, "error": "invalid_debug_key"}), 403
+
+        data = request.get_json(force=True)
+        # existing logic below (call the function that does the simulate)
+        # e.g. result = do_simulate_deposit(data)
+        # return jsonify(result)
+
+        # placeholder (keep your actual logic)
+        return jsonify({"ok": True, "msg": "simulated"}), 200
+
     except Exception as e:
-        app.logger.exception("Import error in simulate_deposit")
-        return jsonify({"ok": False, "error": f"import_error: {e}"}), 500
+        current_app.logger.exception("simulate_deposit failed")
+        return jsonify({"ok": False, "error": "internal_server_error", "message": str(e)}), 500
+
 
     db = SessionLocal()
     try:
