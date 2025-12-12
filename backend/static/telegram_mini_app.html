@@ -6,6 +6,7 @@
   <title>MSTC Earning Project — Deposit & Reward System</title>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
   <style>
     * { box-sizing: border-box; }
@@ -420,6 +421,11 @@
   const tg = window.Telegram && window.Telegram.WebApp
     ? window.Telegram.WebApp
     : null;
+    // --- TON Connect UI (global, only once) ---
+const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+  manifestUrl: 'https://mstcbotnew-production.up.railway.app/tonconnect-manifest.json'
+});
+
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
@@ -602,6 +608,14 @@
         <button class="copy-btn" id="copyRef">📋</button>
       </div>
       <div class="tooltip" id="tipRef">Copied!</div>
+
+      <div class="panel">
+  <h3>🔗 TON Wallet</h3>
+  <button class="btn secondary" id="connectWalletBtn">
+    Connect TON Wallet
+  </button>
+  <div id="walletStatus" class="mini"></div>
+</div>
 
       <div class="panel">
         <h3>💳 Deposit</h3>
