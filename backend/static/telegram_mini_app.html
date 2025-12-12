@@ -580,10 +580,11 @@
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
       <div class="row mini">
-        Total Team Business:
+      <!--  Total Team Business:
         <b>$${total}</b>
         · Active Origins:
-        <b>${activeOrigins}</b>
+        <b>${activeOrigins}</b>-->
+        Current: <b>${ranks.current}</b>
       </div>
 
       <div class="row ref-line">
@@ -646,9 +647,9 @@
 
       <div class="rank-panel">
         <div class="rank-header">
-          <div class="rank-header-title">🏅 Your Rank & Levels</div>
+        <div class="rank-header-title">🏅 Your Rank & Levels</div>
           <div class="rank-current-label">
-            Current: <b>${ranks.current}</b>
+           <!-- Current: <b>${ranks.current}</b> -->
           </div>
         </div>
 
@@ -659,20 +660,20 @@
           >
             <div class="rank-main">
               <span class="rank-name">Origin</span>
-              <span class="rank-percent">5% Level Income</span>
+             <!-- <span class="rank-percent">5% Level Income</span>
               <span class="rank-status">
-                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
-              </span>
+                ${ranks.isOrigin ? 'Achieved' : 'Locked'}-->
+              </span> 
             </div>
             <div class="rank-progress">
-              <div
+          <!--    <div
                 class="rank-progress-bar"
                 style="width:${originProgress}%;"
               ></div>
             </div>
             <div class="rank-progress-text">
               ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
-            </div>
+            </div>-->
           </button>
 
           <button
@@ -681,20 +682,20 @@
           >
             <div class="rank-main">
               <span class="rank-name">Life Changer</span>
-              <span class="rank-percent">10% Direct</span>
+             <!-- <span class="rank-percent">10% Direct</span>
               <span class="rank-status">
-                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}
+                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}-->
               </span>
             </div>
             <div class="rank-progress">
-              <div
+           <!--   <div
                 class="rank-progress-bar"
                 style="width:${lifeChangerProgress}%;"
               ></div>
             </div>
             <div class="rank-progress-text">
               ${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>
+            </div>-->
           </button>
 
           <button
@@ -703,20 +704,20 @@
           >
             <div class="rank-main">
               <span class="rank-name">Advisor</span>
-              <span class="rank-percent">15% Club Rank</span>
+              <!--<span class="rank-percent">15% Club Rank</span>
               <span class="rank-status">
-                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}
+                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}-->
               </span>
             </div>
             <div class="rank-progress">
-              <div
+            <!--  <div
                 class="rank-progress-bar"
                 style="width:${advisorProgress}%;"
               ></div>
             </div>
             <div class="rank-progress-text">
               ${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>
+            </div>-->
           </button>
 
           <button
@@ -725,20 +726,20 @@
           >
             <div class="rank-main">
               <span class="rank-name">Visionary</span>
-              <span class="rank-percent">20% Club Rank</span>
+            <!--  <span class="rank-percent">20% Club Rank</span>
               <span class="rank-status">
-                ${ranks.isVisionary ? 'Achieved' : 'Locked'}
+                ${ranks.isVisionary ? 'Achieved' : 'Locked'}-->
               </span>
             </div>
             <div class="rank-progress">
-              <div
+             <!-- <div
                 class="rank-progress-bar"
                 style="width:${visionaryProgress}%;"
               ></div>
             </div>
             <div class="rank-progress-text">
               ${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>
+            </div>-->
           </button>
 
           <button
@@ -747,19 +748,19 @@
           >
             <div class="rank-main">
               <span class="rank-name">Creator</span>
-              <span class="rank-percent">25% Top Rank</span>
+              <!--<span class="rank-percent">25% Top Rank</span>
               <span class="rank-status">
-                ${ranks.isCreator ? 'Achieved' : 'Locked'}
+                ${ranks.isCreator ? 'Achieved' : 'Locked'}-->
               </span>
             </div>
             <div class="rank-progress">
-              <div
+           <!--   <div
                 class="rank-progress-bar"
                 style="width:${creatorProgress}%;"
               ></div>
             </div>
             <div class="rank-progress-text">
-              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}
+              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}-->
             </div>
           </button>
         </div>
