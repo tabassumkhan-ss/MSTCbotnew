@@ -406,25 +406,24 @@
       </div>
     </div>
   </div>
+
 <script>
   // --- Referral from URL (?ref=...) ---
- const urlParams = new URLSearchParams(window.location.search);
-let ref =
-  urlParams.get("ref") ||
-  urlParams.get("tgWebAppStartParam") ||   
-  null;
-window.currentRef = ref;
+  const urlParams = new URLSearchParams(window.location.search);
+  let ref =
+    urlParams.get("ref") ||
+    urlParams.get("tgWebAppStartParam") ||
+    null;
+  window.currentRef = ref;
 
   // --- Telegram WebApp object ---
   const tg = window.Telegram && window.Telegram.WebApp
     ? window.Telegram.WebApp
     : null;
 
-    const unsafe = tg ? tg.initDataUnsafe || {} : {};
+  const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
-  // Test: console will reveal start_param
 
-  // also capture Telegram's start_param
   if (!ref && unsafe.start_param) {
       ref = unsafe.start_param;
       window.currentRef = ref;
@@ -456,7 +455,7 @@ window.currentRef = ref;
   }
 
   // --- Rank computation ---
-  function computeRanks(user) {
+  const computeRanks = (user) => {
     const total = Number(user.total_team_business || 0);
     const activeOrigins = Number(user.active_origin_count || 0);
     const role = user.role || '';
@@ -485,77 +484,69 @@ window.currentRef = ref;
       activeOrigins,
       current
     };
-  }
+  };
 
   // --- Verify with backend; fallback to Telegram user ---
-  async function verifyInitData() {
-  const tgApp = tg;
-  const initData = tgApp ? tgApp.initData : "";
-  const unsafe = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
-  const unsafeUser = unsafe && unsafe.user ? unsafe.user : null;
+  const verifyInitData = async () => {
+    const tgApp = tg;
+    const initData = tgApp ? tgApp.initData : "";
+    const unsafeLocal = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+    const unsafeUser = unsafeLocal && unsafeLocal.user ? unsafeLocal.user : null;
 
-  // Telegram start/startapp param
-  const startParam =
-    unsafe && (unsafe.start_param || unsafe.startParam)
-      ? (unsafe.start_param || unsafe.startParam)
-      : null;
+    const startParam =
+      unsafeLocal && (unsafeLocal.start_param || unsafeLocal.startParam)
+        ? (unsafeLocal.start_param || unsafeLocal.startParam)
+        : null;
 
-  // 🔹 If we have a Telegram start_param and no ref from URL yet,
-  //    use it as our referral id.
-  if (!window.currentRef && startParam) {
-    window.currentRef = startParam;
-    ref = startParam;
-  }
-  
-  const effectiveRef = window.currentRef || null;
-
-  if (!tgApp) {
-    console.warn("Not inside Telegram WebApp – using test user.");
-    return {
-      ok: false,
-      user: {
-        id: 123456,
-        first_name: "Test User",
-        username: "testuser",
-        photo_url: null,
-        total_team_business: 0,
-        active_origin_count: 0,
-        role: "",
-        self_activated: false
-      }
-    };
-  }
-
-  console.log("🚀 Sending to /webapp/me:", {
-  initData,
-  ref: effectiveRef
-});
-
-  try {
-    const res = await fetch('/webapp/me', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData,
-        ref: effectiveRef      
-            })
-    });
-
-    const j = await res.json();
-
-    if (!res.ok || !j.ok) {
-      const msg = j.error || j.detail || 'verify failed';
-      throw new Error(msg);
+    if (!window.currentRef && startParam) {
+      window.currentRef = startParam;
     }
-    return j;
-  } catch (err) {
-    console.warn('verify error, using unsafe Telegram user as fallback:', err);
-    return { ok: false, user: unsafeUser || {} };
-  }
-}
+
+    const effectiveRef = window.currentRef || null;
+
+    if (!tgApp) {
+      console.warn("Not inside Telegram WebApp – using test user.");
+      return {
+        ok: false,
+        user: {
+          id: 123456,
+          first_name: "Test User",
+          username: "testuser",
+          photo_url: null,
+          total_team_business: 0,
+          active_origin_count: 0,
+          role: "",
+          self_activated: false
+        }
+      };
+    }
+
+    console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
+
+    try {
+      const res = await fetch('/webapp/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData, ref: effectiveRef })
+      });
+
+      const j = await res.json();
+
+      if (!res.ok || !j.ok) {
+        const msg = j.error || j.detail || 'verify failed';
+        throw new Error(msg);
+      }
+      return j;
+    } catch (err) {
+      console.warn('verify error, using unsafe Telegram user as fallback:', err);
+      return { ok: false, user: unsafeUser || {} };
+    }
+  };
+  // expose globally
+  window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
-  function renderRegisteredView(uid, name, avatar, userData) {
+  const renderRegisteredView = (uid, name, avatar, userData) => {
     const ranks = computeRanks(userData || {});
 
     const total = ranks.total.toFixed(2);
@@ -583,7 +574,7 @@ window.currentRef = ref;
 
     // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
-                            
+
     app.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
@@ -702,9 +693,7 @@ window.currentRef = ref;
               ></div>
             </div>
             <div class="rank-progress-text">
-              ${lifeChangerProgress}% ${
-                lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'
-              }
+              ${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}
             </div>
           </button>
 
@@ -726,9 +715,7 @@ window.currentRef = ref;
               ></div>
             </div>
             <div class="rank-progress-text">
-              ${advisorProgress}% ${
-                advisorProgress === 100 ? 'achieved' : 'towards next rank'
-              }
+              ${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}
             </div>
           </button>
 
@@ -750,9 +737,7 @@ window.currentRef = ref;
               ></div>
             </div>
             <div class="rank-progress-text">
-              ${visionaryProgress}% ${
-                visionaryProgress === 100 ? 'achieved' : 'towards next rank'
-              }
+              ${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}
             </div>
           </button>
 
@@ -774,9 +759,7 @@ window.currentRef = ref;
               ></div>
             </div>
             <div class="rank-progress-text">
-              ${creatorProgress}% ${
-                creatorProgress === 100 ? 'achieved' : 'towards top rank'
-              }
+              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}
             </div>
           </button>
         </div>
@@ -784,7 +767,6 @@ window.currentRef = ref;
         <div id="rankDetails" class="rank-details"></div>
       </div>
     `;
-
     // --- Wire up events inside rendered view ---
 
     const tip = document.getElementById('tipRef');
@@ -872,79 +854,78 @@ window.currentRef = ref;
           return;
         }
 
-        const payload = {
-          initData: tgApp ? tgApp.initData : "",
-          amount: Number(amount.toFixed(2)),
-          tx_musd: tx1,
-          tx_mstc: tx2,
-          ref: window.currentRef || null
-        };
-
+        // --- Use two-step flow: /webapp/me then /deposit/submit ---
+        const initData = tgApp ? tgApp.initData : "";
         msgEl.style.display = 'block';
-        msgEl.textContent = 'Submitting...';
+        msgEl.textContent = 'Verifying user...';
 
         try {
-          const res = await fetch('/webapp/verify', {
+          const meRes = await fetch('/webapp/me', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ initData, ref: window.currentRef || null })
           });
 
-          const data = await res.json();
-          console.log('VERIFY RESPONSE:', data);
+          const meText = await meRes.text();
+          let meJson = null;
+          try { meJson = meText ? JSON.parse(meText) : null; } catch(e) { throw new Error('Failed parsing /webapp/me JSON: ' + e.message + ' => ' + meText.slice(0,1000)); }
 
-          if (data.ok) {
-  
-  let summaryLines = [];
+          if (!meRes.ok || !meJson || meJson.ok === false) {
+            const err = (meJson && (meJson.error || meJson.detail)) || `HTTP ${meRes.status}`;
+            throw new Error('/webapp/me failed: ' + err);
+          }
 
-  if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-    summaryLines.push("Referral distribution:");
+          const userId = (meJson.user && meJson.user.id) || meJson.user_id || (meJson && meJson.telegram_id && parseInt(meJson.telegram_id));
+          if (!userId) throw new Error('Could not determine user id from /webapp/me response.');
 
-    data.referral_dist.forEach(r => {
-      const level = (r.level === 0 || r.level === null || r.level === undefined)
-        ? "Pool"
-        : `Level ${r.level}`;
+          // 2) Submit deposit to /deposit/submit
+          msgEl.textContent = 'Submitting deposit...';
 
-      const who =
-        r.to_username ||
-        (r.to_user_id !== null && r.to_user_id !== undefined
-          ? r.to_user_id
-          : "company_pool");
+          const depositPayload = {
+            user_id: userId,
+            amount: Number(amount.toFixed(2)),
+            tx_musd: tx1,
+            tx_mstc: tx2,
+            ref: window.currentRef || null
+          };
 
-      summaryLines.push(`${level}: ${who} → $${r.amount}`);
-    });
-  } else {
-    summaryLines.push("No referral distribution (no uplines linked).");
-  }
+          const depositRes = await fetch('/deposit/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(depositPayload)
+          });
 
-  const summaryText = summaryLines.join("\n");
+          const depositText = await depositRes.text();
+          let depositJson = null;
+          try { depositJson = depositText ? JSON.parse(depositText) : null; } catch(e) { throw new Error('Failed parsing /deposit/submit JSON: ' + e.message + ' => ' + depositText.slice(0,1000)); }
 
-  // Show in Telegram alert 
-  if (tgApp) {
-    tgApp.showAlert("Deposit submitted successfully!\n\n" + summaryText);
-  }
+          if (!depositRes.ok || !depositJson || depositJson.ok === false) {
+            const err = (depositJson && (depositJson.error || depositJson.detail)) || `HTTP ${depositRes.status}`;
+            throw new Error('/deposit/submit failed: ' + err + '\n\n' + depositText.slice(0,1000));
+          }
 
-  // Also show in the page below the button
-  msgEl.style.display = "block";
-  msgEl.innerHTML =
-    "Deposit submitted successfully!<br><pre style=\"text-align:left; white-space:pre-wrap; margin-top:4px;\">" +
-    summaryText +
-    "</pre>";
+          // success — show summary
+          const summaryLines = [];
+          if (Array.isArray(depositJson.referral_dist) && depositJson.referral_dist.length) {
+            depositJson.referral_dist.forEach(r => {
+              const level = (r.level === 0 || r.level === null || r.level === undefined) ? 'Pool' : 'Level ' + r.level;
+              summaryLines.push(`${level}: ${r.to_user || r.to_user_id || 'unknown'} → $${r.amount}`);
+            });
+          } else {
+            summaryLines.push('No referral distribution.');
+          }
 
-  // Optionally clear inputs
-  amtInput.value = "";
-  txMUSDInput.value = "";
-  txMSTCInput.value = "";
-  musdAmt.textContent = "0.00";
-  mstcAmt.textContent = "0.00";
-} else {
-  const errorText = data.error || "unknown error";
-  if (tgApp) {
-    tgApp.showAlert("Failed to submit: " + errorText);
-  }
-  msgEl.style.display = "block";
-  msgEl.textContent = "Failed to submit: " + errorText;
-}
+          const summaryText = summaryLines.join('\n');
+          if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
+
+          msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
+
+          // clear fields
+          amtInput.value = '';
+          txMUSDInput.value = '';
+          txMSTCInput.value = '';
+          musdAmt.textContent = '0.00';
+          mstcAmt.textContent = '0.00';
 
         } catch (e) {
           const errorText = e && e.message ? e.message : String(e);
@@ -953,6 +934,7 @@ window.currentRef = ref;
           }
           msgEl.style.display = 'block';
           msgEl.textContent = 'Failed to submit: ' + errorText;
+          console.error('submit error:', e);
         }
       };
     }
@@ -1034,10 +1016,13 @@ window.currentRef = ref;
         setActiveRankTab(btn.dataset.rank);
       });
     });
-  }
+  };
+
+  // expose renderRegisteredView globally
+  window.renderRegisteredView = renderRegisteredView;
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
-  async function showRegisteredViewFromBackend() {
+  const showRegisteredViewFromBackend = async () => {
     const verifyResp = await verifyInitData();
 
     const tgApp = tg;
@@ -1056,7 +1041,9 @@ window.currentRef = ref;
     const avatar = u.photo_url || baseLogo;
 
     renderRegisteredView(id, name, avatar, verifyResp.user || {});
-  }
+  };
+  // expose globally
+  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
   // --- Activation status (first screen, Yes/No) ---
   function updateActivationStatus(user) {
@@ -1080,7 +1067,7 @@ window.currentRef = ref;
     }
   }
 
-  async function loadActivationStatus() {
+  const loadActivationStatus = async () => {
     const tgApp = tg;
     if (!tgApp) {
       console.error("Telegram WebApp not available");
@@ -1094,10 +1081,9 @@ window.currentRef = ref;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-  initData,
-  ref: window.currentRef || null
-})
-
+          initData,
+          ref: window.currentRef || null
+        })
       });
       const data = await res.json();
       console.log("VERIFY RESPONSE:", data);
@@ -1115,7 +1101,7 @@ window.currentRef = ref;
     } catch (err) {
       console.error("Error loading activation status:", err);
     }
-  }
+  };
 
   // --- YES / NO button handlers + init ---
   document.addEventListener('DOMContentLoaded', () => {
@@ -1141,109 +1127,24 @@ window.currentRef = ref;
     }
   });
 
-    // ---------- Deposit helper and wiring (ADD THIS) ----------
-  /**
-   * submitDeposit - safe wrapper that POSTs to /deposit/submit and returns parsed JSON
-   * Uses the global `tg` object for Telegram user info if available.
-   */
-  async function submitDeposit({ telegramId, amount, tx_musd = null, tx_mstc = null, apiKey = null }) {
-    if (!telegramId) throw new Error("Missing telegramId");
-    if (amount == null || Number.isNaN(Number(amount))) throw new Error("Invalid amount");
-
-    const url = "https://mstcbotnew-production.up.railway.app/deposit/submit";
-    const payload = { user_id: Number(telegramId), amount: Number(amount) };
-    if (tx_musd) payload.tx_musd = String(tx_musd);
-    if (tx_mstc) payload.tx_mstc = String(tx_mstc);
-
-    const headers = { "Content-Type": "application/json" };
-    if (apiKey) headers["X-API-KEY"] = apiKey;
-
-    let resp;
-    try {
-      resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
-    } catch (networkErr) {
-      throw new Error("Network error: " + (networkErr && networkErr.message ? networkErr.message : "failed to reach server"));
-    }
-
-    // read as text first to avoid "Unexpected token '<'" when server returns HTML
-    const text = await resp.text();
-    let data;
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch (parseErr) {
-      const preview = (text || "").slice(0, 1000);
-      throw new Error(`Server returned non-JSON (status ${resp.status}). Preview: ${preview}`);
-    }
-
-    if (!resp.ok || (data && data.ok === false)) {
-      const errMsg = data && (data.error || data.message) ? (data.error || data.message) : `HTTP ${resp.status}`;
-      throw new Error("Deposit failed: " + errMsg);
-    }
-
-    return data;
-  }
-
-  // ---------- UI wiring: attach to #depositBtn if it exists ----------
-  // This wiring will attempt to read:
-  //  - telegramId from tg.initDataUnsafe.user.id (fallbacks below)
-  //  - amount from an input with id="amountInput"
-  //  - status updates will be written to an element with id="status" (create it if needed)
-  (function wireDepositButton() {
-  const depositBtn = document.getElementById("submitDeposit"); // your real button id
-  if (!depositBtn) {
-    console.warn("Deposit button #submitDeposit not found");
-    return;
-  }
-
-  depositBtn.addEventListener("click", async (ev) => {
-    ev.preventDefault();
-
-    const statusEl = document.getElementById("status");
-
-    try {
-      // 1. Get Telegram user ID
-      let telegramId = null;
-      if (window.tg?.initDataUnsafe?.user) {
-        telegramId = window.tg.initDataUnsafe.user.id;
-      } else {
-        const hid = document.getElementById("telegramIdInput");
-        telegramId = hid ? hid.value : null;
-      }
-
-      // 2. Read amount from your real input field
-      const amountEl = document.getElementById("amt");   // <-- FIXED HERE
-      const amount = amountEl ? Number(amountEl.value) : null;
-
-      // 3. Simulated transaction ID until TON integration
-      const tx_musd = window.generatedTxId || ("WEB_TX_" + Date.now());
-
-      if (statusEl) statusEl.textContent = "Submitting deposit...";
-
-      // 4. Call backend
-      const res = await submitDeposit({
-        telegramId,
-        amount,
-        tx_musd,
-        apiKey: null
+  // --- Robust YES button handler (delegation) ---
+  document.addEventListener('click', (e) => {
+    const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
+    if (!yes) return;
+    e.preventDefault();
+    // Call the global function (guaranteed by exposing above)
+    if (typeof window.showRegisteredViewFromBackend === 'function') {
+      window.showRegisteredViewFromBackend().catch(err => {
+        console.error('showRegisteredViewFromBackend failed:', err);
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.showAlert('Failed to open app: ' + (err && err.message ? err.message : String(err)));
+        }
       });
-
-      if (statusEl) {
-        statusEl.textContent =
-          `Deposit succeeded: +${res.amount}. New total: ${res.user.total_team_business}`;
-      }
-
-      console.log("Deposit success:", res);
-
-    } catch (err) {
-      if (statusEl) statusEl.textContent = "Deposit error: " + err.message;
-      console.error("Deposit error", err);
+    } else {
+      console.warn('showRegisteredViewFromBackend not found on window');
     }
   });
-})();
 
 </script>
 </body>
 </html>
-
-
-
