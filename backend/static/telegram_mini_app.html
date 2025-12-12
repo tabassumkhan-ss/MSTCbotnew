@@ -884,21 +884,43 @@ window.currentRef = ref;
         msgEl.textContent = 'Submitting...';
 
         try {
-          const res = await fetch('https://mstcbotnew-production.up.railway.app/webapp/verify', {
+          // --- DIAGNOSTIC fetch: replace existing fetch + res.json() block with this ---
+const res = await fetch('https://mstcbotnew-production.up.railway.app/webapp/verify', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(payload)
 });
 
-// parse JSON but show raw text in errors for easier debugging
-let data;
+// gather diagnostics: status, ok flag, content-type, and raw body (works even if body empty)
+const status = res.status;
+const ok = res.ok;
+const contentType = res.headers.get('content-type') || '<no content-type>';
+let rawBody = '';
 try {
-  data = await res.json();
+  rawBody = await res.text();
 } catch (e) {
-  const raw = await res.text().catch(()=>'<no body>');
-  throw new Error('Failed to parse JSON response from server: ' + raw.slice(0,1000));
+  rawBody = '<failed to read body: ' + (e && e.message ? e.message : String(e)) + '>';
 }
-          console.log('VERIFY RESPONSE:', data);
+
+const diag =
+  `HTTP ${status} (ok=${ok})\nContent-Type: ${contentType}\n\nBody (first 2000 chars):\n${(rawBody || '<no body>').slice(0,2000)}`;
+
+console.log("VERIFY DIAG:", diag);
+// show diagnostic to the user in the page (msgEl is defined earlier in your handler)
+if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = diag; }
+
+// Try to parse JSON only when content-type indicates JSON and body isn't empty
+let data;
+if (contentType.toLowerCase().includes('application/json') && rawBody.trim() !== '') {
+  try {
+    data = JSON.parse(rawBody);
+  } catch (e) {
+    throw new Error('Failed to parse JSON response: ' + e.message + '\n\n' + rawBody.slice(0,1000));
+  }
+} else {
+  // stop here — diagnostics are shown to help debugging
+  throw new Error('Server did not return JSON. See diagnostics shown above (and check server logs).');
+}
 
           if (data.ok) {
   
