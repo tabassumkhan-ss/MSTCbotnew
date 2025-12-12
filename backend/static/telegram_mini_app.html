@@ -547,6 +547,16 @@
 
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
+  // 🔒 SAFETY: ensure backend user data is present
+  if (!userData || typeof userData !== 'object') {
+    console.error("renderRegisteredView called without userData", userData);
+    if (tg) tg.showAlert("User data missing. Please reopen the app.");
+    return;
+  }
+
+  // 🔍 DEBUG (remove later if you want)
+  console.log("RENDER USER DATA:", userData);
+    
     const ranks = computeRanks(userData || {});
 
     const total = ranks.total.toFixed(2);
