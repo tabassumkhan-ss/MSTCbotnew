@@ -701,6 +701,34 @@ def webapp_user():
     finally:
         db.close()
 
+@app.route("/webapp/save_wallet", methods=["POST"])
+def save_wallet():
+    db = SessionLocal()
+    try:
+        data = request.get_json()
+        init_data = data.get("initData")
+        ton_wallet = data.get("ton_wallet")
+
+        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
+        if not telegram_id:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        user.ton_wallet = ton_wallet
+        db.commit()
+
+        return jsonify({"ok": True, "ton_wallet": ton_wallet})
+
+    except Exception:
+        app.logger.exception("save_wallet error")
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()
+
+
 @app.post("/bot/start")
 def bot_start():
     data = request.get_json(silent=True) or {}

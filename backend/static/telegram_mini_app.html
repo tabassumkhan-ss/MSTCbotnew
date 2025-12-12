@@ -423,8 +423,41 @@
     : null;
     // --- TON Connect UI (global, only once) ---
 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-  manifestUrl: 'https://mstcbotnew-production.up.railway.app/tonconnect-manifest.json'
+  manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'
 });
+
+ async function saveTonWallet(address) {
+    await fetch('/webapp/save_wallet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData: tg.initData,
+        ton_wallet: address
+      })
+    });
+  }
+
+async function connectTonWallet() {
+    try {
+      const wallet = await tonConnectUI.connectWallet();
+      const address = wallet.account.address;
+
+      console.log("TON wallet connected:", address);
+
+      const el = document.getElementById('walletStatus');
+      if (el) {
+        el.textContent =
+          'Connected: ' + address.slice(0, 6) + '...' + address.slice(-4);
+      }
+
+      // save to backend
+      await saveTonWallet(address);
+
+    } catch (e) {
+      console.error('TON wallet connection failed', e);
+    }
+  }
+
 
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
@@ -792,6 +825,12 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
         <div id="rankDetails" class="rank-details"></div>
       </div>
     `;
+
+     const connectBtn = document.getElementById('connectWalletBtn');
+  if (connectBtn) {
+    connectBtn.onclick = connectTonWallet;
+  }
+
     // --- Wire up events inside rendered view ---
 
     const tip = document.getElementById('tipRef');
