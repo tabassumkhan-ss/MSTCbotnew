@@ -840,151 +840,115 @@ window.currentRef = ref;
 
     if (submitBtn && amtInput && errEl && msgEl && txMUSDInput && txMSTCInput) {
       submitBtn.onclick = async () => {
-        const tgApp = tg;
+  const tgApp = tg;
 
-        // Clear previous messages
-        errEl.style.display = 'none';
-        errEl.textContent = '';
-        msgEl.style.display = 'none';
-        msgEl.textContent = '';
+  // Clear previous messages
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+  msgEl.style.display = 'none';
+  msgEl.textContent = '';
 
-        const valueStr = amtInput.value ? amtInput.value.trim() : "0";
-        const amount = parseFloat(valueStr || "0");
+  const valueStr = amtInput.value ? amtInput.value.trim() : "0";
+  const amount = parseFloat(valueStr || "0");
 
-        const tx1 = txMUSDInput.value.trim();
-        const tx2 = txMSTCInput.value.trim();
+  const tx1 = txMUSDInput.value.trim();
+  const tx2 = txMSTCInput.value.trim();
 
-        if (isNaN(amount) || amount < 20) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please enter at least $20.';
-          if (tgApp) {
-            tgApp.showAlert('Please enter at least $20.');
-          }
-          return;
-        }
+  if (isNaN(amount) || amount < 20) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please enter at least $20.';
+    if (tgApp) tgApp.showAlert('Please enter at least $20.');
+    return;
+  }
+  if (!tx1 || !tx2) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'Please paste both transaction hashes.';
+    if (tgApp) tgApp.showAlert('Please paste both transaction hashes.');
+    return;
+  }
 
-        if (!tx1 || !tx2) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please paste both transaction hashes.';
-          if (tgApp) {
-            tgApp.showAlert('Please paste both transaction hashes.');
-          }
-          return;
-        }
+  // 1) Verify / create user via /webapp/me
+  const initData = tgApp ? tgApp.initData : "";
+  msgEl.style.display = 'block';
+  msgEl.textContent = 'Verifying user...';
 
-        const payload = {
-          initData: tgApp ? tgApp.initData : "",
-          amount: Number(amount.toFixed(2)),
-          tx_musd: tx1,
-          tx_mstc: tx2,
-          ref: window.currentRef || null
-        };
-
-        msgEl.style.display = 'block';
-        msgEl.textContent = 'Submitting...';
-
-        try {
-          // --- DIAGNOSTIC fetch: replace existing fetch + res.json() block with this ---
-const res = await fetch('https://mstcbotnew-production.up.railway.app/webapp/verify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload)
-});
-
-// gather diagnostics: status, ok flag, content-type, and raw body (works even if body empty)
-const status = res.status;
-const ok = res.ok;
-const contentType = res.headers.get('content-type') || '<no content-type>';
-let rawBody = '';
-try {
-  rawBody = await res.text();
-} catch (e) {
-  rawBody = '<failed to read body: ' + (e && e.message ? e.message : String(e)) + '>';
-}
-
-const diag =
-  `HTTP ${status} (ok=${ok})\nContent-Type: ${contentType}\n\nBody (first 2000 chars):\n${(rawBody || '<no body>').slice(0,2000)}`;
-
-console.log("VERIFY DIAG:", diag);
-// show diagnostic to the user in the page (msgEl is defined earlier in your handler)
-if (msgEl) { msgEl.style.display = 'block'; msgEl.textContent = diag; }
-
-// Try to parse JSON only when content-type indicates JSON and body isn't empty
-let data;
-if (contentType.toLowerCase().includes('application/json') && rawBody.trim() !== '') {
   try {
-    data = JSON.parse(rawBody);
-  } catch (e) {
-    throw new Error('Failed to parse JSON response: ' + e.message + '\n\n' + rawBody.slice(0,1000));
-  }
-} else {
-  // stop here — diagnostics are shown to help debugging
-  throw new Error('Server did not return JSON. See diagnostics shown above (and check server logs).');
-}
-
-          if (data.ok) {
-  
-  let summaryLines = [];
-
-  if (Array.isArray(data.referral_dist) && data.referral_dist.length > 0) {
-    summaryLines.push("Referral distribution:");
-
-    data.referral_dist.forEach(r => {
-      const level = (r.level === 0 || r.level === null || r.level === undefined)
-        ? "Pool"
-        : `Level ${r.level}`;
-
-      const who =
-        r.to_username ||
-        (r.to_user_id !== null && r.to_user_id !== undefined
-          ? r.to_user_id
-          : "company_pool");
-
-      summaryLines.push(`${level}: ${who} → $${r.amount}`);
+    const meRes = await fetch('/webapp/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData, ref: window.currentRef || null })
     });
-  } else {
-    summaryLines.push("No referral distribution (no uplines linked).");
-  }
 
-  const summaryText = summaryLines.join("\n");
+    const meText = await meRes.text();
+    let meJson = null;
+    try { meJson = meText ? JSON.parse(meText) : null; } catch(e) { throw new Error('Failed parsing /webapp/me JSON: ' + e.message + ' => ' + meText.slice(0,1000)); }
 
-  // Show in Telegram alert 
-  if (tgApp) {
-    tgApp.showAlert("Deposit submitted successfully!\n\n" + summaryText);
-  }
-
-  // Also show in the page below the button
-  msgEl.style.display = "block";
-  msgEl.innerHTML =
-    "Deposit submitted successfully!<br><pre style=\"text-align:left; white-space:pre-wrap; margin-top:4px;\">" +
-    summaryText +
-    "</pre>";
-
-  // Optionally clear inputs
-  amtInput.value = "";
-  txMUSDInput.value = "";
-  txMSTCInput.value = "";
-  musdAmt.textContent = "0.00";
-  mstcAmt.textContent = "0.00";
-} else {
-  const errorText = data.error || "unknown error";
-  if (tgApp) {
-    tgApp.showAlert("Failed to submit: " + errorText);
-  }
-  msgEl.style.display = "block";
-  msgEl.textContent = "Failed to submit: " + errorText;
-}
-
-        } catch (e) {
-          const errorText = e && e.message ? e.message : String(e);
-          if (tgApp) {
-            tgApp.showAlert('Failed to submit: ' + errorText);
-          }
-          msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + errorText;
-        }
-      };
+    if (!meRes.ok || !meJson || meJson.ok === false) {
+      const err = (meJson && (meJson.error || meJson.detail)) || `HTTP ${meRes.status}`;
+      throw new Error('/webapp/me failed: ' + err);
     }
+
+    const userId = (meJson.user && meJson.user.id) || meJson.user_id || (meJson && meJson.telegram_id && parseInt(meJson.telegram_id));
+    if (!userId) throw new Error('Could not determine user id from /webapp/me response.');
+
+    // 2) Submit deposit to /deposit/submit
+    msgEl.textContent = 'Submitting deposit...';
+
+    const depositPayload = {
+      user_id: userId,
+      amount: Number(amount.toFixed(2)),
+      tx_musd: tx1,
+      tx_mstc: tx2,
+      ref: window.currentRef || null
+    };
+
+    // If your backend set DEPOSIT_API_KEY env, add header 'X-API-KEY': '<key>' here.
+    const depositRes = await fetch('/deposit/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' /*, 'X-API-KEY': 'YOUR_API_KEY' */ },
+      body: JSON.stringify(depositPayload)
+    });
+
+    const depositText = await depositRes.text();
+    let depositJson = null;
+    try { depositJson = depositText ? JSON.parse(depositText) : null; } catch(e) { throw new Error('Failed parsing /deposit/submit JSON: ' + e.message + ' => ' + depositText.slice(0,1000)); }
+
+    if (!depositRes.ok || !depositJson || depositJson.ok === false) {
+      const err = (depositJson && (depositJson.error || depositJson.detail)) || `HTTP ${depositRes.status}`;
+      throw new Error('/deposit/submit failed: ' + err + '\n\n' + depositText.slice(0,1000));
+    }
+
+    // success — show summary
+    const summaryLines = [];
+    if (Array.isArray(depositJson.referral_dist) && depositJson.referral_dist.length) {
+      depositJson.referral_dist.forEach(r => {
+        const level = (r.level === 0 || r.level === null || r.level === undefined) ? 'Pool' : 'Level ' + r.level;
+        summaryLines.push(`${level}: ${r.to_user || r.to_user_id || 'unknown'} → $${r.amount}`);
+      });
+    } else {
+      summaryLines.push('No referral distribution.');
+    }
+
+    const summaryText = summaryLines.join('\n');
+    if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
+
+    msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
+
+    // clear fields
+    amtInput.value = '';
+    txMUSDInput.value = '';
+    txMSTCInput.value = '';
+    musdAmt.textContent = '0.00';
+    mstcAmt.textContent = '0.00';
+
+  } catch (e) {
+    const errorText = e && e.message ? e.message : String(e);
+    if (tgApp) tgApp.showAlert('Failed to submit: ' + errorText);
+    msgEl.style.display = 'block';
+    msgEl.textContent = 'Failed to submit: ' + errorText;
+    console.error('submit error:', e);
+  }
+};
 
     // --- Rank tab details ---
     const rankDetails = document.getElementById('rankDetails');
@@ -1173,5 +1137,3 @@ if (contentType.toLowerCase().includes('application/json') && rawBody.trim() !==
 </script>
 </body>
 </html>
-
-
