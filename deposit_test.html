@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h3>Deposit Test Page</h3>
+
+<button onclick="sendDeposit()">Send Deposit</button>
+
+<pre id="output"></pre>
+
+<script>
+async function sendDeposit() {
+  const output = document.getElementById("output");
+  output.textContent = "Sending request...";
+
+  const url = "https://mstcbotnew-production.up.railway.app/deposit/submit";
+  
+  const payload = {
+    telegram_id: 7955075358,
+    amount: 20,
+    tx_musd: "TEST_WEB_" + Date.now()
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const text = await res.text();
+
+    output.textContent =
+      "Status: " + res.status + "\n" +
+      "Content-Type: " + res.headers.get("content-type") + "\n\n" +
+      "Raw Response:\n" + text.slice(0, 2000);
+
+  } catch (err) {
+    output.textContent = "Fetch ERROR:\n" + err.message;
+  }
+}
+</script>
+</body>
+</html>
