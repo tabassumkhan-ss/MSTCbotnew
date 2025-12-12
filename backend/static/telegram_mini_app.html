@@ -1303,6 +1303,120 @@ window.currentRef = ref;
     }
   });
 })();
+
+/* ===== robust client + UI wiring ===== */
+async function submitDepositClient({ telegramId, amount, tx_musd = null, tx_mstc = null, apiKey = null } = {}) {
+  if (!telegramId) throw new Error("Missing telegramId");
+  if (amount == null || Number.isNaN(Number(amount))) throw new Error("Invalid amount");
+
+  const url = "https://mstcbotnew-production.up.railway.app/deposit/submit";
+  const payload = { user_id: Number(telegramId), amount: Number(amount) };
+  if (tx_musd) payload.tx_musd = String(tx_musd);
+  if (tx_mstc) payload.tx_mstc = String(tx_mstc);
+
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers["X-API-KEY"] = apiKey;
+
+  let resp;
+  try {
+    resp = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload), credentials: "omit" });
+  } catch (networkErr) {
+    throw new Error("Network error: " + (networkErr && networkErr.message ? networkErr.message : "failed to reach server"));
+  }
+
+  const text = await resp.text();
+  try {
+    const data = text ? JSON.parse(text) : {};
+    if (!resp.ok || data.ok === false) {
+      const errMsg = data && (data.error || data.message) ? (data.error || data.message) : `HTTP ${resp.status}`;
+      throw new Error("Deposit failed: " + errMsg);
+    }
+    return data;
+  } catch (parseErr) {
+    const preview = (text || "").slice(0, 1500);
+    throw new Error(`Server returned non-JSON (status ${resp.status}). Preview: ${preview}`);
+  }
+}
+
+/* UI wiring - matches your HTML IDs:
+   #amt, #txMUSD, #txMSTC, #submitDeposit, #err, #submitMsg, #musdAmt, #mstcAmt */
+(function setupDepositUI() {
+  const amtInput = document.getElementById("amt");
+  const musdSpan = document.getElementById("musdAmt");
+  const mstcSpan = document.getElementById("mstcAmt");
+  const txMUSDInput = document.getElementById("txMUSD");
+  const txMSTCInput = document.getElementById("txMSTC");
+  const submitBtn = document.getElementById("submitDeposit");
+  const errEl = document.getElementById("err");
+  const submitMsg = document.getElementById("submitMsg");
+
+  function showError(msg) {
+    if (errEl) { errEl.style.display = "block"; errEl.textContent = msg; }
+    if (submitMsg) { submitMsg.style.display = "none"; submitMsg.textContent = ""; }
+  }
+  function showSuccess(msg) {
+    if (submitMsg) { submitMsg.style.display = "block"; submitMsg.textContent = msg; }
+    if (errEl) { errEl.style.display = "none"; errEl.textContent = ""; }
+  }
+  function clearMessages() { if (errEl) { errEl.style.display = "none"; errEl.textContent = ""; } if (submitMsg) { submitMsg.style.display = "none"; submitMsg.textContent = ""; } }
+
+  function updateSplits() {
+    const v = amtInput ? Number(amtInput.value) : NaN;
+    if (!isFinite(v) || v <= 0) {
+      if (musdSpan) musdSpan.textContent = "0.00";
+      if (mstcSpan) mstcSpan.textContent = "0.00";
+      return;
+    }
+    if (musdSpan) musdSpan.textContent = (v * 0.70).toFixed(2);
+    if (mstcSpan) mstcSpan.textContent = (v * 0.30).toFixed(2);
+  }
+  if (amtInput) { amtInput.addEventListener("input", updateSplits); updateSplits(); }
+
+  if (!submitBtn) {
+    console.warn("submitDeposit button not found (#submitDeposit). Deposit UI wiring skipped.");
+    return;
+  }
+
+  submitBtn.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    clearMessages();
+
+    const amount = amtInput ? Number(amtInput.value) : NaN;
+    if (!isFinite(amount) || amount < 20) { showError("Please enter an amount of at least $20."); return; }
+
+    let telegramId = null;
+    if (window.tg?.initDataUnsafe?.user?.id) telegramId = window.tg.initDataUnsafe.user.id;
+    else {
+      const hid = document.getElementById("telegramIdInput");
+      telegramId = hid ? hid.value : null;
+    }
+    if (!telegramId) { showError("Could not determine your Telegram user id. Open the mini-app from Telegram and try again."); return; }
+
+    const tx_musd = txMUSDInput && txMUSDInput.value ? txMUSDInput.value.trim() : null;
+    const tx_mstc = txMSTCInput && txMSTCInput.value ? txMSTCInput.value.trim() : null;
+    const externalTxId = tx_musd || ("WEB_TX_" + Date.now());
+
+    submitBtn.disabled = true;
+    submitBtn.classList && submitBtn.classList.add("disabled");
+    if (submitMsg) { submitMsg.textContent = "Submitting deposit..."; submitMsg.style.display = "block"; }
+
+    try {
+      const res = await submitDepositClient({ telegramId, amount, tx_musd: externalTxId, tx_mstc, apiKey: null });
+      const ext = res.created_tx_external_id || res.created_tx_id || "(none)";
+      showSuccess(`Deposit recorded (ref: ${ext}). +${res.amount}. New total: ${res.user.total_team_business}`);
+      if (amtInput) { amtInput.value = Number(res.amount).toFixed(2); updateSplits(); }
+      console.log("Deposit success:", res);
+    } catch (err) {
+      console.error("Deposit error:", err);
+      showError("Deposit failed: " + (err && err.message ? err.message : "unknown"));
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList && submitBtn.classList.remove("disabled");
+    }
+  });
+})();
+
+
 </script>
 </body>
 </html>

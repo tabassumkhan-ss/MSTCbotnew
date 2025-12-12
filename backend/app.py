@@ -355,18 +355,7 @@ def home():
 
 @app.route("/deposit/submit", methods=["POST"])
 def deposit_submit():
-    """
-    Production deposit endpoint.
-    Accepts JSON payload:
-      - user_id (optional) OR telegram_id (optional) OR user: { id: ... }
-      - amount (required): numeric
-      - tx_musd (optional): external id for MUSD deposit
-      - tx_mstc (optional): external id for MSTC credit
-      - ref (optional): referrer id
-    If DEPOSIT_API_KEY is set in env, caller MUST provide header X-API-KEY == DEPOSIT_API_KEY.
-    Returns JSON with ok/amount/user/company_pool and	http status codes.
-    """
-    # simple API key gate (optional)
+    # optional API key gate
     if DEPOSIT_API_KEY:
         supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
         if not supplied or str(supplied).strip() != str(DEPOSIT_API_KEY).strip():
@@ -394,7 +383,7 @@ def deposit_submit():
 
     db = SessionLocal()
     try:
-        # robust user lookup: PK -> telegram_id as int-string -> raw string
+        # --- robust user lookup ---
         user = None
         try:
             user = db.get(User, int(tg_id))
@@ -413,18 +402,11 @@ def deposit_submit():
             except Exception:
                 user = None
 
-        # Optionally, create user if not found (uncomment if desired)
-        # if not user:
-        #     user = User(id=int(tg_id), telegram_id=str(tg_id), username=None, first_name="", created_at=datetime.utcnow(), balance_musd=0.0, balance_mstc=0.0, role="user")
-        #     db.add(user)
-        #     db.commit()
-        #     db.refresh(user)
-
         if not user:
             app.logger.warning("deposit_submit: user not found tg_id=%s", tg_id)
             return jsonify({"ok": False, "error": "user_not_found"}), 404
 
-        # idempotency: only treat existing MUSD deposit as duplicate
+        # --- idempotency: prevent duplicate MUSD deposit for same external_id ---
         if tx_musd:
             existing_deposit = (
                 db.query(Transaction)
@@ -444,25 +426,27 @@ def deposit_submit():
                         "total_team_business": user.total_team_business
                     },
                     "amount": amount,
+                    "created_tx_external_id": str(tx_musd)
                 }), 200
 
-        # apply business logic
+        # --- apply business logic to user ---
         became_origin_now = False
         if not getattr(user, "self_activated", False) and amount >= 20:
             user.self_activated = True
             became_origin_now = True
 
-        before_total = float(user.total_team_business or 0.0)
-        user.total_team_business = before_total + amount
+        user.total_team_business = (user.total_team_business or 0.0) + amount
+        db.add(user)
 
         # update company pool
         company_pool = db.get(User, COMPANY_USER_ID)
         if company_pool:
             company_pool.balance_musd = (company_pool.balance_musd or 0.0) + (amount * 0.72)
+            db.add(company_pool)
         else:
             app.logger.debug("deposit_submit: company_pool user not found")
 
-        # create transaction rows AFTER updates
+        # create deposit transaction
         deposit_tx = Transaction(
             user_id=user.id,
             amount=amount,
@@ -473,6 +457,7 @@ def deposit_submit():
         )
         db.add(deposit_tx)
 
+        # optional MSTC credit tx
         if tx_mstc:
             credit_tx = Transaction(
                 user_id=user.id,
@@ -484,19 +469,56 @@ def deposit_submit():
             )
             db.add(credit_tx)
 
+        # --- REFERRAL DISTRIBUTION (up to 3 levels) ---
+        max_levels = 3
+        current = user
+        visited = set()
+        level = 1
+        referral_records = []
+        while level <= max_levels and getattr(current, "referrer_id", None):
+            upline = db.get(User, current.referrer_id)
+            if not upline or upline.id in visited:
+                break
+            visited.add(upline.id)
+            pct = ROLE_LEVEL1_PCT.get(upline.role, ROLE_LEVEL1_PCT.get("origin", 0.05))
+            reward = round(amount * pct, 2)
+            if reward > 0:
+                upline.balance_musd = float(upline.balance_musd or 0.0) + reward
+                db.add(upline)
+                ref_tx = Transaction(
+                    user_id=upline.id,
+                    amount=reward,
+                    currency="MUSD",
+                    type="referral",
+                    external_id=f"REF-{deposit_tx.external_id or deposit_tx.created_at.isoformat()}-L{level}",
+                    created_at=datetime.utcnow()
+                )
+                db.add(ref_tx)
+                referral_records.append({"level": level, "to_user": upline.id, "amount": reward})
+            current = upline
+            level += 1
+
         # optionally link referrer if provided and missing
         if ref and getattr(user, "referrer_id", None) is None:
             try:
                 maybe_ref = db.get(User, int(ref))
                 if maybe_ref:
                     user.referrer_id = maybe_ref.id
+                    db.add(user)
             except Exception:
                 pass
 
+        # commit everything
         db.commit()
-        db.refresh(user)
 
-        return jsonify({
+        # refresh for response
+        db.refresh(user)
+        try:
+            db.refresh(deposit_tx)
+        except Exception:
+            deposit_tx = db.query(Transaction).filter_by(user_id=user.id, external_id=str(tx_musd) if tx_musd else None, type="deposit").order_by(Transaction.created_at.desc()).first()
+
+        response = {
             "ok": True,
             "amount": amount,
             "became_origin_now": became_origin_now,
@@ -504,7 +526,7 @@ def deposit_submit():
                 "id": getattr(company_pool, "id", None),
                 "balance_musd": getattr(company_pool, "balance_musd", None)
             },
-            "referral_dist": [],
+            "referral_dist": referral_records,
             "user": {
                 "id": user.id,
                 "role": user.role,
@@ -512,14 +534,15 @@ def deposit_submit():
                 "total_team_business": user.total_team_business
             },
             "user_id": user.id,
-            "created_tx_external_id": str(tx_musd) if tx_musd else None
-        }), 200
+            "created_tx_id": getattr(deposit_tx, "id", None),
+            "created_tx_external_id": getattr(deposit_tx, "external_id", None)
+        }
+        return jsonify(response), 200
 
     except Exception:
         db.rollback()
-        app.logger.exception("deposit_submit: failed to persist transaction")
+        app.logger.exception("deposit_submit: failed to persist transaction/referrals")
         return jsonify({"ok": False, "error": "server_error"}), 500
-
     finally:
         db.close()
 
