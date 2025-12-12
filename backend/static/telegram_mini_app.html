@@ -930,6 +930,7 @@
           if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
 
           msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
+          await loadFullUserAndRender();
 
           // clear fields
           amtInput.value = '';
@@ -1034,7 +1035,7 @@
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
   const showRegisteredViewFromBackend = async () => {
-    const verifyResp = await verifyInitData();
+   // const verifyResp = await verifyInitData();
 
     const tgApp = tg;
     const unsafeUser =
@@ -1104,7 +1105,7 @@
 
         // if user already registered, skip question and show full view
         if (data.has_registered) {
-          await showRegisteredViewFromBackend();
+          await loadFullUserAndRender();
         }
       } else {
         console.error("init failed", data);
@@ -1113,6 +1114,43 @@
       console.error("Error loading activation status:", err);
     }
   };
+
+async function loadFullUserAndRender() {
+  if (!tg) {
+    console.error("Telegram WebApp not available");
+    return;
+  }
+
+  const res = await fetch('/webapp/user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      initData: tg.initData
+    })
+  });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    console.error("Failed to load full user", data);
+    return;
+  }
+
+  const u = data.user;
+
+  const name =
+    ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) ||
+    'Unknown';
+
+  renderRegisteredView(
+    u.id,
+    name,
+    null,
+    u            // 🔥 FULL, FRESH DB USER
+  );
+}
+
 
   // --- YES / NO button handlers + init ---
   document.addEventListener('DOMContentLoaded', () => {
@@ -1124,7 +1162,7 @@
 
     if (yesBtn) {
       yesBtn.onclick = async () => {
-        await showRegisteredViewFromBackend();
+        await loadFullUserAndRender();
       };
     }
 

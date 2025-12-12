@@ -671,6 +671,35 @@ def webapp_init():
     finally:
         db.close()
 
+@app.route("/webapp/user", methods=["POST"])
+def webapp_user():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
+        if not telegram_id:
+            return jsonify({"ok": False}), 400
+
+        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        return jsonify({
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "role": user.role,
+                "self_activated": bool(user.self_activated),
+                "total_team_business": float(user.total_team_business or 0),
+                "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+                "username": user.username,
+                "first_name": user.first_name,
+            }
+        })
+    finally:
+        db.close()
 
 @app.post("/bot/start")
 def bot_start():
