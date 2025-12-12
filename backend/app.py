@@ -596,35 +596,19 @@ def webapp_init():
         data = request.get_json(silent=True) or {}
         init_data = data.get("initData")
         ref_from_client = data.get("ref")
+
         if not init_data:
             return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
         telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
         if not telegram_id:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
-        if user:
-            total_team_business = float(user.total_team_business or 0.0)
-            self_activated = bool(user.self_activated)
-            has_registered = bool(self_activated or total_team_business > 0)
-            is_active = self_activated
-            resp = {
-                "ok": True,
-                "exists": True,
-                "has_registered": has_registered,
-                "is_active": is_active,
-                "total_team_business": total_team_business,
-                "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
-                "role": user.role,
-                "self_activated": self_activated,
-                "user_id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "referrer_id": user.referrer_id,
-            }
-            return jsonify(resp)
+
+        # --- resolve referral from client OR start_param ---
         raw_ref = ref_from_client or start_param
         referrer_id = None
         referrer_username = None
+
         if raw_ref:
             ref_user = None
             try:
@@ -632,23 +616,55 @@ def webapp_init():
                 ref_user = db.get(User, pk)
             except (TypeError, ValueError):
                 ref_user = None
+
             if not ref_user:
                 ref_user = db.query(User).filter_by(telegram_id=str(raw_ref)).first()
+
             if ref_user:
                 referrer_id = ref_user.id
                 referrer_username = ref_user.username or ref_user.first_name
+
+        # --- get or create user ---
+        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+
+        if not user:
+            user = User(
+                telegram_id=str(telegram_id),
+                username=username,
+                first_name=first_name,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 🔥🔥🔥 REFERRAL LOCKING (THIS IS THE FIX) 🔥🔥🔥
+        if referrer_id and user.referrer_id is None:
+            if referrer_id != user.id:
+                user.referrer_id = referrer_id
+                db.commit()
+
+        # --- compute status ---
+        total_team_business = float(user.total_team_business or 0.0)
+        self_activated = bool(user.self_activated)
+        has_registered = bool(self_activated or total_team_business > 0)
+        is_active = self_activated
+
         return jsonify({
             "ok": True,
-            "exists": False,
-            "has_registered": False,
-            "is_active": False,
-            "user_id": None,
-            "telegram_id": str(telegram_id),
-            "username": username,
-            "first_name": first_name,
-            "referrer_id": referrer_id,
+            "exists": True,
+            "has_registered": has_registered,
+            "is_active": is_active,
+            "total_team_business": total_team_business,
+            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+            "role": user.role,
+            "self_activated": self_activated,
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "referrer_id": user.referrer_id,
             "referrer_username": referrer_username,
         })
+
     except Exception:
         app.logger.exception("Error in /webapp/init")
         return jsonify({"ok": False, "error": "server_error"}), 500
