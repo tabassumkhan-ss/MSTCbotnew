@@ -396,7 +396,56 @@
   </style>
 </head>
 <body>
- 
+ <body>
+
+  <!-- 🍔 TOP MENU -->
+  <div id="topMenu"
+       style="display:none;position:fixed;top:14px;left:14px;z-index:9999;">
+    <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
+  </div>
+
+  <div id="menuPopup" style="
+    display:none;
+    position:fixed;
+    top:52px;
+    left:14px;
+    background:#1a1a2e;
+    border-radius:10px;
+    padding:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4);
+    z-index:9999;
+  ">
+    <button class="btn secondary" id="menuAdmin" style="display:none;">
+      Admin Dashboard
+    </button>
+  </div>
+
+  <!-- 🔵 ROOT APP (EVERYTHING GOES INSIDE THIS) -->
+  <div class="card" id="app">
+
+    <!-- LOGO -->
+    <img src="./Botologo_new.png"
+         alt="MSTC EARNING PROJECT"
+         class="logo"
+         id="avatar" />
+
+    <!-- REGISTRATION -->
+    <div id="registerSection">
+      <h2 id="accountStatus">Do you want to register?</h2>
+      <div class="actions">
+        <button id="yesBtn" class="btn" type="button">Yes</button>
+        <button id="noBtn" class="btn alt" type="button">No</button>
+      </div>
+    </div>
+
+    <!-- USER PAGE -->
+    <div id="userPage" style="display:none;"></div>
+
+    <!-- ADMIN PAGE -->
+    <div id="adminPage" style="display:none;"></div>
+
+  </div>
+
 <script>
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
