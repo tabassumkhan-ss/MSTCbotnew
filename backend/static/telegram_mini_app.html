@@ -398,21 +398,41 @@
 <body>
    <!-- 🍔 TOP MENU -->
   <div id="topMenu"
-       style="display:none;position:fixed;top:14px;left:14px;z-index:9999;">
-    <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
-  </div>
+     style="
+       display:none;
+       position:fixed;
+       top:14px;
+       left:14px;
+       z-index:2147483647;
+       pointer-events:auto;
+     ">
+  <button id="menuBtn"
+          class="btn"
+          style="
+            padding:6px 10px;
+            position:relative;
+            z-index:2147483647;
+            pointer-events:auto;
+          ">
+    ☰
+  </button>
+</div>
 
-  <div id="menuPopup" style="
-    display:none;
-    position:fixed;
-    top:52px;
-    left:14px;
-    background:#1a1a2e;
-    border-radius:10px;
-    padding:10px;
-    box-shadow:0 10px 30px rgba(0,0,0,.4);
-    z-index:9999;
-  ">
+  <div id="menuPopup"
+     style="
+       display:none;
+       position:fixed;
+       top:52px;
+       left:14px;
+       background:#1a1a2e;
+       border-radius:10px;
+       padding:10px;
+       box-shadow:0 10px 30px rgba(0,0,0,.4);
+       z-index:2147483647;
+       pointer-events:auto;
+     ">
+
+     
 <!-- 👤 User dashboard -->
   <button class="btn secondary" id="menuUser">
     User Dashboard
@@ -1483,25 +1503,17 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('✅ Hamburger menu wired');
 
   menuBtn.addEventListener('click', () => {
-    console.log('🍔 Menu clicked');
+  console.log('🍔 Menu clicked');
 
-    if (!window.currentUserData) {
-      console.warn('No user data yet');
-      return;
-    }
+  const popup = document.getElementById('menuPopup');
+  if (!popup) {
+    console.error('menuPopup not found');
+    return;
+  }
 
-    const isAdmin = window.currentUserData.role === 'admin';
-
-    if (!isAdmin) {
-      renderUserDashboard(window.currentUserData);
-      return;
-    }
-
-    if (popup) {
-      popup.style.display =
-        popup.style.display === 'block' ? 'none' : 'block';
-    }
-  });
+  popup.style.display =
+    popup.style.display === 'block' ? 'none' : 'block';
+});
 
 });
 
