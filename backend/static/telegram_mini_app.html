@@ -392,11 +392,19 @@
   </style>
 </head>
 <body>
-  <div class="card" id="app">
+  <div class="card">
+
+  <!-- USER PAGE -->
+  <div id="userPage" style="display:none;">
     <img src="./Botologo_new.png"
          alt="MSTC EARNING PROJECT"
-         class="logo"
-         id="avatar" />
+         class="logo" />
+  </div>
+
+  <!-- ADMIN PAGE -->
+  <div id="adminPage" style="display:none;"></div>
+
+</div>
 
     <!-- Registration question + Yes/No; hidden later for registered users -->
     <div id="registerSection">
@@ -458,7 +466,68 @@ async function connectTonWallet() {
     }
   }
 
+function renderAdminDashboard(admin) {
+  const adminPage = document.getElementById('adminPage');
+  const userPage = document.getElementById('userPage');
 
+  if (!adminPage || !userPage) {
+    console.error('adminPage or userPage not found in HTML');
+    return;
+  }
+
+  userPage.style.display = 'none';
+  adminPage.style.display = 'block';
+
+  adminPage.innerHTML = `
+    <h2>👑 Admin Dashboard</h2>
+
+    <div class="panel">
+      <h3>📊 Overview</h3>
+
+      <div class="split">
+        <div class="panel">
+          <div class="mini">Total Users</div>
+          <div class="big" id="statUsers">—</div>
+        </div>
+
+        <div class="panel">
+          <div class="mini">Total Deposits</div>
+          <div class="big" id="statDeposits">—</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:12px;">
+        <div class="mini">Company Pool (MUSD)</div>
+        <div class="big" id="statPool">—</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🛡️ Admin Info</h3>
+      <div class="mini">Telegram ID: <b>${admin.id}</b></div>
+      <div class="mini">Role: <b>${admin.role}</b></div>
+    </div>
+  `;
+
+  loadAdminStats();
+}
+
+async function loadAdminStats() {
+  const res = await fetch('/admin/stats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: tg.initData })
+  });
+
+  const data = await res.json();
+  if (!data.ok) return;
+
+  document.getElementById('statUsers').textContent = data.total_users;
+  document.getElementById('statDeposits').textContent =
+    '$' + data.total_deposits;
+  document.getElementById('statPool').textContent =
+    '$' + data.company_pool;
+}
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
