@@ -9,6 +9,10 @@
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
   <style>
+
+    #app {
+  position: relative;
+}
     * { box-sizing: border-box; }
 
     body {
@@ -394,6 +398,25 @@
 <body>
  <!-- ROOT CONTAINER (DO NOT REMOVE) -->
   <div class="card" id="app">
+    <div id="topMenu" style="position:absolute;top:14px;left:14px;z-index:1000;">
+  <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
+</div>
+
+<div id="menuPopup" style="
+  display:none;
+  position:absolute;
+  top:52px;
+  left:14px;
+  background:#1a1a2e;
+  border-radius:10px;
+  padding:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+">
+  <button class="btn secondary" id="menuUser">User Dashboard</button><br><br>
+  <button class="btn secondary" id="menuAdmin" style="display:none;">
+    Admin Dashboard
+  </button>
+</div>
 
     <img src="./Botologo_new.png"
          alt="MSTC EARNING PROJECT"
@@ -545,7 +568,7 @@ async function loadAdminStats() {
     tg && tg.expand();
   } catch (e) {}
 
-  const app = document.getElementById('app');
+  //const app = document.getElementById('app');
   const baseLogo = './Botologo_new.png';
 
   // Token addresses and labels
@@ -1311,23 +1334,41 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+ 
+  let app = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  app = document.getElementById('app');
+
+  if (!app) {
+    console.error('❌ #app container not found');
+    return;
+  }
+
+  console.log('✅ #app container ready');
   // --- Robust YES button handler (delegation) ---
   document.addEventListener('click', (e) => {
     const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
     if (!yes) return;
+
     e.preventDefault();
-    // Call the global function (guaranteed by exposing above)
+
     if (typeof window.showRegisteredViewFromBackend === 'function') {
       window.showRegisteredViewFromBackend().catch(err => {
         console.error('showRegisteredViewFromBackend failed:', err);
         if (window.Telegram && window.Telegram.WebApp) {
-          window.Telegram.WebApp.showAlert('Failed to open app: ' + (err && err.message ? err.message : String(err)));
+          window.Telegram.WebApp.showAlert(
+            'Failed to open app: ' +
+            (err && err.message ? err.message : String(err))
+          );
         }
       });
     } else {
       console.warn('showRegisteredViewFromBackend not found on window');
     }
   });
+});
+
 
 </script>
 </body>
