@@ -444,7 +444,7 @@
   </div>
 
   <!-- 🔵 ROOT APP (EVERYTHING GOES INSIDE THIS) -->
-  <div class="card" id="app"></div>
+  <div class="card" id="app">
 
     <!-- LOGO 
     <img src="./Botologo_new.png"
@@ -454,8 +454,7 @@
 
     <!-- REGISTRATION -->
     <div id="registerSection">
-      <!-- ✅ Logo for registration only -->
-  <img
+    <img
     src="./Botologo_new.png"
     alt="MSTC EARNING PROJECT"
     class="logo"
@@ -466,6 +465,10 @@
         <button id="yesBtn" class="btn" type="button">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
+    </div>
+
+    <!-- 🟢 MAIN APP (deposit, ranks, dashboard, etc.) -->
+  <div id="mainApp" style="display:none;"></div>
     </div>
 
     <!-- USER PAGE -->
@@ -788,9 +791,12 @@ window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
 const renderRegisteredView = (uid, name, avatar, userData) => {
-const appEl = document.getElementById('app');
-if (!appEl) {
-  console.error('❌ #app not found in renderRegisteredView');
+
+  const registerSection = document.getElementById('registerSection');
+  const mainApp = document.getElementById('mainApp');
+
+  if (!registerSection || !mainApp) {
+    console.error('❌ registerSection or mainApp missing');
   return;
 }
   // 🔒 SAFETY: ensure full DB user
@@ -805,8 +811,8 @@ if (!appEl) {
   // ✅ SAFE: always DB user
   window.currentUserData = userData;
 
-  const reg = document.getElementById('registerSection');
-  if (reg) reg.style.display = 'none';
+  registerSection.style.display = 'none';
+  mainApp.style.display = 'block';
 
   showTopMenu();
 
@@ -848,7 +854,7 @@ if (!appEl) {
     // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
-   appEl.innerHTML = `
+    mainApp.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
