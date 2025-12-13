@@ -1463,26 +1463,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // YES handler
-  document.addEventListener('click', async (e) => {
-    const yesBtn = e.target.closest('#yesBtn');
-    if (!yesBtn) return;
+  const yesBtn = document.getElementById('yesBtn');
 
-    e.preventDefault();
-
-    try {
-      await showRegisteredViewFromBackend();
-    } catch (err) {
-      console.error('YES click failed:', err);
-      if (window.Telegram?.WebApp) {
-        Telegram.WebApp.showAlert(
-          'Failed to open app: ' +
-          (err.message || 'Unknown error')
-        );
-      }
-    }
+if (!yesBtn) {
+  console.error('❌ yesBtn not found');
+} else {
+  yesBtn.addEventListener('click', async () => {
+    console.log('✅ YES clicked');
+    await showRegisteredViewFromBackend();
   });
-
+}
   // Hamburger menu
   const menuBtn = document.getElementById('menuBtn');
   const popup = document.getElementById('menuPopup');
