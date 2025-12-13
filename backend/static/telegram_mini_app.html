@@ -702,6 +702,7 @@ window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
+    showTopMenu();
   // 🔒 SAFETY: ensure backend user data is present
   if (!userData || typeof userData !== 'object') {
     console.error("renderRegisteredView called without userData", userData);
