@@ -1390,8 +1390,25 @@ window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
 async function loadFullUserAndRender() {
   if (!tg) {
-    console.error("Telegram WebApp not available");
-    return;
+    console.warn("Browser mode detected — using mock user");
+
+  const mockUser = {
+    id: 123456,
+    first_name: 'Browser',
+    username: 'test_user',
+    role: 'origin',
+    self_activated: true,
+    total_team_business: 100,
+    active_origin_count: 1
+  };
+
+  renderRegisteredView(
+    mockUser.id,
+    mockUser.first_name + ' @' + mockUser.username,
+    null,
+    mockUser
+  );
+  return;
   }
 
   const res = await fetch('/webapp/user', {
