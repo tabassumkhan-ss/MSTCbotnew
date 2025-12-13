@@ -398,7 +398,8 @@
 <body>
  <!-- ROOT CONTAINER (DO NOT REMOVE) -->
   <div class="card" id="app">
-    <div id="topMenu" style="position:absolute;top:14px;left:14px;z-index:1000;">
+  <div id="topMenu"
+     style="display:none;position:absolute;top:14px;left:14px;z-index:1000;">
   <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
 </div>
 
@@ -570,6 +571,18 @@ async function loadAdminStats() {
 
   //const app = document.getElementById('app');
   const baseLogo = './Botologo_new.png';
+
+  function showTopMenu() {
+  const menu = document.getElementById('topMenu');
+  if (menu) menu.style.display = 'block';
+}
+
+function hideTopMenu() {
+  const menu = document.getElementById('topMenu');
+  const popup = document.getElementById('menuPopup');
+  if (menu) menu.style.display = 'none';
+  if (popup) popup.style.display = 'none';
+}  
 
   // Token addresses and labels
   const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
@@ -1085,8 +1098,13 @@ window.verifyInitData = verifyInitData;
           const summaryText = summaryLines.join('\n');
           if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
 
-          msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
-          await loadFullUserAndRender();
+          msgEl.style.display = 'block';
+          msgEl.innerHTML ='Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' +
+          summaryText +
+          '</pre>';
+
+await loadFullUserAndRender();
+showTopMenu();   
 
           // clear fields
           amtInput.value = '';
@@ -1244,6 +1262,8 @@ window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
   }
 
   const loadActivationStatus = async () => {
+
+    hideTopMenu(); // ✅ HIDE MENU ON REGISTRATION PAGE
     const tgApp = tg;
     if (!tgApp) {
       console.error("Telegram WebApp not available");
@@ -1270,6 +1290,7 @@ window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
         // if user already registered, skip question and show full view
         if (data.has_registered) {
           await loadFullUserAndRender();
+        showTopMenu();
         }
       } else {
         console.error("init failed", data);
