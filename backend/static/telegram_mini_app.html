@@ -540,54 +540,39 @@ function renderUserDashboard(userData) {
   userPage.style.display = 'block';
 
   userPage.innerHTML = `
-    <h2>👤 User Dashboard</h2>
+  <h2>👤 User Dashboard</h2>
 
-    <div class="panel">
-      <h3>📌 Profile</h3>
-      <div class="mini">Name: <b>${userData.first_name || '—'}</b></div>
-      <div class="mini">Username: <b>@${userData.username || '—'}</b></div>
-      <div class="mini">Role: <b>${userData.role || 'member'}</b></div>
-      <div class="mini">
-        Status:
-        <b>${userData.self_activated ? 'Active ✅' : 'Inactive ❌'}</b>
-      </div>
-    </div>
+  ...
 
-    <div class="panel">
-      <h3>🏅 Rank</h3>
-      <div class="big">${computeRanks(userData).current}</div>
-    </div>
+  <div class="panel">
+    <h3>🔽 Downlines</h3>
+    <button class="btn secondary" id="viewDownlines">
+      View Downlines
+    </button>
+  </div>
 
-    <div class="panel">
-      <h3>👥 Team</h3>
-      <div class="mini">
-        Active Origins: <b>${userData.active_origin_count || 0}</b>
-      </div>
-      <div class="mini">
-        Total Team Business: <b>$${(userData.total_team_business || 0).toFixed(2)}</b>
-      </div>
-    </div>
+  <div class="submit">
+    <button class="btn secondary" id="backToDeposit">
+      ⬅ Back to Deposit
+    </button>
+  </div>
+`;
 
-    <div class="panel">
-      <h3>🔗 Referral</h3>
-      <div class="addr-box mono">
-        https://t.me/mstcrefbot/mstcapp?start=${userData.id}
-      </div>
-    </div>
-
-    <div class="submit">
-      <button class="btn secondary" id="backToDeposit">
-        ⬅ Back to Deposit
-      </button>
-    </div>
-  `;
+// 🔗 Downlines button handler
+const viewDownlinesBtn = document.getElementById('viewDownlines');
+if (viewDownlinesBtn) {
+  viewDownlinesBtn.onclick = () => {
+    renderDownlines(window.currentUserData);
+  };
+}
+}
 
   // back button
   document.getElementById('backToDeposit').onclick = () => {
     userPage.style.display = 'none';
     window.showRegisteredViewFromBackend();
   };
-}  
+
 
 function renderAdminDashboard(admin) {
   const adminPage = document.getElementById('adminPage');
