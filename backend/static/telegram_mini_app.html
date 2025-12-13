@@ -392,28 +392,30 @@
   </style>
 </head>
 <body>
-  <div class="card">
+ <!-- ROOT CONTAINER (DO NOT REMOVE) -->
+  <div class="card" id="app">
 
-  <!-- USER PAGE -->
-  <div id="userPage" style="display:none;">
     <img src="./Botologo_new.png"
          alt="MSTC EARNING PROJECT"
-         class="logo" />
-  </div>
+         class="logo"
+         id="avatar" />
 
-  <!-- ADMIN PAGE -->
-  <div id="adminPage" style="display:none;"></div>
-
-</div>
-
-    <!-- Registration question + Yes/No; hidden later for registered users -->
+    <!-- REGISTRATION SECTION -->
     <div id="registerSection">
       <h2 id="accountStatus">Do you want to register?</h2>
+
       <div class="actions">
         <button id="yesBtn" class="btn" type="button">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
+
+    <!-- USER PAGE (rendered later) -->
+    <div id="userPage" style="display:none;"></div>
+
+    <!-- ADMIN PAGE (rendered later) -->
+    <div id="adminPage" style="display:none;"></div>
+
   </div>
 
 <script>
@@ -595,63 +597,72 @@ async function loadAdminStats() {
   };
 
   // --- Verify with backend; fallback to Telegram user ---
-  const verifyInitData = async () => {
-    const tgApp = tg;
-    const initData = tgApp ? tgApp.initData : "";
-    const unsafeLocal = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
-    const unsafeUser = unsafeLocal && unsafeLocal.user ? unsafeLocal.user : null;
+  async function verifyInitData() {
+  const tgApp = window.Telegram?.WebApp || null;
 
-    const startParam =
-      unsafeLocal && (unsafeLocal.start_param || unsafeLocal.startParam)
-        ? (unsafeLocal.start_param || unsafeLocal.startParam)
-        : null;
+  /* -------------------------------
+     1️⃣ BROWSER MODE (NO TELEGRAM)
+  --------------------------------*/
+  if (!tgApp || !tgApp.initData) {
+    console.warn('Browser mode detected – skipping backend verify');
 
-    if (!window.currentRef && startParam) {
-      window.currentRef = startParam;
-    }
-
-    const effectiveRef = window.currentRef || null;
-
-    if (!tgApp) {
-      console.warn("Not inside Telegram WebApp – using test user.");
-      return {
-        ok: false,
-        user: {
-          id: 123456,
-          first_name: "Test User",
-          username: "testuser",
-          photo_url: null,
-          total_team_business: 0,
-          active_origin_count: 0,
-          role: "",
-          self_activated: false
-        }
-      };
-    }
-
-    console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
-
-    try {
-      const res = await fetch('/webapp/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData, ref: effectiveRef })
-      });
-
-      const j = await res.json();
-
-      if (!res.ok || !j.ok) {
-        const msg = j.error || j.detail || 'verify failed';
-        throw new Error(msg);
+    return {
+      ok: true,
+      user: {
+        id: 123456,
+        first_name: 'Browser',
+        username: 'test_user',
+        photo_url: null,
+        role: 'origin',
+        self_activated: true,
+        total_team_business: 20,
+        active_origin_count: 0
       }
-      return j;
-    } catch (err) {
-      console.warn('verify error, using unsafe Telegram user as fallback:', err);
-      return { ok: false, user: unsafeUser || {} };
+    };
+  }
+
+  /* -------------------------------
+     2️⃣ TELEGRAM MODE
+  --------------------------------*/
+  const initData = tgApp.initData;
+  const unsafe = tgApp.initDataUnsafe || {};
+  const unsafeUser = unsafe.user || null;
+
+  // referral
+  const startParam = unsafe.start_param || unsafe.startParam || null;
+  if (!window.currentRef && startParam) {
+    window.currentRef = startParam;
+  }
+
+  const effectiveRef = window.currentRef || null;
+
+  console.log('🚀 Sending to /webapp/me:', { initData, ref: effectiveRef });
+
+  try {
+    const res = await fetch('/webapp/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData,
+        ref: effectiveRef
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'verify failed');
     }
-  };
-  // expose globally
-  window.verifyInitData = verifyInitData;
+
+    return data;
+  } catch (err) {
+    console.warn('verify failed, fallback to unsafe user', err);
+    return { ok: false, user: unsafeUser || {} };
+  }
+}
+
+/* expose globally (important for YES button) */
+window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
@@ -1281,30 +1292,24 @@ async function loadFullUserAndRender() {
   );
 }
 
+document.addEventListener('click', async (e) => {
+  const yesBtn = e.target.closest('#yesBtn');
+  if (!yesBtn) return;
 
-  // --- YES / NO button handlers + init ---
-  document.addEventListener('DOMContentLoaded', () => {
-    // Load activation status
-    loadActivationStatus();
+  e.preventDefault();
 
-    const yesBtn = document.getElementById('yesBtn');
-    const noBtn = document.getElementById('noBtn');
-
-    if (yesBtn) {
-      yesBtn.onclick = async () => {
-        await loadFullUserAndRender();
-      };
+  try {
+    await showRegisteredViewFromBackend();
+  } catch (err) {
+    console.error('YES click failed:', err);
+    if (window.Telegram?.WebApp) {
+      Telegram.WebApp.showAlert(
+        'Failed to open app: ' +
+        (err.message || 'Unknown error')
+      );
     }
-
-    if (noBtn) {
-      noBtn.onclick = () => {
-        app.innerHTML = `
-          <img src="${baseLogo}" class="logo" />
-          <div class="row big">❌ Registration Cancelled</div>
-        `;
-      };
-    }
-  });
+  }
+});
 
   // --- Robust YES button handler (delegation) ---
   document.addEventListener('click', (e) => {
