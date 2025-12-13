@@ -1,124 +1,136 @@
 import os
 import sys
 from datetime import datetime
+
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, DateTime,
-    ForeignKey, BigInteger, Boolean, UniqueConstraint, Index, text
+    ForeignKey, BigInteger, Boolean, Index
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # allow running this file directly
 sys.path.append(os.path.dirname(__file__))
 
 load_dotenv()
 
-# ✅ Read DB URL from environment (Railway) first
+# =========================
+# Database setup
+# =========================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    # Fail fast so we never silently use SQLite in prod
-    raise RuntimeError("DATABASE_URL is not set. Set DATABASE_URL to your Railway DATABASE_PUBLIC_URL and redeploy.")
+    raise RuntimeError("DATABASE_URL is not set")
 
-# Example engine creation; keep pool_pre_ping for reliability
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# --- Declarative base (MUST be defined before model classes) ---
 Base = declarative_base()
 
-
+# =========================================================
+# USER MODEL (Telegram users / MLM participants)
+# =========================================================
 class User(Base):
     __tablename__ = 'users'
+
     id = Column(BigInteger, primary_key=True, index=True)  # telegram user id
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)  # explicit telegram_id column
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
+
     username = Column(String, nullable=True, index=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String(200), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    balance_mstc = Column(Float, default=0.0, nullable=False)  # MSTC token balance
-    balance_musd = Column(Float, default=0.0, nullable=False)  # MUSD balance
+
+    balance_mstc = Column(Float, default=0.0, nullable=False)
+    balance_musd = Column(Float, default=0.0, nullable=False)
     wallet_address = Column(String(128), nullable=True)
+
+    role = Column(String, default='member')
+    self_activated = Column(Boolean, default=False)
+    total_team_business = Column(Float, default=0.0)
+    active_origin_count = Column(Integer, default=0)
+
+    referrer_id = Column(BigInteger, ForeignKey('users.id'), nullable=True, index=True)
+    referrer = relationship('User', remote_side=[id], backref='referrals')
+
     active = Column(Boolean, default=True, nullable=False)
 
-    # referral linkage
-    referrer_id = Column(BigInteger, ForeignKey('users.id'), nullable=True, index=True)
-    referrals = relationship('User', remote_side=[id], backref='referrer', lazy='joined')
+    def __repr__(self):
+        return f"<User id={self.id} telegram_id={self.telegram_id} role={self.role}>"
 
-    # referral-related fields
-    role = Column(String, default='user')  # 'user', 'origin', 'life_changer'
-    self_activated = Column(Boolean, default=False)
-    total_team_business = Column(Float, default=0.0)  # in USD
-    active_origin_count = Column(Integer, default=0)
-    club_income = Column(Float, default=0.0)
+# =========================================================
+# ADMIN MODEL (Backoffice login ONLY)
+# =========================================================
+class Admin(Base):
+    __tablename__ = 'admins'
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    def set_password(self, password: str):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f"<User id={self.id} telegram_id={self.telegram_id} username={self.username} role={self.role}>"
+        return f"<Admin username={self.username}>"
 
-
+# =========================================================
+# TRANSACTIONS
+# =========================================================
 class Transaction(Base):
-    """
-    Generic transaction table. For deposits we will record:
-      - one row for MUSD deposit (currency='MUSD', type='deposit')
-      - one row for MSTC credit (currency='MSTC', type='credit_mstc')
-    external_id can be used to ensure idempotency for external webhook/payment providers.
-    """
     __tablename__ = 'transactions'
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False, index=True)
+
     amount = Column(Float, nullable=False)
-    currency = Column(String, nullable=False)  # 'MUSD' or 'MSTC' etc.
-    type = Column(String, nullable=False)  # 'deposit', 'credit_mstc', 'referral', etc.
-    external_id = Column(String, nullable=True)  # optional external identifier for idempotency
+    currency = Column(String, nullable=False)   # MUSD, MSTC
+    type = Column(String, nullable=False)       # deposit, credit_mstc, referral
+
+    external_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    # relationship
-    user = relationship('User', backref='transactions', lazy='joined')
+    user = relationship('User', backref='transactions')
 
     __table_args__ = (
-        # optional convenience index: user + created_at
         Index('ix_transactions_user_created', 'user_id', 'created_at'),
     )
 
     def __repr__(self):
-        return f"<Transaction id={self.id} user_id={self.user_id} amount={self.amount} {self.currency}>"
+        return f"<Transaction id={self.id} user={self.user_id} {self.amount} {self.currency}>"
 
-
+# =========================================================
+# REFERRAL EVENTS (Accounting / audit)
+# =========================================================
 class ReferralEvent(Base):
-    """
-    Records referral payouts and internal accounting.
-    - from_user: the user who generated the referral (depositor)
-    - to_user: the recipient user id (nullable for company_pool)
-    """
     __tablename__ = 'referral_events'
-    id = Column(BigInteger, primary_key=True)
-    from_user = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=False)
-    to_user = Column(BigInteger, ForeignKey('users.id'), index=True, nullable=True)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    from_user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False, index=True)
+    to_user_id = Column(BigInteger, ForeignKey('users.id'), nullable=True, index=True)
+
+    level = Column(Integer, nullable=False)
     amount = Column(Float, nullable=False)
-    note = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    # relationships (optional)
-    sender = relationship('User', foreign_keys=[from_user], lazy='joined', backref='referral_sent')
-    recipient = relationship('User', foreign_keys=[to_user], lazy='joined', backref='referral_received')
+    from_user = relationship('User', foreign_keys=[from_user_id])
+    to_user = relationship('User', foreign_keys=[to_user_id])
 
     def __repr__(self):
-        return f"<ReferralEvent id={self.id} from={self.from_user} to={self.to_user} amount={self.amount}>"
+        return f"<ReferralEvent from={self.from_user_id} to={self.to_user_id} amount={self.amount}>"
 
-
+# =========================================================
+# DB INIT
+# =========================================================
 def init_db():
-    """
-    Create all tables. Call this from a bootstrap script or run `python backend/models.py`.
-    """
-    # ensure directory for sqlite DB exists (kept for dev-only support)
-    if DATABASE_URL.startswith("sqlite:///"):
-        path = DATABASE_URL.replace("sqlite:///", "")
-        dirpath = os.path.dirname(os.path.abspath(path))
-        if dirpath and not os.path.exists(dirpath):
-            os.makedirs(dirpath, exist_ok=True)
-
     Base.metadata.create_all(bind=engine)
-
 
 if __name__ == '__main__':
     init_db()
-    print('DB initialized at', DATABASE_URL)
+    print("DB initialized:", DATABASE_URL)
