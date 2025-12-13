@@ -641,7 +641,11 @@ async function loadAdminStats() {
 
   function showTopMenu() {
   const menu = document.getElementById('topMenu');
-  if (menu) menu.style.display = 'block';
+  if (!menu) {
+    console.warn('topMenu not in DOM yet');
+    return;
+  }
+  menu.style.display = 'block';
 }
 
 function hideTopMenu() {
@@ -768,12 +772,25 @@ function hideTopMenu() {
 window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
-  const renderRegisteredView = (uid, name, avatar, userData) => {
-    window.currentUserData = userData;
-    const reg = document.getElementById('registerSection');
+const renderRegisteredView = (uid, name, avatar, userData) => {
+
+  // 🔒 SAFETY: ensure full DB user
+  if (!userData || !userData.id || !userData.role) {
+    console.error(
+      '❌ renderRegisteredView called with invalid userData',
+      userData
+    );
+    return;
+  }
+
+  // ✅ SAFE: always DB user
+  window.currentUserData = userData;
+
+  const reg = document.getElementById('registerSection');
   if (reg) reg.style.display = 'none';
 
-    showTopMenu();
+  showTopMenu();
+
   // 🔒 SAFETY: ensure backend user data is present
   if (!userData || typeof userData !== 'object') {
     console.error("renderRegisteredView called without userData", userData);
@@ -1018,11 +1035,8 @@ window.verifyInitData = verifyInitData;
 const adminBtn = document.getElementById('menuAdmin');
 
 if (adminBtn) {
-  if (userData.is_admin) {
-    adminBtn.style.display = 'block';
-  } else {
-    adminBtn.style.display = 'none';
-  }
+  const isAdmin = userData.role === 'admin';
+  adminBtn.style.display = isAdmin ? 'block' : 'none';
 }
 
      const connectBtn = document.getElementById('connectWalletBtn');
@@ -1298,33 +1312,9 @@ showTopMenu();
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
   async function showRegisteredViewFromBackend() {
-  let verifyResp = null;
-
-  try {
-    verifyResp = await verifyInitData();
-  } catch (e) {
-    console.warn('verifyInitData failed, falling back', e);
-  }
-
-  const tgApp = tg;
-  const unsafeUser =
-    tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
-      ? tgApp.initDataUnsafe.user
-      : {};
-
-  const userData = (verifyResp && verifyResp.user) || unsafeUser || {};
-
-  const id = userData.id || userData.telegram_id || 0;
-  const name =
-    ((userData.first_name || '') +
-      (userData.username ? ' @' + userData.username : '')) ||
-    'Unknown';
-
-  const avatar = userData.photo_url || baseLogo;
-
-  renderRegisteredView(id, name, avatar, userData);
+  // 🔥 Always load FULL user from backend DB
+  await loadFullUserAndRender();
 }
-
 // expose globally
 window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
@@ -1447,46 +1437,6 @@ document.addEventListener('click', async (e) => {
  let app = null;
 
   document.addEventListener('DOMContentLoaded', () => {
-
-    
-    // --- ROOT APP ---
-    app = document.getElementById('app');
-
-    if (!app) {
-      console.error('❌ #app container not found');
-      return;
-    }
-
-    console.log('✅ #app container ready');
-
-    // ============================
-    // YES BUTTON (delegation)
-    // ============================
-    document.addEventListener('click', (e) => {
-      const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
-      if (!yes) return;
-
-      e.preventDefault();
-
-      if (typeof window.showRegisteredViewFromBackend === 'function') {
-        window.showRegisteredViewFromBackend().catch(err => {
-          console.error('showRegisteredViewFromBackend failed:', err);
-          if (window.Telegram && window.Telegram.WebApp) {
-            window.Telegram.WebApp.showAlert(
-              'Failed to open app: ' +
-              (err && err.message ? err.message : String(err))
-            );
-          }
-        });
-      } else {
-        console.warn('showRegisteredViewFromBackend not found on window');
-      }
-    });
-
-    // ============================
-// 🍔 HAMBURGER MENU – FINAL WIRING
-// ============================
-document.addEventListener('DOMContentLoaded', () => {
   const menuBtn = document.getElementById('menuBtn');
   const popup = document.getElementById('menuPopup');
 
@@ -1505,20 +1455,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 👤 Normal user → open dashboard directly
-    if (!window.currentUserData.is_admin) {
+    const isAdmin = window.currentUserData.role === 'admin';
+
+    if (!isAdmin) {
       renderUserDashboard(window.currentUserData);
       return;
     }
 
-    // 👑 Admin → toggle popup
     if (popup) {
       popup.style.display =
         popup.style.display === 'block' ? 'none' : 'block';
     }
   });
 });
-});
+
 
 </script>
 </body>
