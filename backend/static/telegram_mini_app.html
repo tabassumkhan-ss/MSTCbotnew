@@ -418,8 +418,9 @@
   </button>
 </div>
 
-<!-- 🔽 ROOT CONTAINER (THIS GETS REPLACED) -->
-<div class="card" id="app">
+<!-- APP CONTENT -->
+<div class="card" id="app"></div>
+
 
   <img src="./Botologo_new.png"
        alt="MSTC EARNING PROJECT"
@@ -946,6 +947,17 @@ window.verifyInitData = verifyInitData;
       </div>
     `;
 
+    // --- ADMIN MENU VISIBILITY ---
+const adminBtn = document.getElementById('menuAdmin');
+
+if (adminBtn) {
+  if (userData.is_admin) {
+    adminBtn.style.display = 'block';
+  } else {
+    adminBtn.style.display = 'none';
+  }
+}
+
      const connectBtn = document.getElementById('connectWalletBtn');
   if (connectBtn) {
     connectBtn.onclick = connectTonWallet;
@@ -1359,42 +1371,60 @@ document.addEventListener('click', async (e) => {
   }
 });
 
- 
-  let app = null;
+ let app = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  app = document.getElementById('app');
+  document.addEventListener('DOMContentLoaded', () => {
+    // --- ROOT APP ---
+    app = document.getElementById('app');
 
-  if (!app) {
-    console.error('❌ #app container not found');
-    return;
-  }
-
-  console.log('✅ #app container ready');
-  // --- Robust YES button handler (delegation) ---
-  document.addEventListener('click', (e) => {
-    const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
-    if (!yes) return;
-
-    e.preventDefault();
-
-    if (typeof window.showRegisteredViewFromBackend === 'function') {
-      window.showRegisteredViewFromBackend().catch(err => {
-        console.error('showRegisteredViewFromBackend failed:', err);
-        if (window.Telegram && window.Telegram.WebApp) {
-          window.Telegram.WebApp.showAlert(
-            'Failed to open app: ' +
-            (err && err.message ? err.message : String(err))
-          );
-        }
-      });
-    } else {
-      console.warn('showRegisteredViewFromBackend not found on window');
+    if (!app) {
+      console.error('❌ #app container not found');
+      return;
     }
+
+    console.log('✅ #app container ready');
+
+    // ============================
+    // YES BUTTON (delegation)
+    // ============================
+    document.addEventListener('click', (e) => {
+      const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
+      if (!yes) return;
+
+      e.preventDefault();
+
+      if (typeof window.showRegisteredViewFromBackend === 'function') {
+        window.showRegisteredViewFromBackend().catch(err => {
+          console.error('showRegisteredViewFromBackend failed:', err);
+          if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.showAlert(
+              'Failed to open app: ' +
+              (err && err.message ? err.message : String(err))
+            );
+          }
+        });
+      } else {
+        console.warn('showRegisteredViewFromBackend not found on window');
+      }
+    });
+
+    // ============================
+    // 🍔 HAMBURGER MENU WIRING
+    // ============================
+    const menuBtn = document.getElementById('menuBtn');
+    const popup = document.getElementById('menuPopup');
+
+    if (!menuBtn || !popup) {
+      console.warn('Hamburger menu elements not found');
+      return;
+    }
+
+    menuBtn.onclick = () => {
+      popup.style.display =
+        popup.style.display === 'block' ? 'none' : 'block';
+    };
   });
-});
-
-
+  
 </script>
 </body>
 </html>

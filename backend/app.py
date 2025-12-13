@@ -696,6 +696,7 @@ def webapp_user():
                 "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
                 "username": user.username,
                 "first_name": user.first_name,
+                "is_admin": bool(user.role == "admin")
             }
         })
     finally:
