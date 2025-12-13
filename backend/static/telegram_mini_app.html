@@ -1483,19 +1483,28 @@ document.addEventListener('click', async (e) => {
     // 🍔 HAMBURGER MENU WIRING
     // ============================
     const menuBtn = document.getElementById('menuBtn');
-    const popup = document.getElementById('menuPopup');
+const popup = document.getElementById('menuPopup');
 
-    if (!menuBtn || !popup) {
-      console.warn('Hamburger menu elements not found');
+if (menuBtn) {
+  menuBtn.onclick = () => {
+    // userData must be globally available
+    if (!window.currentUserData) return;
+
+    // 👤 NORMAL USER → open dashboard directly
+    if (!window.currentUserData.is_admin) {
+      renderUserDashboard(window.currentUserData);
       return;
     }
 
-    menuBtn.onclick = () => {
+    // 👑 ADMIN → toggle popup
+    if (popup) {
       popup.style.display =
         popup.style.display === 'block' ? 'none' : 'block';
-    };
-  });
-  
+    }
+  };
+}
+});
+
 </script>
 </body>
 </html>
