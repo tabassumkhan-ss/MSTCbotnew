@@ -396,9 +396,7 @@
   </style>
 </head>
 <body>
- <body>
-
-  <!-- 🍔 TOP MENU -->
+   <!-- 🍔 TOP MENU -->
   <div id="topMenu"
        style="display:none;position:fixed;top:14px;left:14px;z-index:9999;">
     <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
@@ -415,6 +413,11 @@
     box-shadow:0 10px 30px rgba(0,0,0,.4);
     z-index:9999;
   ">
+<!-- 👤 User dashboard -->
+  <button class="btn secondary" id="menuUser">
+    User Dashboard
+  </button>
+
     <button class="btn secondary" id="menuAdmin" style="display:none;">
       Admin Dashboard
     </button>
@@ -773,7 +776,11 @@ window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
 const renderRegisteredView = (uid, name, avatar, userData) => {
-
+const appEl = document.getElementById('app');
+if (!appEl) {
+  console.error('❌ #app not found in renderRegisteredView');
+  return;
+}
   // 🔒 SAFETY: ensure full DB user
   if (!userData || !userData.id || !userData.role) {
     console.error(
@@ -829,7 +836,7 @@ const renderRegisteredView = (uid, name, avatar, userData) => {
     // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
-    app.innerHTML = `
+   appEl.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
@@ -1046,7 +1053,7 @@ if (adminBtn) {
 const menuUserBtn = document.getElementById('menuUser');
 if (menuUserBtn) {
   menuUserBtn.onclick = () => {
-    renderUserDashboard(userData);
+    renderUserDashboard(window.currentUserData);
     document.getElementById('menuPopup').style.display = 'none';
   };
 }
@@ -1287,9 +1294,11 @@ showTopMenu();
         `;
       }
 
-      if (rankDetails) {
-        rankDetails.innerHTML = html;
-      }
+     if (rankDetails) {
+  rankDetails.innerHTML = html;
+} else {
+  console.warn('rankDetails not found');
+}
     }
 
     let defaultRank = 'origin';
@@ -1415,28 +1424,37 @@ async function loadFullUserAndRender() {
   );
 }
 
-document.addEventListener('click', async (e) => {
-  const yesBtn = e.target.closest('#yesBtn');
-  if (!yesBtn) return;
-
-  e.preventDefault();
-
-  try {
-    await showRegisteredViewFromBackend();
-  } catch (err) {
-    console.error('YES click failed:', err);
-    if (window.Telegram?.WebApp) {
-      Telegram.WebApp.showAlert(
-        'Failed to open app: ' +
-        (err.message || 'Unknown error')
-      );
-    }
-  }
-});
-
  let app = null;
 
-  document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
+
+  app = document.getElementById('app');
+  if (!app) {
+    console.error('❌ #app container not found');
+    return;
+  }
+
+  // YES handler
+  document.addEventListener('click', async (e) => {
+    const yesBtn = e.target.closest('#yesBtn');
+    if (!yesBtn) return;
+
+    e.preventDefault();
+
+    try {
+      await showRegisteredViewFromBackend();
+    } catch (err) {
+      console.error('YES click failed:', err);
+      if (window.Telegram?.WebApp) {
+        Telegram.WebApp.showAlert(
+          'Failed to open app: ' +
+          (err.message || 'Unknown error')
+        );
+      }
+    }
+  });
+
+  // Hamburger menu
   const menuBtn = document.getElementById('menuBtn');
   const popup = document.getElementById('menuPopup');
 
@@ -1467,8 +1485,8 @@ document.addEventListener('click', async (e) => {
         popup.style.display === 'block' ? 'none' : 'block';
     }
   });
-});
 
+});
 
 </script>
 </body>
