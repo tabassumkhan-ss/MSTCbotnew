@@ -396,56 +396,7 @@
   </style>
 </head>
 <body>
- <!-- 🍔 TOP MENU (persistent, outside app) -->
-  <div id="topMenu"
-       style="display:none;position:fixed;top:14px;left:14px;z-index:9999;">
-    <button id="menuBtn" class="btn" style="padding:6px 10px;">☰</button>
-  </div>
-
-  <div id="menuPopup" style="
-    display:none;
-    position:fixed;
-    top:52px;
-    left:14px;
-    background:#1a1a2e;
-    border-radius:10px;
-    padding:10px;
-    box-shadow:0 10px 30px rgba(0,0,0,.4);
-    z-index:9999;
-  ">
-    <!-- Only shown for admins -->
-    <button class="btn secondary" id="menuAdmin" style="display:none;">
-      Admin Dashboard
-    </button>
-  </div>
-
-  <!-- 🧠 MAIN APP (ONLY dynamic content lives here) -->
-  <div class="card" id="app">
-
-    <!-- LOGO -->
-    <img src="./Botologo_new.png"
-         alt="MSTC EARNING PROJECT"
-         class="logo"
-         id="avatar" />
-
-    <!-- REGISTRATION -->
-    <div id="registerSection">
-      <h2 id="accountStatus">Do you want to register?</h2>
-
-      <div class="actions">
-        <button id="yesBtn" class="btn" type="button">Yes</button>
-        <button id="noBtn" class="btn alt" type="button">No</button>
-      </div>
-    </div>
-
-    <!-- USER DASHBOARD -->
-    <div id="userPage" style="display:none;"></div>
-
-    <!-- ADMIN DASHBOARD -->
-    <div id="adminPage" style="display:none;"></div>
-
-  </div>
-
+ 
 <script>
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
@@ -769,6 +720,7 @@ window.verifyInitData = verifyInitData;
 
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
+    window.currentUserData = userData;
     const reg = document.getElementById('registerSection');
   if (reg) reg.style.display = 'none';
 
@@ -1483,29 +1435,40 @@ document.addEventListener('click', async (e) => {
     });
 
     // ============================
-    // 🍔 HAMBURGER MENU WIRING
-    // ============================
-    const menuBtn = document.getElementById('menuBtn');
-const popup = document.getElementById('menuPopup');
+// 🍔 HAMBURGER MENU – FINAL WIRING
+// ============================
+document.addEventListener('DOMContentLoaded', () => {
+  const menuBtn = document.getElementById('menuBtn');
+  const popup = document.getElementById('menuPopup');
 
-if (menuBtn) {
-  menuBtn.onclick = () => {
-    // userData must be globally available
-    if (!window.currentUserData) return;
+  if (!menuBtn) {
+    console.error('❌ menuBtn not found');
+    return;
+  }
 
-    // 👤 NORMAL USER → open dashboard directly
+  console.log('✅ Hamburger menu wired');
+
+  menuBtn.addEventListener('click', () => {
+    console.log('🍔 Menu clicked');
+
+    if (!window.currentUserData) {
+      console.warn('No user data yet');
+      return;
+    }
+
+    // 👤 Normal user → open dashboard directly
     if (!window.currentUserData.is_admin) {
       renderUserDashboard(window.currentUserData);
       return;
     }
 
-    // 👑 ADMIN → toggle popup
+    // 👑 Admin → toggle popup
     if (popup) {
       popup.style.display =
         popup.style.display === 'block' ? 'none' : 'block';
     }
-  };
-}
+  });
+});
 });
 
 </script>
