@@ -686,6 +686,14 @@ def webapp_user():
         if not user:
             return jsonify({"ok": False, "error": "user_not_found"}), 404
 
+        # ✅ ADMIN CHECK VIA ENV
+        admin_ids = os.getenv("ADMIN_TELEGRAM_IDS", "")
+        admin_set = {
+            int(x.strip()) for x in admin_ids.split(",") if x.strip().isdigit()
+        }
+
+        is_admin = int(telegram_id) in admin_set
+
         return jsonify({
             "ok": True,
             "user": {
@@ -693,10 +701,10 @@ def webapp_user():
                 "role": user.role,
                 "self_activated": bool(user.self_activated),
                 "total_team_business": float(user.total_team_business or 0),
-                "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+                "active_origin_count": int(user.active_origin_count or 0),
                 "username": user.username,
                 "first_name": user.first_name,
-                "is_admin": bool(user.role == "admin")
+                "is_admin": is_admin
             }
         })
     finally:
