@@ -478,6 +478,17 @@
     <div id="adminPage" style="display:none;"></div>
 
   <script>
+    function tgAlert(msg) {
+  try {
+    if (window.Telegram?.WebApp?.showAlert) {
+      window.Telegram.WebApp.showAlert(msg);
+    } else {
+      alert(msg);
+    }
+  } catch {
+    alert(msg);
+  }
+}
 console.log('TG object:', window.Telegram?.WebApp);
 console.log('initData:', window.Telegram?.WebApp?.initData);
 console.log('unsafe:', window.Telegram?.WebApp?.initDataUnsafe);
@@ -1361,11 +1372,10 @@ async function loadFullUserAndRender() {
   } else {
     yesBtn.onclick = async () => {
   console.log('✅ YES clicked');
+  console.log('initData length:', tg?.initData?.length || 0);
 
   if (!tg || !tg.initData) {
-    tg?.showAlert?.(
-      'This app must be opened using the Telegram WebApp button.'
-    );
+    tgAlert('Please open this app from the Telegram bot menu.');
     return;
   }
 
@@ -1385,13 +1395,12 @@ async function loadFullUserAndRender() {
       throw new Error(data.error || 'Registration failed');
     }
 
-    // ✅ SUCCESS → load dashboard
+    // ✅ SUCCESS
     await loadFullUserAndRender();
-    showTopMenu();
 
   } catch (err) {
     console.error('Register error:', err);
-    tg.showAlert('Registration failed. Please reopen the app.');
+    tgAlert('Registration failed. Please reopen the app.');
   }
 };
 }
