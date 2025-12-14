@@ -772,39 +772,6 @@ async function connectTonWallet() {
 
     app.innerHTML = `
 
-    <!-- 🔹 Deposit Header -->
-<div class="deposit-header">
-  <button id="menuBtn" class="hamburger">☰</button>
-  <div class="deposit-title">Deposit</div>
-</div>
-
-<!-- 🔹 Side Menu -->
-<div id="sideMenu" class="side-menu">
-  <div class="menu-header">
-    <span>Menu</span>
-    <button id="closeMenu">✕</button>
-  </div>
-
-  <div class="menu-content">
-    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
-    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
-    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
-    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
-    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-
-     <!-- 🔒 ADMIN ONLY -->
-  <div id="adminMenu" style="display:none;">
-    <div class="menu-divider">Admin</div>
-    <div class="menu-item admin" onclick="openAdminUsers()">👥 All Users</div>
-    <div class="menu-item admin" onclick="openAdminDeposits()">💰 Deposits</div>
-    <div class="menu-item admin" onclick="openAdminStats()">📊 System Stats</div>
-  </div>
-
-  <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-</div>
-  
-<!-- 🔹 Overlay -->
-<div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
@@ -831,8 +798,13 @@ async function connectTonWallet() {
 </div>
 
       <div class="panel">
+        <!-- 🔹 Deposit Header -->
+      <div class="deposit-header">
+      <button id="menuBtn" class="hamburger">☰</button>
+      <div class="deposit-title">Deposit</div>
+      </div>
       
-        <h3>💳 Deposit</h3>
+       <!-- <h3>💳 Deposit</h3> -->
         <div class="mini">Minimum deposit — <b>$20</b>.</div>
 
         <label>Enter USD amount</label>
@@ -1576,5 +1548,32 @@ function logout() {
   Telegram.WebApp.close();
 }
 </script>
+<!-- 🔹 Side Menu -->
+<div id="sideMenu" class="side-menu">
+  <div class="menu-header">
+    <span>Menu</span>
+    <button id="closeMenu">✕</button>
+  </div>
+
+  <div class="menu-content">
+    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
+    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
+    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
+    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+    <!-- <div class="menu-item logout" onclick="logout()">🚪 Logout</div>-->
+
+     <!-- 🔒 ADMIN ONLY -->
+  <div id="adminMenu" style="display:none;">
+    <div class="menu-divider">Admin</div>
+    <div class="menu-item admin" onclick="openAdminUsers()">👥 All Users</div>
+    <div class="menu-item admin" onclick="openAdminDeposits()">💰 Deposits</div>
+    <div class="menu-item admin" onclick="openAdminStats()">📊 System Stats</div>
+  </div>
+
+  <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+</div>
+  
+<!-- 🔹 Overlay -->
+<div id="menuOverlay" class="menu-overlay"></div>
 </body>
 </html>
