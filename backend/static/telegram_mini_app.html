@@ -536,10 +536,8 @@ function renderUserDashboard(userData) {
     return;
   }
 
-  // hide others
   adminPage.style.display = 'none';
   userPage.style.display = 'block';
-
   userPage.innerHTML = `
   <h2>👤 User Dashboard</h2>
 
@@ -567,12 +565,6 @@ if (viewDownlinesBtn) {
   };
 }
 }
-
-  // back button
-  document.getElementById('backToDeposit').onclick = () => {
-    userPage.style.display = 'none';
-    window.showRegisteredViewFromBackend();
-  };
 
 
 function renderAdminDashboard(admin) {
@@ -1253,7 +1245,7 @@ showTopMenu();
 
     // --- Rank tab details ---
     const rankDetails = document.getElementById('rankDetails');
-    const rankTabs = app.querySelectorAll('.rank-tab');
+    const rankTabs = document.querySelectorAll('#mainApp .rank-tab');
 
     function setActiveRankTab(rankKey) {
       rankTabs.forEach(btn => {
@@ -1457,49 +1449,40 @@ async function loadFullUserAndRender() {
   );
 }
 
- let app = null;
+ document.addEventListener('DOMContentLoaded', () => {
 
-document.addEventListener('DOMContentLoaded', () => {
-
-  app = document.getElementById('app');
-  if (!app) {
-    console.error('❌ #app container not found');
-    return;
+  /* ===== YES BUTTON ===== */
+  const yesBtn = document.getElementById('yesBtn');
+  if (!yesBtn) {
+    console.error('❌ yesBtn not found');
+  } else {
+    yesBtn.onclick = async () => {
+      console.log('✅ YES clicked');
+      await showRegisteredViewFromBackend();
+    };
   }
 
-  const yesBtn = document.getElementById('yesBtn');
-
-if (!yesBtn) {
-  console.error('❌ yesBtn not found');
-} else {
-  yesBtn.addEventListener('click', async () => {
-    console.log('✅ YES clicked');
-    await showRegisteredViewFromBackend();
-  });
-}
-  // Hamburger menu
+  /* ===== HAMBURGER MENU ===== */
   const menuBtn = document.getElementById('menuBtn');
   const popup = document.getElementById('menuPopup');
 
   if (!menuBtn) {
     console.error('❌ menuBtn not found');
-    return;
+  } else {
+    console.log('✅ Hamburger menu wired');
+
+    menuBtn.addEventListener('click', () => {
+      console.log('🍔 Menu clicked');
+
+      if (!popup) {
+        console.error('menuPopup not found');
+        return;
+      }
+
+      popup.style.display =
+        popup.style.display === 'block' ? 'none' : 'block';
+    });
   }
-
-  console.log('✅ Hamburger menu wired');
-
-  menuBtn.addEventListener('click', () => {
-  console.log('🍔 Menu clicked');
-
-  const popup = document.getElementById('menuPopup');
-  if (!popup) {
-    console.error('menuPopup not found');
-    return;
-  }
-
-  popup.style.display =
-    popup.style.display === 'block' ? 'none' : 'block';
-});
 
 });
 
