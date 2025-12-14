@@ -489,9 +489,9 @@
     alert(msg);
   }
 }
-console.log('TG object:', window.Telegram?.WebApp);
-console.log('initData:', window.Telegram?.WebApp?.initData);
-console.log('unsafe:', window.Telegram?.WebApp?.initDataUnsafe);
+console.log('TG object:', tg);
+console.log('initData:', tg?.initData);
+console.log('unsafe:', tg?.initDataUnsafe);
 
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
