@@ -389,6 +389,100 @@
     .rank-details li {
       margin: 2px 0;
     }
+
+    /* ===== Deposit Header ===== */
+.deposit-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  position: relative;
+}
+
+.deposit-title {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ===== Hamburger Button ===== */
+.hamburger {
+  font-size: 22px;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ===== Side Menu ===== */
+.side-menu {
+  position: fixed;
+  top: 0;
+  left: -260px;
+  width: 260px;
+  height: 100vh;
+  background: #121a3a;
+  color: #fff;
+  z-index: 1001;
+  transition: left 0.25s ease;
+  box-shadow: 4px 0 15px rgba(0,0,0,0.4);
+}
+
+/* Open state */
+.side-menu.open {
+  left: 0;
+}
+
+/* Menu Header */
+.menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+  font-weight: bold;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.menu-header button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* Menu Items */
+.menu-content {
+  padding: 10px;
+}
+
+.menu-item {
+  padding: 12px;
+  margin-bottom: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.menu-item.logout {
+  background: rgba(255,0,0,0.15);
+}
+
+/* ===== Overlay ===== */
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  display: none;
+}
+
+.menu-overlay.show {
+  display: block;
+}
   </style>
 </head>
 <body>
@@ -651,6 +745,30 @@ async function connectTonWallet() {
 </div>
 
       <div class="panel">
+      <!-- 🔹 Deposit Header -->
+<div class="deposit-header">
+  <button id="menuBtn" class="hamburger">☰</button>
+  <div class="deposit-title">Deposit</div>
+</div>
+
+<!-- 🔹 Side Menu -->
+<div id="sideMenu" class="side-menu">
+  <div class="menu-header">
+    <span>Menu</span>
+    <button id="closeMenu">✕</button>
+  </div>
+
+  <div class="menu-content">
+    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
+    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
+    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
+    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+  </div>
+</div>
+
+<!-- 🔹 Overlay -->
+<div id="menuOverlay" class="menu-overlay"></div>
         <h3>💳 Deposit</h3>
         <div class="mini">Minimum deposit — <b>$20</b>.</div>
 
@@ -1246,6 +1364,57 @@ async function loadFullUserAndRender() {
       console.warn('showRegisteredViewFromBackend not found on window');
     }
   });
+
+  const menuBtn = document.getElementById("menuBtn");
+const sideMenu = document.getElementById("sideMenu");
+const closeMenu = document.getElementById("closeMenu");
+const menuOverlay = document.getElementById("menuOverlay");
+
+function openMenu() {
+  sideMenu.classList.add("open");
+  menuOverlay.classList.add("show");
+}
+
+function closeMenuFn() {
+  sideMenu.classList.remove("open");
+  menuOverlay.classList.remove("show");
+}
+
+menuBtn.addEventListener("click", openMenu);
+closeMenu.addEventListener("click", closeMenuFn);
+menuOverlay.addEventListener("click", closeMenuFn);
+
+function openProfile() {
+  if (!window.currentUserData) {
+    alert("User data not loaded yet");
+    return;
+  }
+
+  alert(
+    `User: ${currentUserData.first_name}\n` +
+    `Username: @${currentUserData.username || "N/A"}`
+  );
+}
+
+function openRole() {
+  alert(`Current Role: ${currentUserData?.role || "Member"}`);
+}
+
+function openDownlines() {
+  alert("Downlines feature coming soon");
+}
+
+function openWallet() {
+  alert(
+    `MSTC: ${currentUserData?.balance_mstc || 0}\n` +
+    `MUSD: ${currentUserData?.balance_musd || 0}`
+  );
+}
+
+function logout() {
+  Telegram.WebApp.close();
+}
+
 
 </script>
 </body>
