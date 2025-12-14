@@ -9,10 +9,6 @@
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
   <style>
-
-    #app {
-  position: relative;
-}
     * { box-sizing: border-box; }
 
     body {
@@ -396,103 +392,23 @@
   </style>
 </head>
 <body>
-   <!-- 🍔 TOP MENU -->
-  <div id="topMenu"
-     style="
-       display:none;
-       position:fixed;
-       top:14px;
-       left:14px;
-       z-index:2147483647;
-       pointer-events:auto;
-     ">
-  <button id="menuBtn"
-          class="btn"
-          style="
-            padding:6px 10px;
-            position:relative;
-            z-index:2147483647;
-            pointer-events:auto;
-          ">
-    ☰
-  </button>
-</div>
-
-  <div id="menuPopup"
-     style="
-       display:none;
-       position:fixed;
-       top:52px;
-       left:14px;
-       background:#1a1a2e;
-       border-radius:10px;
-       padding:10px;
-       box-shadow:0 10px 30px rgba(0,0,0,.4);
-       z-index:2147483647;
-       pointer-events:auto;
-     ">
-
-
-<!-- 👤 User dashboard -->
-  <button class="btn secondary" id="menuUser">
-    User Dashboard
-  </button>
-
-    <button class="btn secondary" id="menuAdmin" style="display:none;">
-      Admin Dashboard
-    </button>
-  </div>
-
-  <!-- 🔵 ROOT APP (EVERYTHING GOES INSIDE THIS) -->
   <div class="card" id="app">
-
-    <!-- LOGO 
     <img src="./Botologo_new.png"
          alt="MSTC EARNING PROJECT"
          class="logo"
-         id="avatar" />-->
+         id="avatar" />
 
-    <!-- REGISTRATION -->
+    <!-- Registration question + Yes/No; hidden later for registered users -->
     <div id="registerSection">
-    <img
-    src="./Botologo_new.png"
-    alt="MSTC EARNING PROJECT"
-    class="logo"
-    style="margin-bottom:12px;"
-  />
       <h2 id="accountStatus">Do you want to register?</h2>
       <div class="actions">
         <button id="yesBtn" class="btn" type="button">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
+  </div>
 
-    <!-- 🟢 MAIN APP (deposit, ranks, dashboard, etc.) -->
-  <div id="mainApp" style="display:none;"></div>
-    </div>
-
-    <!-- USER PAGE -->
-    <div id="userPage" style="display:none;"></div>
-
-    <!-- ADMIN PAGE -->
-    <div id="adminPage" style="display:none;"></div>
-
-  <script>
-    function tgAlert(msg) {
-  try {
-    if (window.Telegram?.WebApp?.showAlert) {
-      window.Telegram.WebApp.showAlert(msg);
-    } else {
-      alert(msg);
-    }
-  } catch {
-    alert(msg);
-  }
-}
-console.log('TG object:', tg);
-console.log('initData:', tg?.initData);
-console.log('unsafe:', tg?.initDataUnsafe);
-
+<script>
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
   let ref =
@@ -542,108 +458,7 @@ async function connectTonWallet() {
     }
   }
 
-function renderUserDashboard(userData) {
-  const userPage = document.getElementById('userPage');
-  const adminPage = document.getElementById('adminPage');
 
-  if (!userPage || !userData) {
-    console.error('User page or data missing');
-    return;
-  }
-
-  adminPage.style.display = 'none';
-  userPage.style.display = 'block';
-  userPage.innerHTML = `
-  <h2>👤 User Dashboard</h2>
-
-  ...
-
-  <div class="panel">
-    <h3>🔽 Downlines</h3>
-    <button class="btn secondary" id="viewDownlines">
-      View Downlines
-    </button>
-  </div>
-
-  <div class="submit">
-    <button class="btn secondary" id="backToDeposit">
-      ⬅ Back to Deposit
-    </button>
-  </div>
-`;
-
-// 🔗 Downlines button handler
-const viewDownlinesBtn = document.getElementById('viewDownlines');
-if (viewDownlinesBtn) {
-  viewDownlinesBtn.onclick = () => {
-    renderDownlines(window.currentUserData);
-  };
-}
-}
-
-
-function renderAdminDashboard(admin) {
-  const adminPage = document.getElementById('adminPage');
-  const userPage = document.getElementById('userPage');
-
-  if (!adminPage || !userPage) {
-    console.error('adminPage or userPage not found in HTML');
-    return;
-  }
-
-  userPage.style.display = 'none';
-  adminPage.style.display = 'block';
-
-  adminPage.innerHTML = `
-    <h2>👑 Admin Dashboard</h2>
-
-    <div class="panel">
-      <h3>📊 Overview</h3>
-
-      <div class="split">
-        <div class="panel">
-          <div class="mini">Total Users</div>
-          <div class="big" id="statUsers">—</div>
-        </div>
-
-        <div class="panel">
-          <div class="mini">Total Deposits</div>
-          <div class="big" id="statDeposits">—</div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-top:12px;">
-        <div class="mini">Company Pool (MUSD)</div>
-        <div class="big" id="statPool">—</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h3>🛡️ Admin Info</h3>
-      <div class="mini">Telegram ID: <b>${admin.id}</b></div>
-      <div class="mini">Role: <b>${admin.role}</b></div>
-    </div>
-  `;
-
-  loadAdminStats();
-}
-
-async function loadAdminStats() {
-  const res = await fetch('/admin/stats', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initData: tg.initData })
-  });
-
-  const data = await res.json();
-  if (!data.ok) return;
-
-  document.getElementById('statUsers').textContent = data.total_users;
-  document.getElementById('statDeposits').textContent =
-    '$' + data.total_deposits;
-  document.getElementById('statPool').textContent =
-    '$' + data.company_pool;
-}
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
@@ -659,24 +474,8 @@ async function loadAdminStats() {
     tg && tg.expand();
   } catch (e) {}
 
-  //const app = document.getElementById('app');
+  const app = document.getElementById('app');
   const baseLogo = './Botologo_new.png';
-
-  function showTopMenu() {
-  const menu = document.getElementById('topMenu');
-  if (!menu) {
-    console.warn('topMenu not in DOM yet');
-    return;
-  }
-  menu.style.display = 'block';
-}
-
-function hideTopMenu() {
-  const menu = document.getElementById('topMenu');
-  const popup = document.getElementById('menuPopup');
-  if (menu) menu.style.display = 'none';
-  if (popup) popup.style.display = 'none';
-}  
 
   // Token addresses and labels
   const ADDR_MUSD = "0x7e6916Af95714BE309cF3eee98149074921D93e0";
@@ -726,33 +525,67 @@ function hideTopMenu() {
     };
   };
 
-    // --- Render full registered view (deposit + ranks) ---
-const renderRegisteredView = (uid, name, avatar, userData) => {
+  // --- Verify with backend; fallback to Telegram user ---
+  const verifyInitData = async () => {
+    const tgApp = tg;
+    const initData = tgApp ? tgApp.initData : "";
+    const unsafeLocal = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
+    const unsafeUser = unsafeLocal && unsafeLocal.user ? unsafeLocal.user : null;
 
-  const registerSection = document.getElementById('registerSection');
-  const mainApp = document.getElementById('mainApp');
+    const startParam =
+      unsafeLocal && (unsafeLocal.start_param || unsafeLocal.startParam)
+        ? (unsafeLocal.start_param || unsafeLocal.startParam)
+        : null;
 
-  if (!registerSection || !mainApp) {
-    console.error('❌ registerSection or mainApp missing');
-  return;
-}
-  // 🔒 SAFETY: ensure full DB user
-  if (!userData || !userData.id || !userData.role) {
-    console.error(
-      '❌ renderRegisteredView called with invalid userData',
-      userData
-    );
-    return;
-  }
+    if (!window.currentRef && startParam) {
+      window.currentRef = startParam;
+    }
 
-  // ✅ SAFE: always DB user
-  window.currentUserData = userData;
+    const effectiveRef = window.currentRef || null;
 
-  registerSection.style.display = 'none';
-  mainApp.style.display = 'block';
+    if (!tgApp) {
+      console.warn("Not inside Telegram WebApp – using test user.");
+      return {
+        ok: false,
+        user: {
+          id: 123456,
+          first_name: "Test User",
+          username: "testuser",
+          photo_url: null,
+          total_team_business: 0,
+          active_origin_count: 0,
+          role: "",
+          self_activated: false
+        }
+      };
+    }
 
-  showTopMenu();
+    console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
 
+    try {
+      const res = await fetch('/webapp/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData, ref: effectiveRef })
+      });
+
+      const j = await res.json();
+
+      if (!res.ok || !j.ok) {
+        const msg = j.error || j.detail || 'verify failed';
+        throw new Error(msg);
+      }
+      return j;
+    } catch (err) {
+      console.warn('verify error, using unsafe Telegram user as fallback:', err);
+      return { ok: false, user: unsafeUser || {} };
+    }
+  };
+  // expose globally
+  window.verifyInitData = verifyInitData;
+
+  // --- Render full registered view (deposit + ranks) ---
+  const renderRegisteredView = (uid, name, avatar, userData) => {
   // 🔒 SAFETY: ensure backend user data is present
   if (!userData || typeof userData !== 'object') {
     console.error("renderRegisteredView called without userData", userData);
@@ -791,7 +624,7 @@ const renderRegisteredView = (uid, name, avatar, userData) => {
     // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
-    mainApp.innerHTML = `
+    app.innerHTML = `
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
@@ -993,25 +826,11 @@ const renderRegisteredView = (uid, name, avatar, userData) => {
       </div>
     `;
 
-    // --- ADMIN MENU VISIBILITY ---
-const adminBtn = document.getElementById('menuAdmin');
-
-if (adminBtn) {
-  const isAdmin = userData.role === 'admin';
-  adminBtn.style.display = isAdmin ? 'block' : 'none';
-}
-
      const connectBtn = document.getElementById('connectWalletBtn');
   if (connectBtn) {
     connectBtn.onclick = connectTonWallet;
   }
-const menuUserBtn = document.getElementById('menuUser');
-if (menuUserBtn) {
-  menuUserBtn.onclick = () => {
-    renderUserDashboard(window.currentUserData);
-    document.getElementById('menuPopup').style.display = 'none';
-  };
-}
+
     // --- Wire up events inside rendered view ---
 
     const tip = document.getElementById('tipRef');
@@ -1163,17 +982,8 @@ if (menuUserBtn) {
           const summaryText = summaryLines.join('\n');
           if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
 
-          msgEl.style.display = 'block';
-          msgEl.innerHTML ='Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' +
-          summaryText +
-          '</pre>';
-
-await loadFullUserAndRender();
-console.log('TG:', tg);
-console.log('initData:', tg?.initData);
-if (tg?.initData) {
-showTopMenu();   
-}
+          msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
+          await loadFullUserAndRender();
 
           // clear fields
           amtInput.value = '';
@@ -1196,7 +1006,7 @@ showTopMenu();
 
     // --- Rank tab details ---
     const rankDetails = document.getElementById('rankDetails');
-    const rankTabs = document.querySelectorAll('#mainApp .rank-tab');
+    const rankTabs = app.querySelectorAll('.rank-tab');
 
     function setActiveRankTab(rankKey) {
       rankTabs.forEach(btn => {
@@ -1253,11 +1063,9 @@ showTopMenu();
         `;
       }
 
-     if (rankDetails) {
-  rankDetails.innerHTML = html;
-} else {
-  console.warn('rankDetails not found');
-}
+      if (rankDetails) {
+        rankDetails.innerHTML = html;
+      }
     }
 
     let defaultRank = 'origin';
@@ -1279,12 +1087,28 @@ showTopMenu();
   window.renderRegisteredView = renderRegisteredView;
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
-  async function showRegisteredViewFromBackend() {
-  // 🔥 Always load FULL user from backend DB
-  await loadFullUserAndRender();
-}
-// expose globally
-window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
+  const showRegisteredViewFromBackend = async () => {
+   // const verifyResp = await verifyInitData();
+
+    const tgApp = tg;
+    const unsafeUser =
+      tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
+        ? tgApp.initDataUnsafe.user
+        : {};
+
+    const u = verifyResp.user || unsafeUser || {};
+    const id = u.id || 0;
+    const name =
+      ((u.first_name || '') +
+        (u.username ? ' @' + u.username : '')) ||
+      u.username ||
+      'Unknown';
+    const avatar = u.photo_url || baseLogo;
+
+    renderRegisteredView(id, name, avatar, verifyResp.user || {});
+  };
+  // expose globally
+  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
   // --- Activation status (first screen, Yes/No) ---
   function updateActivationStatus(user) {
@@ -1308,32 +1132,49 @@ window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
     }
   }
 
-  
+  const loadActivationStatus = async () => {
+    const tgApp = tg;
+    if (!tgApp) {
+      console.error("Telegram WebApp not available");
+      return;
+    }
+
+    const initData = tgApp.initData || "";
+
+    try {
+      const res = await fetch('/webapp/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData,
+          ref: window.currentRef || null
+        })
+      });
+      const data = await res.json();
+      console.log("VERIFY RESPONSE:", data);
+
+      if (data && data.ok !== false) {
+        updateActivationStatus(data);
+
+        // if user already registered, skip question and show full view
+        if (data.has_registered) {
+          await loadFullUserAndRender();
+        }
+      } else {
+        console.error("init failed", data);
+      }
+    } catch (err) {
+      console.error("Error loading activation status:", err);
+    }
+  };
 
 async function loadFullUserAndRender() {
   if (!tg) {
-    console.warn("Browser mode detected — using mock user");
-
-  const mockUser = {
-    id: 123456,
-    first_name: 'Browser',
-    username: 'test_user',
-    role: 'origin',
-    self_activated: true,
-    total_team_business: 100,
-    active_origin_count: 1
-  };
-
-  renderRegisteredView(
-    mockUser.id,
-    mockUser.first_name + ' @' + mockUser.username,
-    null,
-    mockUser
-  );
-  return;
+    console.error("Telegram WebApp not available");
+    return;
   }
 
-  const res = await fetch('/webapp/me', {
+  const res = await fetch('/webapp/user', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1363,71 +1204,48 @@ async function loadFullUserAndRender() {
   );
 }
 
- document.addEventListener('DOMContentLoaded', () => {
 
-  /* ===== YES BUTTON ===== */
-  const yesBtn = document.getElementById('yesBtn');
-  if (!yesBtn) {
-    console.error('❌ yesBtn not found');
-  } else {
-    yesBtn.onclick = async () => {
-  console.log('✅ YES clicked');
-  console.log('initData length:', tg?.initData?.length || 0);
+  // --- YES / NO button handlers + init ---
+  document.addEventListener('DOMContentLoaded', () => {
+    // Load activation status
+    loadActivationStatus();
 
-  if (!tg || !tg.initData) {
-    tgAlert('Please open this app from the Telegram bot menu.');
-    return;
-  }
+    const yesBtn = document.getElementById('yesBtn');
+    const noBtn = document.getElementById('noBtn');
 
-  try {
-    const res = await fetch('/webapp/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData: tg.initData,
-        ref: window.currentRef || null
-      })
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-      throw new Error(data.error || 'Registration failed');
+    if (yesBtn) {
+      yesBtn.onclick = async () => {
+        await loadFullUserAndRender();
+      };
     }
 
-    // ✅ SUCCESS
-    await loadFullUserAndRender();
+    if (noBtn) {
+      noBtn.onclick = () => {
+        app.innerHTML = `
+          <img src="${baseLogo}" class="logo" />
+          <div class="row big">❌ Registration Cancelled</div>
+        `;
+      };
+    }
+  });
 
-  } catch (err) {
-    console.error('Register error:', err);
-    tgAlert('Registration failed. Please reopen the app.');
-  }
-};
-}
-
-  /* ===== HAMBURGER MENU ===== */
-  const menuBtn = document.getElementById('menuBtn');
-  const popup = document.getElementById('menuPopup');
-
-  if (!menuBtn) {
-    console.error('❌ menuBtn not found');
-  } else {
-    console.log('✅ Hamburger menu wired');
-
-    menuBtn.addEventListener('click', () => {
-      console.log('🍔 Menu clicked');
-
-      if (!popup) {
-        console.error('menuPopup not found');
-        return;
-      }
-
-      popup.style.display =
-        popup.style.display === 'block' ? 'none' : 'block';
-    });
-  }
-
-});
+  // --- Robust YES button handler (delegation) ---
+  document.addEventListener('click', (e) => {
+    const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
+    if (!yes) return;
+    e.preventDefault();
+    // Call the global function (guaranteed by exposing above)
+    if (typeof window.showRegisteredViewFromBackend === 'function') {
+      window.showRegisteredViewFromBackend().catch(err => {
+        console.error('showRegisteredViewFromBackend failed:', err);
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.showAlert('Failed to open app: ' + (err && err.message ? err.message : String(err)));
+        }
+      });
+    } else {
+      console.warn('showRegisteredViewFromBackend not found on window');
+    }
+  });
 
 </script>
 </body>
