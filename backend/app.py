@@ -803,6 +803,88 @@ def bot_start():
         })
     finally:
         db.close()
+        @app.route("/webapp/profile", methods=["POST"])
+        def webapp_profile():
+         db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        uid, _, _, _ = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False}), 401
+
+        user = db.query(User).filter(User.id == uid).first()
+        if not user:
+            return jsonify({"ok": False}), 404
+
+        return jsonify({
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "username": user.username,
+                "role": user.role,
+                "balance_mstc": float(user.balance_mstc),
+                "balance_musd": float(user.balance_musd),
+                "total_team_business": float(user.total_team_business),
+                "active_origin_count": user.active_origin_count
+            }
+        })
+    finally:
+        db.close()
+
+@app.route("/webapp/downlines", methods=["POST"])
+def webapp_downlines():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        uid, _, _, _ = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False}), 401
+
+        downlines = db.query(User).filter(User.referrer_id == uid).all()
+
+        return jsonify({
+            "ok": True,
+            "downlines": [
+                {
+                    "id": u.id,
+                    "first_name": u.first_name,
+                    "username": u.username,
+                    "role": u.role,
+                    "team_business": float(u.total_team_business)
+                } for u in downlines
+            ]
+        })
+    finally:
+        db.close()
+
+@app.route("/webapp/role", methods=["POST"])
+def webapp_role():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        uid, _, _, _ = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False}), 401
+
+        user = db.query(User).filter(User.id == uid).first()
+        if not user:
+            return jsonify({"ok": False}), 404
+
+        return jsonify({
+            "ok": True,
+            "role": user.role,
+            "active_origin_count": user.active_origin_count,
+            "total_team_business": float(user.total_team_business)
+        })
+    finally:
+        db.close()
 
 
 # -------------------------

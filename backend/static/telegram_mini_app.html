@@ -483,6 +483,40 @@
 .menu-overlay.show {
   display: block;
 }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: 90%;
+  max-width: 360px;
+  background: #121a3a;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+}
+
+.modal-body {
+  margin-top: 10px;
+  font-size: 14px;
+}
+
   </style>
 </head>
 <body>
@@ -501,6 +535,16 @@
       </div>
     </div>
   </div>
+
+  <div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span id="modalTitle"></span>
+      <button onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+  </div>
+</div>
 
 <script>
   // --- Referral from URL (?ref=...) ---
@@ -1367,36 +1411,7 @@ async function loadFullUserAndRender() {
     }
   });
 
- function openProfile() {
-  if (!window.currentUserData) {
-    alert("User data not loaded yet");
-    return;
-  }
 
-  alert(
-    `User: ${currentUserData.first_name}\n` +
-    `Username: @${currentUserData.username || "N/A"}`
-  );
-}
-
-function openRole() {
-  alert(`Current Role: ${currentUserData?.role || "Member"}`);
-}
-
-function openDownlines() {
-  alert("Downlines feature coming soon");
-}
-
-function openWallet() {
-  alert(
-    `MSTC: ${currentUserData?.balance_mstc || 0}\n` +
-    `MUSD: ${currentUserData?.balance_musd || 0}`
-  );
-}
-
-function logout() {
-  Telegram.WebApp.close();
-}
 
 // ================= MENU EVENT DELEGATION =================
 document.addEventListener("click", (e) => {
@@ -1421,6 +1436,93 @@ document.addEventListener("click", (e) => {
   }
 });
 
+function openModal(title, html) {
+  const modal = document.getElementById("modal");
+  if (!modal) {
+    console.error("Modal container not found");
+    return;
+  }
+  document.getElementById("modalTitle").innerText = title;
+  document.getElementById("modalBody").innerHTML = html;
+  modal.classList.remove("hidden");
+}
+
+  function closeModal() {
+    document.getElementById("modal").classList.add("hidden");
+  }
+
+  async function openProfile() {
+  const res = await fetch("/webapp/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initData: tg.initData })
+  });
+
+  const data = await res.json();
+  if (!data.ok) return;
+
+  const u = data.user;
+  openModal("Profile", `
+    <div><b>Name:</b> ${u.first_name}</div>
+    <div><b>Username:</b> @${u.username || "N/A"}</div>
+    <div><b>Role:</b> ${u.role}</div>
+    <div><b>MSTC:</b> ${u.balance_mstc}</div>
+    <div><b>MUSD:</b> ${u.balance_musd}</div>
+  `);
+}
+
+async function openRole() {
+  const res = await fetch("/webapp/role", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initData: tg.initData })
+  });
+
+  const d = await res.json();
+  if (!d.ok) return;
+
+  openModal("Current Role", `
+    <div><b>Role:</b> ${d.role}</div>
+    <div>Active Origins: ${d.active_origin_count}</div>
+    <div>Total Team Business: $${d.total_team_business}</div>
+  `);
+}
+
+async function openDownlines() {
+  const res = await fetch("/webapp/downlines", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ initData: tg.initData })
+  });
+
+  const d = await res.json();
+  if (!d.ok) return;
+
+  if (!d.downlines.length) {
+    openModal("Downlines", "<div>No direct downlines yet</div>");
+    return;
+  }
+
+  openModal("Downlines",
+    d.downlines.map(u => `
+      <div style="padding:6px;border-bottom:1px solid #333">
+        ${u.first_name} (${u.role}) — $${u.team_business}
+      </div>
+    `).join("")
+  );
+}
+
+async function openWallet() {
+  const u = window.currentUserData || {};
+  openModal("Wallet", `
+    <div>MSTC Balance: ${u.balance_mstc || 0}</div>
+    <div>MUSD Balance: ${u.balance_musd || 0}</div>
+  `);
+}
+
+function logout() {
+  Telegram.WebApp.close();
+}
 </script>
 </body>
 </html>
