@@ -1224,7 +1224,9 @@ if (menuUserBtn) {
 await loadFullUserAndRender();
 console.log('TG:', tg);
 console.log('initData:', tg?.initData);
+if (tg?.initData) {
 showTopMenu();   
+}
 
           // clear fields
           amtInput.value = '';
