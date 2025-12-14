@@ -1222,6 +1222,8 @@ if (menuUserBtn) {
           '</pre>';
 
 await loadFullUserAndRender();
+console.log('TG:', tg);
+console.log('initData:', tg?.initData);
 showTopMenu();   
 
           // clear fields
@@ -1419,7 +1421,7 @@ async function loadFullUserAndRender() {
   return;
   }
 
-  const res = await fetch('/webapp/user', {
+  const res = await fetch('/webapp/me', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
