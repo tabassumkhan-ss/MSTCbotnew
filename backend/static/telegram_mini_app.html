@@ -715,10 +715,35 @@ async function connectTonWallet() {
       ? 100
       : Math.round(Math.min(ranks.total / 100000, 1) * 100);
 
-    // referral link for this uid
+          // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
     app.innerHTML = `
+
+    <!-- 🔹 Deposit Header -->
+<div class="deposit-header">
+  <button id="menuBtn" class="hamburger">☰</button>
+  <div class="deposit-title">Deposit</div>
+</div>
+
+<!-- 🔹 Side Menu -->
+<div id="sideMenu" class="side-menu">
+  <div class="menu-header">
+    <span>Menu</span>
+    <button id="closeMenu">✕</button>
+  </div>
+
+  <div class="menu-content">
+    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
+    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
+    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
+    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+  </div>
+</div>
+
+<!-- 🔹 Overlay -->
+<div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
@@ -745,30 +770,7 @@ async function connectTonWallet() {
 </div>
 
       <div class="panel">
-      <!-- 🔹 Deposit Header -->
-<div class="deposit-header">
-  <button id="menuBtn" class="hamburger">☰</button>
-  <div class="deposit-title">Deposit</div>
-</div>
-
-<!-- 🔹 Side Menu -->
-<div id="sideMenu" class="side-menu">
-  <div class="menu-header">
-    <span>Menu</span>
-    <button id="closeMenu">✕</button>
-  </div>
-
-  <div class="menu-content">
-    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
-    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
-    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
-    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
-    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-  </div>
-</div>
-
-<!-- 🔹 Overlay -->
-<div id="menuOverlay" class="menu-overlay"></div>
+      
         <h3>💳 Deposit</h3>
         <div class="mini">Minimum deposit — <b>$20</b>.</div>
 
