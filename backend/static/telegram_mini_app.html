@@ -478,6 +478,10 @@
     <div id="adminPage" style="display:none;"></div>
 
   <script>
+console.log('TG object:', window.Telegram?.WebApp);
+console.log('initData:', window.Telegram?.WebApp?.initData);
+console.log('unsafe:', window.Telegram?.WebApp?.initDataUnsafe);
+
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
   let ref =
@@ -711,75 +715,7 @@ function hideTopMenu() {
     };
   };
 
-  // --- Verify with backend; fallback to Telegram user ---
-  async function verifyInitData() {
-  const tgApp = window.Telegram?.WebApp || null;
-
-  /* -------------------------------
-     1️⃣ BROWSER MODE (NO TELEGRAM)
-  --------------------------------*/
-  if (!tgApp || !tgApp.initData) {
-    console.warn('Browser mode detected – skipping backend verify');
-
-    return {
-      ok: true,
-      user: {
-        id: 123456,
-        first_name: 'Browser',
-        username: 'test_user',
-        photo_url: null,
-        role: 'origin',
-        self_activated: true,
-        total_team_business: 20,
-        active_origin_count: 0
-      }
-    };
-  }
-
-  /* -------------------------------
-     2️⃣ TELEGRAM MODE
-  --------------------------------*/
-  const initData = tgApp.initData;
-  const unsafe = tgApp.initDataUnsafe || {};
-  const unsafeUser = unsafe.user || null;
-
-  // referral
-  const startParam = unsafe.start_param || unsafe.startParam || null;
-  if (!window.currentRef && startParam) {
-    window.currentRef = startParam;
-  }
-
-  const effectiveRef = window.currentRef || null;
-
-  console.log('🚀 Sending to /webapp/me:', { initData, ref: effectiveRef });
-
-  try {
-    const res = await fetch('/webapp/me', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData,
-        ref: effectiveRef
-      })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data.ok) {
-      throw new Error(data.error || 'verify failed');
-    }
-
-    return data;
-  } catch (err) {
-    console.warn('verify failed, fallback to unsafe user', err);
-    return { ok: false, user: unsafeUser || {} };
-  }
-}
-
-/* expose globally (important for YES button) */
-window.verifyInitData = verifyInitData;
-
-  // --- Render full registered view (deposit + ranks) ---
+    // --- Render full registered view (deposit + ranks) ---
 const renderRegisteredView = (uid, name, avatar, userData) => {
 
   const registerSection = document.getElementById('registerSection');
@@ -1361,44 +1297,7 @@ window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
     }
   }
 
-  const loadActivationStatus = async () => {
-
-    hideTopMenu(); // ✅ HIDE MENU ON REGISTRATION PAGE
-    const tgApp = tg;
-    if (!tgApp) {
-      console.error("Telegram WebApp not available");
-      return;
-    }
-
-    const initData = tgApp.initData || "";
-
-    try {
-      const res = await fetch('/webapp/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initData,
-          ref: window.currentRef || null
-        })
-      });
-      const data = await res.json();
-      console.log("VERIFY RESPONSE:", data);
-
-      if (data && data.ok !== false) {
-        updateActivationStatus(data);
-
-        // if user already registered, skip question and show full view
-        if (data.has_registered) {
-          await loadFullUserAndRender();
-        showTopMenu();
-        }
-      } else {
-        console.error("init failed", data);
-      }
-    } catch (err) {
-      console.error("Error loading activation status:", err);
-    }
-  };
+  
 
 async function loadFullUserAndRender() {
   if (!tg) {
@@ -1464,31 +1363,38 @@ async function loadFullUserAndRender() {
   console.log('✅ YES clicked');
 
   if (!tg || !tg.initData) {
-    alert('Telegram init data missing. Please open from Telegram.');
+    tg?.showAlert?.(
+      'This app must be opened using the Telegram WebApp button.'
+    );
     return;
   }
 
-  const res = await fetch('/webapp/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      initData: tg.initData,
-      ref: window.currentRef || null
-    })
-  });
+  try {
+    const res = await fetch('/webapp/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData: tg.initData,
+        ref: window.currentRef || null
+      })
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (!data.ok) {
-    console.error('Register failed:', data);
-    tg.showAlert('Registration failed');
-    return;
+    if (!data.ok) {
+      throw new Error(data.error || 'Registration failed');
+    }
+
+    // ✅ SUCCESS → load dashboard
+    await loadFullUserAndRender();
+    showTopMenu();
+
+  } catch (err) {
+    console.error('Register error:', err);
+    tg.showAlert('Registration failed. Please reopen the app.');
   }
-
-  // ✅ AFTER registration → load dashboard
-  await loadFullUserAndRender();
-    };
-  }
+};
+}
 
   /* ===== HAMBURGER MENU ===== */
   const menuBtn = document.getElementById('menuBtn');
