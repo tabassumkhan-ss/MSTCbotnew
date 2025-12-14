@@ -710,6 +710,52 @@ def webapp_user():
     finally:
         db.close()
 
+@app.route("/admin/users", methods=["POST"])
+def admin_users():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        uid, _, _, _ = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+        user = db.query(User).filter(User.id == uid).first()
+        if not user or user.role not in ("admin", "superadmin"):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+        users = (
+            db.query(User)
+            .order_by(User.created_at.desc())
+            .limit(50)
+            .all()
+        )
+
+        return jsonify({
+            "ok": True,
+            "users": [
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "first_name": u.first_name,
+                    "role": u.role,
+                    "balance_musd": float(u.balance_musd),
+                    "balance_mstc": float(u.balance_mstc),
+                    "active": u.active
+                }
+                for u in users
+            ]
+        })
+    except Exception as e:
+        logger.exception("admin_users failed")
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()        
+
 @app.route("/webapp/save_wallet", methods=["POST"])
 def save_wallet():
     db = SessionLocal()

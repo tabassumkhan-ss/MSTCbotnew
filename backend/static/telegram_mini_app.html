@@ -517,6 +517,14 @@
   font-size: 14px;
 }
 
+.menu-divider {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+.menu-item.admin {
+  background: rgba(255,215,0,0.12);
+}
   </style>
 </head>
 <body>
@@ -783,9 +791,18 @@ async function connectTonWallet() {
     <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
     <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
     <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-  </div>
-</div>
 
+     <!-- 🔒 ADMIN ONLY -->
+  <div id="adminMenu" style="display:none;">
+    <div class="menu-divider">Admin</div>
+    <div class="menu-item admin" onclick="openAdminUsers()">👥 All Users</div>
+    <div class="menu-item admin" onclick="openAdminDeposits()">💰 Deposits</div>
+    <div class="menu-item admin" onclick="openAdminStats()">📊 System Stats</div>
+  </div>
+
+  <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+</div>
+  
 <!-- 🔹 Overlay -->
 <div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
@@ -1355,6 +1372,9 @@ async function loadFullUserAndRender() {
 
   const u = data.user;
 
+   window.currentUserData = u;
+  updateAdminMenuVisibility();
+
   const name =
     ((u.first_name || '') +
       (u.username ? ' @' + u.username : '')) ||
@@ -1451,6 +1471,18 @@ function openModal(title, html) {
     document.getElementById("modal").classList.add("hidden");
   }
 
+  function updateAdminMenuVisibility() {
+  const adminMenu = document.getElementById("adminMenu");
+  if (!adminMenu) return;
+
+  const role = window.currentUserData?.role;
+  if (role === "admin" || role === "superadmin") {
+    adminMenu.style.display = "block";
+  } else {
+    adminMenu.style.display = "none";
+  }
+}
+
   async function openProfile() {
   const res = await fetch("/webapp/profile", {
     method: "POST",
@@ -1519,6 +1551,26 @@ async function openWallet() {
     <div>MUSD Balance: ${u.balance_musd || 0}</div>
   `);
 }
+
+async function openAdminUsers() {
+    const res = await fetch("/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData })
+    });
+
+    const d = await res.json();
+    if (!d.ok) {
+      openModal("Admin", "Access denied");
+      return;
+    }
+
+    openModal("All Users", d.users.map(u => `
+      <div style="padding:6px;border-bottom:1px solid #333">
+        ${u.username || u.id} — ${u.role} — $${u.balance_musd}
+      </div>
+    `).join(""));
+  }
 
 function logout() {
   Telegram.WebApp.close();
