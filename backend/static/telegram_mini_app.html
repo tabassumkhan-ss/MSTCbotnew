@@ -517,14 +517,6 @@
   font-size: 14px;
 }
 
-.menu-divider {
-  margin: 12px 0 6px;
-  font-size: 12px;
-  opacity: 0.6;
-}
-.menu-item.admin {
-  background: rgba(255,215,0,0.12);
-}
   </style>
 </head>
 <body>
@@ -603,7 +595,6 @@ async function connectTonWallet() {
       console.error('TON wallet connection failed', e);
     }
   }
-
 
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
@@ -771,12 +762,31 @@ async function connectTonWallet() {
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
     app.innerHTML = `
-    <div class = "panel">
-       <!-- 🔹 Deposit Header -->
-      <div class="deposit-header">
-      <button id="menuBtn" class="hamburger">☰</button>
-      </div>
 
+    <!-- 🔹 Deposit Header -->
+<div class="deposit-header">
+  <button id="menuBtn" class="hamburger">☰</button>
+  <div class="deposit-title">Deposit</div>
+</div>
+
+<!-- 🔹 Side Menu -->
+<div id="sideMenu" class="side-menu">
+  <div class="menu-header">
+    <span>Menu</span>
+    <button id="closeMenu">✕</button>
+  </div>
+
+  <div class="menu-content">
+    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
+    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
+    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
+    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+  </div>
+</div>
+
+<!-- 🔹 Overlay -->
+<div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
       <div class="row">${name || 'Unknown'}</div>
@@ -803,13 +813,8 @@ async function connectTonWallet() {
 </div>
 
       <div class="panel">
-         <!-- 🔹 Deposit Header -->
-      <div class="deposit-header">
-       
-      <div class="deposit-title">Deposit</div>
-      </div>
       
-       <!-- <h3>💳 Deposit</h3> -->
+        <h3>💳 Deposit</h3>
         <div class="mini">Minimum deposit — <b>$20</b>.</div>
 
         <label>Enter USD amount</label>
@@ -1349,9 +1354,6 @@ async function loadFullUserAndRender() {
 
   const u = data.user;
 
-   window.currentUserData = u;
-  updateAdminMenuVisibility();
-
   const name =
     ((u.first_name || '') +
       (u.username ? ' @' + u.username : '')) ||
@@ -1364,7 +1366,6 @@ async function loadFullUserAndRender() {
     u            // 🔥 FULL, FRESH DB USER
   );
 }
-
 
   // --- YES / NO button handlers + init ---
   document.addEventListener('DOMContentLoaded', () => {
@@ -1409,7 +1410,6 @@ async function loadFullUserAndRender() {
   });
 
 
-
 // ================= MENU EVENT DELEGATION =================
 document.addEventListener("click", (e) => {
   const menuBtn = e.target.closest("#menuBtn");
@@ -1447,18 +1447,6 @@ function openModal(title, html) {
   function closeModal() {
     document.getElementById("modal").classList.add("hidden");
   }
-
-  function updateAdminMenuVisibility() {
-  const adminMenu = document.getElementById("adminMenu");
-  if (!adminMenu) return;
-
-  const role = window.currentUserData?.role;
-  if (role === "admin" || role === "superadmin") {
-    adminMenu.style.display = "block";
-  } else {
-    adminMenu.style.display = "none";
-  }
-}
 
   async function openProfile() {
   const res = await fetch("/webapp/profile", {
@@ -1528,57 +1516,11 @@ async function openWallet() {
     <div>MUSD Balance: ${u.balance_musd || 0}</div>
   `);
 }
-
-async function openAdminUsers() {
-    const res = await fetch("/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
-    });
-
-    const d = await res.json();
-    if (!d.ok) {
-      openModal("Admin", "Access denied");
-      return;
-    }
-
-    openModal("All Users", d.users.map(u => `
-      <div style="padding:6px;border-bottom:1px solid #333">
-        ${u.username || u.id} — ${u.role} — $${u.balance_musd}
-      </div>
-    `).join(""));
-  }
-
 function logout() {
   Telegram.WebApp.close();
 }
-</script>
-<!-- 🔹 Side Menu -->
-<div id="sideMenu" class="side-menu">
-  <div class="menu-header">
-    <span>Menu</span>
-    <button id="closeMenu">✕</button>
-  </div>
-
-  <div class="menu-content">
-    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
-    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
-    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
-    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
-    <!-- <div class="menu-item logout" onclick="logout()">🚪 Logout</div>-->
-
-     <!-- 🔒 ADMIN ONLY -->
-  <div id="adminMenu" style="display:none;">
-    <div class="menu-divider">Admin</div>
-    <div class="menu-item admin" onclick="openAdminUsers()">👥 All Users</div>
-    <div class="menu-item admin" onclick="openAdminDeposits()">💰 Deposits</div>
-    <div class="menu-item admin" onclick="openAdminStats()">📊 System Stats</div>
-  </div>
-
-  <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-</div>
-  
-<!-- 🔹 Overlay -->
-<div id="menuOverlay" class="menu-overlay"></div>
+</script>	
 </body>
 </html>
+
+
