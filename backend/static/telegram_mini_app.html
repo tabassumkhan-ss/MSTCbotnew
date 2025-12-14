@@ -1367,26 +1367,7 @@ async function loadFullUserAndRender() {
     }
   });
 
-  const menuBtn = document.getElementById("menuBtn");
-const sideMenu = document.getElementById("sideMenu");
-const closeMenu = document.getElementById("closeMenu");
-const menuOverlay = document.getElementById("menuOverlay");
-
-function openMenu() {
-  sideMenu.classList.add("open");
-  menuOverlay.classList.add("show");
-}
-
-function closeMenuFn() {
-  sideMenu.classList.remove("open");
-  menuOverlay.classList.remove("show");
-}
-
-menuBtn.addEventListener("click", openMenu);
-closeMenu.addEventListener("click", closeMenuFn);
-menuOverlay.addEventListener("click", closeMenuFn);
-
-function openProfile() {
+ function openProfile() {
   if (!window.currentUserData) {
     alert("User data not loaded yet");
     return;
@@ -1417,6 +1398,28 @@ function logout() {
   Telegram.WebApp.close();
 }
 
+// ================= MENU EVENT DELEGATION =================
+document.addEventListener("click", (e) => {
+  const menuBtn = e.target.closest("#menuBtn");
+  const closeBtn = e.target.closest("#closeMenu");
+  const overlay = e.target.closest("#menuOverlay");
+
+  const sideMenu = document.getElementById("sideMenu");
+  const menuOverlay = document.getElementById("menuOverlay");
+
+  // Open menu
+  if (menuBtn && sideMenu && menuOverlay) {
+    sideMenu.classList.add("open");
+    menuOverlay.classList.add("show");
+    return;
+  }
+
+  // Close menu
+  if ((closeBtn || overlay) && sideMenu && menuOverlay) {
+    sideMenu.classList.remove("open");
+    menuOverlay.classList.remove("show");
+  }
+});
 
 </script>
 </body>
