@@ -1461,8 +1461,32 @@ async function loadFullUserAndRender() {
     console.error('❌ yesBtn not found');
   } else {
     yesBtn.onclick = async () => {
-      console.log('✅ YES clicked');
-      await showRegisteredViewFromBackend();
+  console.log('✅ YES clicked');
+
+  if (!tg || !tg.initData) {
+    alert('Telegram init data missing. Please open from Telegram.');
+    return;
+  }
+
+  const res = await fetch('/webapp/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      initData: tg.initData,
+      ref: window.currentRef || null
+    })
+  });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    console.error('Register failed:', data);
+    tg.showAlert('Registration failed');
+    return;
+  }
+
+  // ✅ AFTER registration → load dashboard
+  await loadFullUserAndRender();
     };
   }
 
