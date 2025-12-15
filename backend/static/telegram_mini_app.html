@@ -1556,25 +1556,67 @@ async function openAdminUsers() {
     }
 
     // 🔹 Build user rows
-    const rowsHtml = users.map(u => `
-      <div class="admin-user-row"
-           data-search="${(u.first_name || "").toLowerCase()}
-                        ${(u.username || "").toLowerCase()}
-                        ${u.id}">
-        <b>${u.first_name || "User"}</b>
-        <div class="mini">@${u.username || "—"}</div>
+    const rowsHtml = users.map(u => {
 
-        <div class="mini">
-          Role: <b>${u.role}</b> ${u.active ? "✅" : "❌"}
-        </div>
+  // 🔒 Prevent self-modification
+  const isSelf = u.id === window.currentUserData?.id;
 
-        <div class="mini">
-          MUSD: ${u.balance_musd} | MSTC: ${u.balance_mstc}
-        </div>
+  return `
+    <div class="admin-user-row"
+         data-search="${(u.first_name || "").toLowerCase()}
+                      ${(u.username || "").toLowerCase()}
+                      ${u.id}">
 
-        <div class="mini">ID: ${u.id}</div>
+      <b>${u.first_name || "User"}</b>
+      <div class="mini">@${u.username || "—"}</div>
+
+      <div class="mini">
+        Role: <b>${u.role}</b> ${u.active ? "✅ Active" : "❌ Inactive"}
       </div>
-    `).join("");
+
+      <div class="mini">
+        MUSD: ${u.balance_musd} | MSTC: ${u.balance_mstc}
+      </div>
+
+      <div class="mini">ID: ${u.id}</div>
+
+      ${
+        isSelf
+          ? `<div class="mini" style="margin-top:8px;opacity:.7">
+               ⚠️ You (cannot modify yourself)
+             </div>`
+          : `
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+              ${u.role !== "admin" ? `
+                <button class="btn secondary"
+                  onclick="adminUpdateUser(${u.id}, 'promote')">
+                  🔼 Promote
+                </button>
+              ` : `
+                <button class="btn alt"
+                  onclick="adminUpdateUser(${u.id}, 'demote')">
+                  🔽 Demote
+                </button>
+              `}
+
+              ${u.active ? `
+                <button class="btn alt"
+                  onclick="adminUpdateUser(${u.id}, 'deactivate')">
+                  ⛔ Deactivate
+                </button>
+              ` : `
+                <button class="btn secondary"
+                  onclick="adminUpdateUser(${u.id}, 'activate')">
+                  ✅ Activate
+                </button>
+              `}
+            </div>
+          `
+      }
+
+    </div>
+  `;
+}).join("");
 
     // 🔹 Modal content
     openModal("Admin • Users", `
@@ -1621,6 +1663,44 @@ async function openAdminUsers() {
     openModal("Admin Error", "⚠️ Failed to load users");
   }
 }
+
+async function adminUpdateUser(userId, action) {
+  const confirmMsg = {
+    promote: "Promote this user to ADMIN?",
+    demote: "Demote this user to MEMBER?",
+    activate: "Activate this user?",
+    deactivate: "Deactivate this user?"
+  }[action];
+
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch("/admin/update_user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: tg.initData,
+        user_id: userId,
+        action
+      })
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      alert("Action failed");
+      return;
+    }
+
+    // Refresh list
+    openAdminUsers();
+
+  } catch (err) {
+    console.error("adminUpdateUser error", err);
+    alert("Server error");
+  }
+}
+
 
   async function openWallet() {
   const u = window.currentUserData || {};

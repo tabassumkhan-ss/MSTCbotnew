@@ -756,7 +756,59 @@ def admin_users():
         logger.exception("admin_users failed")
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
-        db.close()        
+        db.close()    
+
+@app.route("/admin/update_user", methods=["POST"])
+def admin_update_user():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+        target_id = data.get("user_id")
+        action = data.get("action")
+
+        if not init_data or not target_id or not action:
+            return jsonify({"ok": False, "error": "missing_params"}), 400
+
+        admin_id, _, _, _ = verify_telegram_init_data(init_data)
+        admin = db.query(User).filter(User.id == admin_id).first()
+
+        if not admin or admin.role not in ("admin", "superadmin"):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+        user = db.query(User).filter(User.id == target_id).first()
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        # ---- ACTIONS ----
+        if action == "promote":
+            user.role = "admin"
+        elif action == "demote":
+            user.role = "member"
+        elif action == "activate":
+            user.active = True
+        elif action == "deactivate":
+            user.active = False
+        else:
+            return jsonify({"ok": False, "error": "invalid_action"}), 400
+
+        db.commit()
+
+        return jsonify({
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "role": user.role,
+                "active": user.active
+            }
+        })
+
+    except Exception:
+        logger.exception("admin_update_user failed")
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()
+
 
 @app.route("/admin/stats", methods=["POST"])
 def admin_stats():
