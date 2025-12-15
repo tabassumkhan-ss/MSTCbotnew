@@ -492,6 +492,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 12px; /* IMPORTANT for small screens */
 }
 
 .modal.hidden {
@@ -499,22 +500,33 @@
 }
 
 .modal-card {
-  width: 90%;
-  max-width: 360px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;              /* 🔑 LIMIT HEIGHT */
   background: #121a3a;
   border-radius: 14px;
-  padding: 12px;
+  display: flex;                 /* 🔑 FLEX LAYOUT */
+  flex-direction: column;
+  overflow: hidden;              /* hide overflow, body scrolls */
 }
 
+/* Header stays fixed */
 .modal-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
   font-weight: bold;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-shrink: 0;                /* 🔑 NEVER SCROLL */
 }
 
+/* Scrollable body */
 .modal-body {
-  margin-top: 10px;
+  padding: 12px;
   font-size: 14px;
+  overflow-y: auto;              /* 🔑 SCROLL ENABLED */
+  -webkit-overflow-scrolling: touch;
 }
 
 .user-header {
