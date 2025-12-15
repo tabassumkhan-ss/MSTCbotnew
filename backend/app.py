@@ -1213,21 +1213,8 @@ def debug_simulate_deposit():
 
     finally:
         db.close()
-
-@app.route("/debug/make_admin/<int:user_id>")
-def make_admin(user_id):
-    db = SessionLocal()
-    try:
-        u = db.query(User).get(user_id)
-        if not u:
-            return "User not found"
-
-        u.role = "admin"
-        db.commit()
-        return f"✅ User {user_id} promoted to admin"
-    finally:
-        db.close()
-  
+        
+ 
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
     db = SessionLocal()
