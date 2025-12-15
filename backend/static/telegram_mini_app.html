@@ -1228,6 +1228,14 @@ async function connectTonWallet() {
         setActiveRankTab(btn.dataset.rank);
       });
     });
+    // ================= MENU WIRES =================
+const menuBtn = document.getElementById("menuBtn");
+const closeBtn = document.getElementById("closeMenu");
+const overlay = document.getElementById("menuOverlay");
+
+menuBtn && menuBtn.addEventListener("click", openMenu);
+closeBtn && closeBtn.addEventListener("click", closeMenu);
+overlay && overlay.addEventListener("click", closeMenu);
   };
 
   // expose renderRegisteredView globally
@@ -1399,27 +1407,15 @@ async function loadFullUserAndRender() {
 
 
 // ================= MENU EVENT DELEGATION =================
-document.addEventListener("click", (e) => {
-  const menuBtn = e.target.closest("#menuBtn");
-  const closeBtn = e.target.closest("#closeMenu");
-  const overlay = e.target.closest("#menuOverlay");
+function openMenu() {
+  document.getElementById("sideMenu")?.classList.add("open");
+  document.getElementById("menuOverlay")?.classList.add("show");
+}
 
-  const sideMenu = document.getElementById("sideMenu");
-  const menuOverlay = document.getElementById("menuOverlay");
-
-  // Open menu
-  if (menuBtn && sideMenu && menuOverlay) {
-    sideMenu.classList.add("open");
-    menuOverlay.classList.add("show");
-    return;
-  }
-
-  // Close menu
-  if ((closeBtn || overlay) && sideMenu && menuOverlay) {
-    sideMenu.classList.remove("open");
-    menuOverlay.classList.remove("show");
-  }
-});
+function closeMenu() {
+  document.getElementById("sideMenu")?.classList.remove("open");
+  document.getElementById("menuOverlay")?.classList.remove("show");
+}
 
 function openModal(title, html) {
   const modal = document.getElementById("modal");
