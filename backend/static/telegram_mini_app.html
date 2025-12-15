@@ -766,6 +766,11 @@ async function connectTonWallet() {
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
     app.innerHTML = `
+    <!-- 🔹 Deposit Header -->
+<div class="deposit-header">
+  <button id="menuBtn" class="hamburger">☰</button>
+  <div class="deposit-title">Deposit</div>
+  </div>
 
      <div class="user-header">
     <img src="${avatar || baseLogo}" class="logo glow" />
@@ -777,13 +782,7 @@ async function connectTonWallet() {
     </div>
   </div>
 
-    <!-- 🔹 Deposit Header -->
-<div class="deposit-header">
-  <button id="menuBtn" class="hamburger">☰</button>
-  <div class="deposit-title">Deposit</div>
-  </div>
-
-      <div class="row ref-line">
+          <div class="row ref-line">
         <span class="mini">Referral Link</span>
         <button class="copy-btn" id="copyRef">📋</button>
       </div>
