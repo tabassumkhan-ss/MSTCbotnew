@@ -766,36 +766,8 @@ async function connectTonWallet() {
     <!-- 🔹 Deposit Header -->
 <div class="deposit-header">
   <button id="menuBtn" class="hamburger">☰</button>
+  <div class="deposit-title">Deposit</div>
   </div>
-
-<!-- 🔹 Side Menu -->
-<div id="sideMenu" class="side-menu">
-  <div class="menu-header">
-    <span>Menu</span>
-    <button id="closeMenu">✕</button>
-  </div>
-
-  <div class="menu-content">
-    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
-    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
-    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
-    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
-    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
-  </div>
-</div>
-
-<!-- 🔹 Overlay -->
-<div id="menuOverlay" class="menu-overlay"></div>
-      <img src="${avatar || baseLogo}" class="logo glow" />
-      <div class="row big">${uid ?? '(unknown)'}</div>
-      <div class="row">${name || 'Unknown'}</div>
-      <div class="row mini">
-      <!--  Total Team Business:
-        <b>$${total}</b>
-        · Active Origins:
-        <b>${activeOrigins}</b>-->
-        Current: <b>${ranks.current}</b>
-      </div>
 
       <div class="row ref-line">
         <span class="mini">Referral Link</span>
@@ -1249,8 +1221,8 @@ async function connectTonWallet() {
   window.renderRegisteredView = renderRegisteredView;
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
-  const showRegisteredViewFromBackend = async () => {
-   // const verifyResp = await verifyInitData();
+    const showRegisteredViewFromBackend = async () => {
+    const verifyResp = await verifyInitData();
 
     const tgApp = tg;
     const unsafeUser =
@@ -1352,6 +1324,8 @@ async function loadFullUserAndRender() {
   }
 
   const u = data.user;
+
+  window.currentUserData = u;
 
   const name =
     ((u.first_name || '') +
@@ -1519,6 +1493,34 @@ function logout() {
   Telegram.WebApp.close();
 }
 </script>	
+<!-- 🔹 Side Menu -->
+<div id="sideMenu" class="side-menu">
+  <div class="menu-header">
+    <span>Menu</span>
+    <button id="closeMenu">✕</button>
+  </div>
+
+  <div class="menu-content">
+    <div class="menu-item" onclick="openProfile()">👤 Profile</div>
+    <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
+    <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
+    <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+    <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
+  </div>
+</div>
+
+<!-- 🔹 Overlay -->
+<div id="menuOverlay" class="menu-overlay"></div>
+      <img src="${avatar || baseLogo}" class="logo glow" />
+      <div class="row big">${uid ?? '(unknown)'}</div>
+      <div class="row">${name || 'Unknown'}</div>
+      <div class="row mini">
+      <!--  Total Team Business:
+        <b>$${total}</b>
+        · Active Origins:
+        <b>${activeOrigins}</b>-->
+        Current: <b>${ranks.current}</b>
+      </div>
 </body>
 </html>
 
