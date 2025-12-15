@@ -1493,6 +1493,58 @@ async function openDownlines() {
   );
 }
 
+async function openAdminUsers() {
+  try {
+    openModal("Admin • Users", "<div class='mini'>Loading users…</div>");
+
+    const res = await fetch("/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData })
+    });
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      openModal("Admin", "❌ Access denied");
+      return;
+    }
+
+    if (!data.users.length) {
+      openModal("Admin • Users", "<div>No users found</div>");
+      return;
+    }
+
+    const html = data.users.map(u => `
+      <div style="
+        padding:10px;
+        border-bottom:1px solid rgba(255,255,255,.1);
+        font-size:14px;
+      ">
+        <b>${u.first_name || "User"}</b>
+        <div class="mini">@${u.username || "—"}</div>
+
+        <div class="mini">
+          Role: <b>${u.role}</b>
+          ${u.active ? "✅" : "❌"}
+        </div>
+
+        <div class="mini">
+          MUSD: ${u.balance_musd} | MSTC: ${u.balance_mstc}
+        </div>
+
+        <div class="mini">ID: ${u.id}</div>
+      </div>
+    `).join("");
+
+    openModal("Admin • Users", html);
+
+  } catch (err) {
+    console.error("openAdminUsers error", err);
+    openModal("Admin Error", "⚠️ Failed to load users");
+  }
+}
+
 async function openWallet() {
   const u = window.currentUserData || {};
   openModal("Wallet", `
