@@ -542,6 +542,16 @@
   cursor: pointer;
   padding: 4px 8px;
 }
+
+.admin-user-row {
+  padding: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  font-size: 14px;
+}
+
+.admin-user-row:last-child {
+  border-bottom: none;
+}
   </style>
 </head>
 <body>
@@ -1538,23 +1548,24 @@ async function openAdminUsers() {
       return;
     }
 
-    if (!data.users.length) {
+    const users = data.users || [];
+
+    if (!users.length) {
       openModal("Admin • Users", "<div>No users found</div>");
       return;
     }
 
-    const html = data.users.map(u => `
-      <div style="
-        padding:10px;
-        border-bottom:1px solid rgba(255,255,255,.1);
-        font-size:14px;
-      ">
+    // 🔹 Build user rows
+    const rowsHtml = users.map(u => `
+      <div class="admin-user-row"
+           data-search="${(u.first_name || "").toLowerCase()}
+                        ${(u.username || "").toLowerCase()}
+                        ${u.id}">
         <b>${u.first_name || "User"}</b>
         <div class="mini">@${u.username || "—"}</div>
 
         <div class="mini">
-          Role: <b>${u.role}</b>
-          ${u.active ? "✅" : "❌"}
+          Role: <b>${u.role}</b> ${u.active ? "✅" : "❌"}
         </div>
 
         <div class="mini">
@@ -1565,12 +1576,45 @@ async function openAdminUsers() {
       </div>
     `).join("");
 
+    // 🔹 Modal content
     openModal("Admin • Users", `
-  <div style="margin-bottom:10px">
-    <button class="btn secondary" onclick="closeModal()">⬅ Back</button>
-  </div>
-  ${html}
-`);
+      <div style="margin-bottom:10px">
+        <input
+          id="adminUserSearch"
+          type="text"
+          placeholder="Search by name, username, ID…"
+          style="
+            width:100%;
+            padding:10px;
+            border-radius:8px;
+            border:1px solid rgba(255,255,255,.2);
+            background:rgba(255,255,255,.08);
+            color:#fff;
+          "
+        />
+      </div>
+
+      <div id="adminUserList">
+        ${rowsHtml}
+      </div>
+
+      <div style="margin-top:10px">
+        <button class="btn secondary" onclick="closeModal()">⬅ Back</button>
+      </div>
+    `);
+
+    // 🔍 Search logic
+    const searchInput = document.getElementById("adminUserSearch");
+    const rows = document.querySelectorAll(".admin-user-row");
+
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.toLowerCase().trim();
+
+      rows.forEach(row => {
+        const hay = row.dataset.search;
+        row.style.display = hay.includes(q) ? "" : "none";
+      });
+    });
 
   } catch (err) {
     console.error("openAdminUsers error", err);
@@ -1578,7 +1622,7 @@ async function openAdminUsers() {
   }
 }
 
-async function openWallet() {
+  async function openWallet() {
   const u = window.currentUserData || {};
   openModal("Wallet", `
     <div>MSTC Balance: ${u.balance_mstc || 0}</div>
