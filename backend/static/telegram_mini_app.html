@@ -769,15 +769,15 @@ async function connectTonWallet() {
     <!-- 🔹 Deposit Header -->
 <div class="deposit-header">
   <button id="menuBtn" class="hamburger">☰</button>
-  <div class="deposit-title">Deposit</div>
+  <div class="deposit-title"></div>
   </div>
 
      <div class="user-header">
     <img src="${avatar || baseLogo}" class="logo glow" />
     <div class="row big">${name || 'Unknown'}</div>
     <div class="row mini">
-      Total Team Business: <b>$${total}</b> ·
-      Active Origins: <b>${activeOrigins}</b><br>
+      <!--Total Team Business: <b>$${total}</b> ·
+      Active Origins: <b>${activeOrigins}</b><br>-->
       Current: <b>${ranks.current}</b>
     </div>
   </div>
@@ -1351,6 +1351,8 @@ async function loadFullUserAndRender() {
     null,
     u            // 🔥 FULL, FRESH DB USER
   );
+
+   updateAdminMenuVisibility();
 }
 
   // --- YES / NO button handlers + init ---
@@ -1502,6 +1504,19 @@ async function openWallet() {
     <div>MUSD Balance: ${u.balance_musd || 0}</div>
   `);
 }
+
+function updateAdminMenuVisibility() {
+  const adminMenu = document.getElementById("adminMenu");
+  if (!adminMenu) return;
+
+  const role = window.currentUserData?.role;
+  if (role === "admin" || role === "superadmin") {
+    adminMenu.style.display = "block";
+  } else {
+    adminMenu.style.display = "none";
+  }
+}
+
 function logout() {
   Telegram.WebApp.close();
 }
@@ -1518,6 +1533,14 @@ function logout() {
     <div class="menu-item" onclick="openRole()">⭐ Current Role</div>
     <div class="menu-item" onclick="openDownlines()">🌳 Downlines</div>
     <div class="menu-item" onclick="openWallet()">💼 Wallet</div>
+
+    <!-- ADMIN MENU (hidden by default) -->
+  <div id="adminMenu" style="display:none;">
+    <div class="menu-divider">Admin</div>
+    <div class="menu-item admin" onclick="openAdminUsers()">👥 All Users</div>
+    <div class="menu-item admin" onclick="openAdminStats()">📊 System Stats</div>
+  </div>
+
     <div class="menu-item logout" onclick="logout()">🚪 Logout</div>
   </div>
 </div>

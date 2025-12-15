@@ -236,6 +236,9 @@ def verify_telegram_init_data(init_data: str):
 # Business helpers
 # -------------------------
 
+def require_admin(user):
+    return user and user.role in ("admin", "superadmin")
+
 def update_rank(user: User):
     total = user.total_team_business or 0.0
     active_origins = user.active_origin_count or 0
@@ -725,9 +728,8 @@ def admin_users():
             return jsonify({"ok": False, "error": "unauthorized"}), 401
 
         user = db.query(User).filter(User.id == uid).first()
-        if not user or user.role not in ("admin", "superadmin"):
-            return jsonify({"ok": False, "error": "forbidden"}), 403
-
+        if not require_admin(user):
+         return jsonify({"ok": False, "error": "forbidden"}), 403
         users = (
             db.query(User)
             .order_by(User.created_at.desc())
@@ -755,6 +757,64 @@ def admin_users():
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()        
+
+@app.route("/admin/stats", methods=["POST"])
+def admin_stats():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        uid, _, _, _ = verify_telegram_init_data(init_data)
+        if not uid:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+        admin = db.query(User).get(uid)
+        if not require_admin(admin):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+        # --------- STATS ----------
+        total_users = db.query(User).count()
+        active_users = db.query(User).filter(User.active == True).count()
+        admin_count = db.query(User).filter(User.role.in_(("admin", "superadmin"))).count()
+
+        total_team_business = (
+            db.query(func.coalesce(func.sum(User.total_team_business), 0))
+            .scalar()
+        )
+
+        total_musd_balance = (
+            db.query(func.coalesce(func.sum(User.balance_musd), 0))
+            .scalar()
+        )
+
+        today = datetime.utcnow().date()
+        today_deposits = (
+            db.query(func.coalesce(func.sum(Transaction.amount), 0))
+            .filter(func.date(Transaction.created_at) == today)
+            .scalar()
+        )
+
+        return jsonify({
+            "ok": True,
+            "stats": {
+                "total_users": total_users,
+                "active_users": active_users,
+                "admin_count": admin_count,
+                "total_team_business": float(total_team_business),
+                "total_musd_balance": float(total_musd_balance),
+                "today_deposits": float(today_deposits),
+            }
+        })
+    except Exception:
+        logger.exception("admin_stats failed")
+        return jsonify({"ok": False, "error": "server_error"}), 500
+    finally:
+        db.close()
+
 
 @app.route("/webapp/save_wallet", methods=["POST"])
 def save_wallet():
@@ -1154,6 +1214,19 @@ def debug_simulate_deposit():
     finally:
         db.close()
 
+@app.route("/debug/make_admin/<int:user_id>")
+def make_admin(user_id):
+    db = SessionLocal()
+    try:
+        u = db.query(User).get(user_id)
+        if not u:
+            return "User not found"
+
+        u.role = "admin"
+        db.commit()
+        return f"✅ User {user_id} promoted to admin"
+    finally:
+        db.close()
   
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
