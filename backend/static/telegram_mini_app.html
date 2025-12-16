@@ -1378,12 +1378,7 @@ if (window.impersonation?.active && window.impersonation?.user) {
     const yesBtn = document.getElementById('yesBtn');
     const noBtn = document.getElementById('noBtn');
 
-    if (yesBtn) {
-      yesBtn.onclick = async () => {
-        await loadFullUserAndRender();
-      };
-    }
-
+    
     if (noBtn) {
       noBtn.onclick = () => {
         app.innerHTML = `
