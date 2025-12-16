@@ -72,7 +72,6 @@ def debug_routes():
         })
     return jsonify(ok=True, routes=routes)
 
-
 def check_debug_key():
     """
     Robust check for debug key. Accept header variants, query param 'debug_key' or 'key',
@@ -105,14 +104,12 @@ def check_debug_key():
 
     return False
 
-
 def get_ref_from_payload(data: dict) -> Optional[int]:
     ref = data.get("ref")
     try:
         return int(ref) if ref is not None else None
     except (ValueError, TypeError):
         return None
-
 
 def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     if user.referrer_id is not None:
@@ -128,8 +125,7 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.commit()
     db.refresh(user)
 
-
-def create_user_only(db, tg_user, ref_id=None):
+def get_or_create_user(db, tg_user, ref_id=None):
     """Create or update user.
 
     tg_user expected to be dict with keys: id, username, first_name, last_name(optional)
@@ -199,7 +195,6 @@ def create_user_only(db, tg_user, ref_id=None):
 
     return user
 
-
 def get_uplines(db, user, max_levels=3):
     uplines = []
     current = user
@@ -212,7 +207,6 @@ def get_uplines(db, user, max_levels=3):
         current = upline
         level += 1
     return uplines
-
 
 def verify_telegram_init_data(init_data: str):
     if not init_data:
@@ -230,7 +224,6 @@ def verify_telegram_init_data(init_data: str):
         return None, None, None, None
     start_param = data.get("start_param")
     return user.get("id"), user.get("username"), user.get("first_name"), start_param
-
 
 # -------------------------
 # Business helpers
@@ -256,7 +249,6 @@ def update_rank(user: User):
         if not user.role:
             user.role = "user"
 
-
 ROLE_LEVEL1_PCT = {
     "origin": 0.05,
     "life_changer": 0.10,
@@ -264,7 +256,6 @@ ROLE_LEVEL1_PCT = {
     "visionary": 0.20,
     "creator": 0.25,
 }
-
 
 def propagate_team_business(db: SessionLocal, user: User, amount: float, became_origin_now: bool):
     visited = set()
@@ -280,7 +271,6 @@ def propagate_team_business(db: SessionLocal, user: User, amount: float, became_
         update_rank(ref)
         db.add(ref)
         current = ref
-
 
 def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
     club_cut = round(amount * 0.02, 2)
@@ -311,9 +301,7 @@ def distribute_club_bonus(db: SessionLocal, amount: float) -> float:
         add_to_company_pool(db, leftover)
     return club_cut
 
-
 COMPANY_USER_ID = -999999999
-
 
 def get_company_user(db: SessionLocal) -> User:
     company = db.get(User, COMPANY_USER_ID)
@@ -333,7 +321,6 @@ def get_company_user(db: SessionLocal) -> User:
         db.refresh(company)
     return company
 
-
 def add_to_company_pool(db: SessionLocal, amount: float, *, commit: bool = False):
     amount = float(amount or 0.0)
     if amount <= 0:
@@ -344,7 +331,6 @@ def add_to_company_pool(db: SessionLocal, amount: float, *, commit: bool = False
     if commit:
         db.commit()
         db.refresh(company)
-
 
 # -------------------------
 # Routes
@@ -549,22 +535,30 @@ def deposit_submit():
     finally:
         db.close()
 
-
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
     db = SessionLocal()
     try:
         payload = request.get_json(silent=True) or {}
         init_data = payload.get("initData")
-
-        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
         if not telegram_id:
-            return jsonify({"ok": False}), 400
-
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
-        if not user:
-            return jsonify({"ok": False, "not_registered": True})
-
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+        tg_user = {"id": telegram_id, "username": username, "first_name": first_name}
+        raw_ref = (payload.get("ref") or payload.get("start_param") or start_param or get_ref_from_payload(payload))
+        ref_id = None
+        if raw_ref:
+            try:
+                ref_id = int(raw_ref)
+            except (TypeError, ValueError):
+                ref_id = None
+        try:
+            user = get_or_create_user(db, tg_user, ref_id)
+        except ValueError as e:
+            app.logger.error(f"/webapp/me invalid telegram user: {e}")
+            return jsonify({"ok": False, "error": str(e)}), 400
         return jsonify({
             "ok": True,
             "user": {
@@ -576,9 +570,11 @@ def webapp_me():
                 "referrer_id": user.referrer_id,
             }
         })
+    except Exception:
+        app.logger.exception("Unhandled error in /webapp/me")
+        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
-
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
@@ -586,67 +582,81 @@ def webapp_init():
     try:
         data = request.get_json(silent=True) or {}
         init_data = data.get("initData")
+        ref_from_client = data.get("ref")
+
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
         telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
         if not telegram_id:
-            return jsonify({"ok": False}), 400
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        # 🔍 ONLY CHECK USER
+        # --- resolve referral from client OR start_param ---
+        raw_ref = ref_from_client or start_param
+        referrer_id = None
+        referrer_username = None
+
+        if raw_ref:
+            ref_user = None
+            try:
+                pk = int(raw_ref)
+                ref_user = db.get(User, pk)
+            except (TypeError, ValueError):
+                ref_user = None
+
+            if not ref_user:
+                ref_user = db.query(User).filter_by(telegram_id=str(raw_ref)).first()
+
+            if ref_user:
+                referrer_id = ref_user.id
+                referrer_username = ref_user.username or ref_user.first_name
+
+        # --- get or create user ---
         user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
 
-        # 🔍 Resolve referrer ONLY FOR DISPLAY
-        referrer_username = None
-        if start_param:
-            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
-            if ref_user:
-                referrer_username = ref_user.username or ref_user.first_name
+        if not user:
+            user = User(
+                telegram_id=str(telegram_id),
+                username=username,
+                first_name=first_name,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 🔥🔥🔥 REFERRAL LOCKING (THIS IS THE FIX) 🔥🔥🔥
+        if referrer_id and user.referrer_id is None:
+            if referrer_id != user.id:
+                user.referrer_id = referrer_id
+                db.commit()
+
+        # --- compute status ---
+        total_team_business = float(user.total_team_business or 0.0)
+        self_activated = bool(user.self_activated)
+        has_registered = bool(self_activated or total_team_business > 0)
+        is_active = self_activated
 
         return jsonify({
             "ok": True,
-            "exists": bool(user),
-            "referrer_username": referrer_username
+            "exists": True,
+            "has_registered": has_registered,
+            "is_active": is_active,
+            "total_team_business": total_team_business,
+            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
+            "role": user.role,
+            "self_activated": self_activated,
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "referrer_id": user.referrer_id,
+            "referrer_username": referrer_username,
         })
 
+    except Exception:
+        app.logger.exception("Error in /webapp/init")
+        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
-
-@app.route("/webapp/register", methods=["POST"])
-def webapp_register():
-    db = SessionLocal()
-    try:
-        payload = request.get_json(silent=True) or {}
-        init_data = payload.get("initData")
-
-        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
-        if not telegram_id:
-            return jsonify({"ok": False}), 400
-
-        # 🛑 Prevent auto / double registration
-        existing = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
-        if existing:
-            return jsonify({"ok": True, "already": True})
-
-        referrer_id = None
-        if start_param:
-            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
-            if ref_user:
-                referrer_id = ref_user.id
-
-        user = User(
-            telegram_id=str(telegram_id),
-            username=username,
-            first_name=first_name,
-            referrer_id=referrer_id
-        )
-
-        db.add(user)
-        db.commit()
-
-        return jsonify({"ok": True})
-
-    finally:
-        db.close()
-
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
@@ -730,96 +740,7 @@ def admin_users():
         logger.exception("admin_users failed")
         return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
-        db.close()    
-
-@app.route("/admin/update_user", methods=["POST"])
-def admin_update_user():
-    db = SessionLocal()
-    try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-        target_id = data.get("user_id")
-        action = data.get("action")
-
-        if not init_data or not target_id or not action:
-            return jsonify({"ok": False, "error": "missing_params"}), 400
-
-        admin_id, _, _, _ = verify_telegram_init_data(init_data)
-        admin = db.query(User).filter(User.id == admin_id).first()
-
-        if not admin or admin.role not in ("admin", "superadmin"):
-            return jsonify({"ok": False, "error": "forbidden"}), 403
-
-        user = db.query(User).filter(User.id == target_id).first()
-        if not user:
-            return jsonify({"ok": False, "error": "user_not_found"}), 404
-
-        # ---- ACTIONS ----
-        if action == "promote":
-            user.role = "admin"
-        elif action == "demote":
-            user.role = "member"
-        elif action == "activate":
-            user.active = True
-        elif action == "deactivate":
-            user.active = False
-        else:
-            return jsonify({"ok": False, "error": "invalid_action"}), 400
-
-        db.commit()
-
-        return jsonify({
-            "ok": True,
-            "user": {
-                "id": user.id,
-                "role": user.role,
-                "active": user.active
-            }
-        })
-
-    except Exception:
-        logger.exception("admin_update_user failed")
-        return jsonify({"ok": False, "error": "server_error"}), 500
-    finally:
-        db.close()
-
-@app.route("/admin/impersonate", methods=["POST"])
-def admin_impersonate():
-    db = SessionLocal()
-    try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-        target_id = data.get("user_id")
-
-        if not init_data or not target_id:
-            return jsonify({"ok": False}), 400
-
-        admin_id, _, _, _ = verify_telegram_init_data(init_data)
-        admin = db.query(User).filter(User.id == admin_id).first()
-
-        if not admin or admin.role not in ("admin", "superadmin"):
-            return jsonify({"ok": False, "error": "forbidden"}), 403
-
-        target = db.query(User).filter(User.id == target_id).first()
-        if not target or target.role in ("admin", "superadmin"):
-            return jsonify({"ok": False, "error": "cannot_impersonate"}), 400
-
-        return jsonify({
-            "ok": True,
-            "impersonated_user": {
-                "id": target.id,
-                "first_name": target.first_name,
-                "username": target.username,
-                "role": target.role
-            }
-        })
-
-    except Exception:
-        logger.exception("admin_impersonate failed")
-        return jsonify({"ok": False}), 500
-    finally:
-        db.close()
-
+        db.close()        
 
 @app.route("/admin/stats", methods=["POST"])
 def admin_stats():
@@ -878,7 +799,6 @@ def admin_stats():
     finally:
         db.close()
 
-
 @app.route("/webapp/save_wallet", methods=["POST"])
 def save_wallet():
     db = SessionLocal()
@@ -906,7 +826,6 @@ def save_wallet():
     finally:
         db.close()
 
-
 @app.post("/bot/start")
 def bot_start():
     data = request.get_json(silent=True) or {}
@@ -918,7 +837,7 @@ def bot_start():
         return jsonify({"ok": False, "error": "missing_telegram_id"}), 400
     db = SessionLocal()
     try:
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        user = db.get(User, tg_id)
         is_new = False
         changed = False
         if not user:
@@ -972,11 +891,9 @@ def bot_start():
         })
     finally:
         db.close()
-
-
-@app.route("/webapp/profile", methods=["POST"])
-def webapp_profile():
-    db = SessionLocal()
+        @app.route("/webapp/profile", methods=["POST"])
+        def webapp_profile():
+         db = SessionLocal()
     try:
         data = request.get_json() or {}
         init_data = data.get("initData")
@@ -1057,7 +974,6 @@ def webapp_role():
     finally:
         db.close()
 
-
 # -------------------------
 # Debug / admin endpoints
 # -------------------------
@@ -1082,7 +998,6 @@ def debug_downlines(user_id):
     finally:
         db.close()
 
-
 @app.route("/debug/link_referrer", methods=["POST"])
 def debug_link_referrer():
     data = request.get_json(force=True) or {}
@@ -1106,7 +1021,6 @@ def debug_link_referrer():
     finally:
         db.close()
 
-
 @app.route("/debug/list_users", methods=["GET"])
 def debug_list_users():
     db = SessionLocal()
@@ -1116,7 +1030,6 @@ def debug_list_users():
         return jsonify(ok=True, users=data)
     finally:
         db.close()
-
 
 @app.route("/debug/company_pool", methods=["GET"])
 def debug_company_pool():
@@ -1128,7 +1041,6 @@ def debug_company_pool():
         return jsonify(ok=True, exists=True, user_id=company.id, username=company.username, role=company.role, balance_musd=float(company.balance_musd or 0.0), balance_mstc=float(company.balance_mstc or 0.0), club_income=float(company.club_income or 0.0) if hasattr(company, "club_income") else 0.0)
     finally:
         db.close()
-
 
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
@@ -1316,7 +1228,6 @@ def debug_transactions(user_id):
     finally:
         db.close()
 
-
 # Telegram webhook handler
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
@@ -1344,7 +1255,6 @@ def telegram_webhook():
         logging.exception("Error handling update: %s", e)
     return jsonify({"ok": True}), 200
 
-
 # Entry point for local run
 if __name__ == "__main__":
     logger.info("Starting backend.app entrypoint (pid=%s)", os.getpid())
@@ -1353,3 +1263,5 @@ if __name__ == "__main__":
     debug = False
     logger.info("Flask run -> host=%s port=%s debug=%s", host, port, debug)
     app.run(host=host, port=port, debug=debug)
+
+

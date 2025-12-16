@@ -492,7 +492,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px; /* IMPORTANT for small screens */
 }
 
 .modal.hidden {
@@ -500,57 +499,27 @@
 }
 
 .modal-card {
-  width: 100%;
-  max-width: 420px;
-  max-height: 85vh;              /* 🔑 LIMIT HEIGHT */
+  width: 90%;
+  max-width: 360px;
   background: #121a3a;
   border-radius: 14px;
-  display: flex;                 /* 🔑 FLEX LAYOUT */
-  flex-direction: column;
-  overflow: hidden;              /* hide overflow, body scrolls */
+  padding: 12px;
 }
 
-/* Header stays fixed */
 .modal-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
   font-weight: bold;
-  border-bottom: 1px solid rgba(255,255,255,.1);
-  flex-shrink: 0;                /* 🔑 NEVER SCROLL */
 }
 
-/* Scrollable body */
 .modal-body {
-  padding: 12px;
+  margin-top: 10px;
   font-size: 14px;
-  overflow-y: auto;              /* 🔑 SCROLL ENABLED */
-  -webkit-overflow-scrolling: touch;
 }
 
 .user-header {
   text-align: center;
   margin-bottom: 16px;
-}
-
-.modal-header button {
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
-.admin-user-row {
-  padding: 10px;
-  border-bottom: 1px solid rgba(255,255,255,.1);
-  font-size: 14px;
-}
-
-.admin-user-row:last-child {
-  border-bottom: none;
 }
   </style>
 </head>
@@ -565,7 +534,7 @@
     <div id="registerSection">
       <h2 id="accountStatus">Do you want to register?</h2>
       <div class="actions">
-        <button id="yesBtn" onclick="doRegister()">Yes</button>
+        <button id="yesBtn" class="btn" type="button">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
@@ -582,17 +551,6 @@
 </div>
 
 <script>
-  document.addEventListener("click", (e) => {
-  if (e.target.closest("#yesBtn")) {
-    console.log("✅ YES BUTTON CLICKED");
-  }
-});
-
-  window.impersonation = {
-  active: false,
-  user: null
-};
-
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
   let ref =
@@ -641,7 +599,6 @@ async function connectTonWallet() {
       console.error('TON wallet connection failed', e);
     }
   }
-
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
@@ -1172,7 +1129,7 @@ async function connectTonWallet() {
           if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
 
           msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
-          await showRegisteredViewFromBackend();
+          await loadFullUserAndRender();
 
           // clear fields
           amtInput.value = '';
@@ -1313,7 +1270,7 @@ overlay && overlay.addEventListener("click", closeMenu);
     const registerSection = document.getElementById("registerSection");
     if (!user || !statusEl || !registerSection) return;
 
-    if (!user.exists) {
+    if (!user.has_registered) {
       // FIRST TIME USER – show question + Yes/No
       statusEl.textContent = "Do you want to register?";
       registerSection.style.display = "";
@@ -1330,42 +1287,80 @@ overlay && overlay.addEventListener("click", closeMenu);
   }
 
   const loadActivationStatus = async () => {
-  const tgApp = tg;
-  if (!tgApp) {
+    const tgApp = tg;
+    if (!tgApp) {
+      console.error("Telegram WebApp not available");
+      return;
+    }
+
+    const initData = tgApp.initData || "";
+
+    try {
+      const res = await fetch('/webapp/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initData,
+          ref: window.currentRef || null
+        })
+      });
+      const data = await res.json();
+      console.log("VERIFY RESPONSE:", data);
+
+      if (data && data.ok !== false) {
+        updateActivationStatus(data);
+
+        // if user already registered, skip question and show full view
+        if (data.has_registered) {
+          await loadFullUserAndRender();
+        }
+      } else {
+        console.error("init failed", data);
+      }
+    } catch (err) {
+      console.error("Error loading activation status:", err);
+    }
+  };
+
+async function loadFullUserAndRender() {
+  if (!tg) {
     console.error("Telegram WebApp not available");
     return;
   }
 
-  const initData = tgApp.initData || "";
+  const res = await fetch('/webapp/user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      initData: tg.initData
+    })
+  });
 
-  try {
-    const res = await fetch('/webapp/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData,
-        ref: window.currentRef || null
-      })
-    });
+  const data = await res.json();
 
-    const data = await res.json();
-    console.log("VERIFY RESPONSE:", data);
-
-    if (data && data.ok !== false) {
-      updateActivationStatus(data);
-
-      // ✅ if user already registered, skip question
-      if (data.exists) {
-        await showRegisteredViewFromBackend();
-      }
-    } else {
-      console.error("init failed", data);
-    }
-  } catch (err) {
-    console.error("Error loading activation status:", err);
+  if (!data.ok) {
+    console.error("Failed to load full user", data);
+    return;
   }
-};
 
+  const u = data.user;
+
+  window.currentUserData = u;
+
+  const name =
+    ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) ||
+    'Unknown';
+
+  renderRegisteredView(
+    u.id,
+    name,
+    null,
+    u            // 🔥 FULL, FRESH DB USER
+  );
+
+   updateAdminMenuVisibility();
+}
 
   // --- YES / NO button handlers + init ---
   document.addEventListener('DOMContentLoaded', () => {
@@ -1375,7 +1370,12 @@ overlay && overlay.addEventListener("click", closeMenu);
     const yesBtn = document.getElementById('yesBtn');
     const noBtn = document.getElementById('noBtn');
 
-    
+    if (yesBtn) {
+      yesBtn.onclick = async () => {
+        await loadFullUserAndRender();
+      };
+    }
+
     if (noBtn) {
       noBtn.onclick = () => {
         app.innerHTML = `
@@ -1386,7 +1386,24 @@ overlay && overlay.addEventListener("click", closeMenu);
     }
   });
 
-  
+  // --- Robust YES button handler (delegation) ---
+  document.addEventListener('click', (e) => {
+    const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
+    if (!yes) return;
+    e.preventDefault();
+    // Call the global function (guaranteed by exposing above)
+    if (typeof window.showRegisteredViewFromBackend === 'function') {
+      window.showRegisteredViewFromBackend().catch(err => {
+        console.error('showRegisteredViewFromBackend failed:', err);
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.showAlert('Failed to open app: ' + (err && err.message ? err.message : String(err)));
+        }
+      });
+    } else {
+      console.warn('showRegisteredViewFromBackend not found on window');
+    }
+  });
+
 // ================= MENU EVENT DELEGATION =================
 function openMenu() {
   document.getElementById("sideMenu")?.classList.add("open");
@@ -1408,13 +1425,6 @@ function openModal(title, html) {
   document.getElementById("modalBody").innerHTML = html;
   modal.classList.remove("hidden");
 }
-
-// Close modal when clicking outside modal-card
-document.getElementById("modal")?.addEventListener("click", (e) => {
-  if (e.target.id === "modal") {
-    closeModal();
-  }
-});
 
   function closeModal() {
     document.getElementById("modal").classList.add("hidden");
@@ -1481,244 +1491,7 @@ async function openDownlines() {
   );
 }
 
-async function openAdminUsers() {
-  try {
-    openModal("Admin • Users", "<div class='mini'>Loading users…</div>");
-
-    const res = await fetch("/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-      openModal("Admin", "❌ Access denied");
-      return;
-    }
-
-    const users = data.users || [];
-
-    if (!users.length) {
-      openModal("Admin • Users", "<div>No users found</div>");
-      return;
-    }
-
-    // 🔹 Build user rows
-    const rowsHtml = users.map(u => {
-
-  // 🔒 Prevent self-modification
-  const isSelf = u.id === window.currentUserData?.id;
-
-  return `
-    <div class="admin-user-row"
-         data-search="${(u.first_name || "").toLowerCase()}
-                      ${(u.username || "").toLowerCase()}
-                      ${u.id}">
-
-      <b>${u.first_name || "User"}</b>
-      <div class="mini">@${u.username || "—"}</div>
-
-      <div class="mini">
-        Role: <b>${u.role}</b> ${u.active ? "✅ Active" : "❌ Inactive"}
-      </div>
-
-      <div class="mini">
-        MUSD: ${u.balance_musd} | MSTC: ${u.balance_mstc}
-      </div>
-
-      <div class="mini">ID: ${u.id}</div>
-
-      ${
-        isSelf
-          ? `<div class="mini" style="margin-top:8px;opacity:.7">
-               ⚠️ You (cannot modify yourself)
-             </div>`
-          : `
-            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
-              ${u.role !== "admin" ? `
-                <button class="btn secondary"
-                  onclick="adminUpdateUser(${u.id}, 'promote')">
-                  🔼 Promote
-                </button>
-              ` : `
-                <button class="btn alt"
-                  onclick="adminUpdateUser(${u.id}, 'demote')">
-                  🔽 Demote
-                </button>
-              `}
-
-              ${u.active ? `
-                <button class="btn alt"
-                  onclick="adminUpdateUser(${u.id}, 'deactivate')">
-                  ⛔ Deactivate
-                </button>
-              ` : `
-                <button class="btn secondary"
-                  onclick="adminUpdateUser(${u.id}, 'activate')">
-                  ✅ Activate
-                </button>
-              `}
-            </div>
-          `
-      }
-
-    </div>
-  `;
-}).join("");
-
-    // 🔹 Modal content
-    openModal("Admin • Users", `
-      <div style="margin-bottom:10px">
-        <input
-          id="adminUserSearch"
-          type="text"
-          placeholder="Search by name, username, ID…"
-          style="
-            width:100%;
-            padding:10px;
-            border-radius:8px;
-            border:1px solid rgba(255,255,255,.2);
-            background:rgba(255,255,255,.08);
-            color:#fff;
-          "
-        />
-      </div>
-
-      <div id="adminUserList">
-        ${rowsHtml}
-      </div>
-
-      <div style="margin-top:10px">
-        <button class="btn secondary" onclick="closeModal()">⬅ Back</button>
-      </div>
-    `);
-
-    // 🔍 Search logic
-    const searchInput = document.getElementById("adminUserSearch");
-    const rows = document.querySelectorAll(".admin-user-row");
-
-    searchInput.addEventListener("input", () => {
-      const q = searchInput.value.toLowerCase().trim();
-
-      rows.forEach(row => {
-        const hay = row.dataset.search;
-        row.style.display = hay.includes(q) ? "" : "none";
-      });
-    });
-
-  } catch (err) {
-    console.error("openAdminUsers error", err);
-    openModal("Admin Error", "⚠️ Failed to load users");
-  }
-}
-
-async function adminUpdateUser(userId, action) {
-  const confirmMsg = {
-    promote: "Promote this user to ADMIN?",
-    demote: "Demote this user to MEMBER?",
-    activate: "Activate this user?",
-    deactivate: "Deactivate this user?"
-  }[action];
-
-  if (!confirm(confirmMsg)) return;
-
-  try {
-    const res = await fetch("/admin/update_user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: tg.initData,
-        user_id: userId,
-        action
-      })
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-      alert("Action failed");
-      return;
-    }
-
-    // Refresh list
-    openAdminUsers();
-
-  } catch (err) {
-    console.error("adminUpdateUser error", err);
-    alert("Server error");
-  }
-}
-
-async function adminImpersonate(userId) {
-  if (!confirm("Impersonate this user?\nYou can exit anytime.")) return;
-
-  const res = await fetch("/admin/impersonate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      initData: tg.initData,
-      user_id: userId
-    })
-  });
-
-  const d = await res.json();
-  if (!d.ok) {
-    alert("Impersonation failed");
-    return;
-  }
-
-  window.impersonation.active = true;
-  window.impersonation.user = d.impersonated_user;
-
-  closeModal();
-  await showRegisteredViewFromBackend();
-
-  showImpersonationBanner();
-}
-
-function showImpersonationBanner() {
-  if (!window.impersonation.active) return;
-
-  const banner = document.createElement("div");
-  banner.id = "impersonationBanner";
-  banner.style.cssText = `
-    position:fixed;
-    bottom:0;
-    left:0;
-    right:0;
-    background:#b71c1c;
-    color:#fff;
-    padding:10px;
-    font-size:14px;
-    z-index:3000;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-  `;
-
-  banner.innerHTML = `
-    <span>🕵️ Impersonating user: ${window.impersonation.user.first_name}</span>
-    <button onclick="stopImpersonation()"
-      style="background:#fff;color:#000;border:0;padding:6px 10px;border-radius:6px">
-      Exit
-    </button>
-  `;
-
-  document.body.appendChild(banner);
-}
-
-function stopImpersonation() {
-  window.impersonation.active = false;
-  window.impersonation.user = null;
-
-  document.getElementById("impersonationBanner")?.remove();
-  loadFullUserAndRender();
-}
-
-
-  async function openWallet() {
+async function openWallet() {
   const u = window.currentUserData || {};
   openModal("Wallet", `
     <div>MSTC Balance: ${u.balance_mstc || 0}</div>
@@ -1741,42 +1514,7 @@ function updateAdminMenuVisibility() {
 function logout() {
   Telegram.WebApp.close();
 }
-
-async function doRegister() {
-  console.log("YES CLICKED");
-
-  const tg = window.Telegram?.WebApp;
-  if (!tg) {
-    alert("Telegram WebApp not found");
-    return;
-  }
-
-  try {
-    const res = await fetch("/webapp/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
-    });
-
-    const data = await res.json();
-    console.log("Register response:", data);
-
-    if (!data.ok) {
-      tg.showAlert("Registration failed");
-      return;
-    }
-
-    document.getElementById("registerSection").style.display = "none";
-    await showRegisteredViewFromBackend();
-
-  } catch (err) {
-    console.error("Register error:", err);
-    tg.showAlert("Network error");
-  }
-}
-
-
-</script>	
+</script> 
 <!-- 🔹 Side Menu -->
 <div id="sideMenu" class="side-menu">
   <div class="menu-header">
@@ -1815,5 +1553,6 @@ async function doRegister() {
       </div> -->
 </body>
 </html>
+
 
 
