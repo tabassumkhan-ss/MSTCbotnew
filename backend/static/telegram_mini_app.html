@@ -565,7 +565,7 @@
     <div id="registerSection">
       <h2 id="accountStatus">Do you want to register?</h2>
       <div class="actions">
-        <button id="yesBtn" class="btn" type="button">Yes</button>
+        <button id="yesBtn" onclick="doRegister()">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
@@ -1767,6 +1767,43 @@ function updateAdminMenuVisibility() {
 function logout() {
   Telegram.WebApp.close();
 }
+async function doRegister() {
+  console.log("YES CLICKED");
+
+  const tg = window.Telegram?.WebApp;
+  if (!tg) {
+    alert("Telegram WebApp not found");
+    return;
+  }
+
+  try {
+    const res = await fetch("/webapp/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: tg.initData
+      })
+    });
+
+    console.log("Register status:", res.status);
+
+    const data = await res.json();
+    console.log("Register response:", data);
+
+    if (!data.ok) {
+      alert("Registration failed");
+      return;
+    }
+
+    // ✅ Registration success → reload dashboard
+    location.reload();
+
+  } catch (err) {
+    console.error("Register error:", err);
+    alert("Network error");
+  }
+}
+
 </script>	
 <!-- 🔹 Side Menu -->
 <div id="sideMenu" class="side-menu">

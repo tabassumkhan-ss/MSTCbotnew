@@ -129,7 +129,7 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     db.refresh(user)
 
 
-def get_or_create_user(db, tg_user, ref_id=None):
+def create_user_only(db, tg_user, ref_id=None):
     """Create or update user.
 
     tg_user expected to be dict with keys: id, username, first_name, last_name(optional)
@@ -556,24 +556,15 @@ def webapp_me():
     try:
         payload = request.get_json(silent=True) or {}
         init_data = payload.get("initData")
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
-        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+
+        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
         if not telegram_id:
-            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
-        tg_user = {"id": telegram_id, "username": username, "first_name": first_name}
-        raw_ref = (payload.get("ref") or payload.get("start_param") or start_param or get_ref_from_payload(payload))
-        ref_id = None
-        if raw_ref:
-            try:
-                ref_id = int(raw_ref)
-            except (TypeError, ValueError):
-                ref_id = None
-        try:
-            user = get_or_create_user(db, tg_user, ref_id)
-        except ValueError as e:
-            app.logger.error(f"/webapp/me invalid telegram user: {e}")
-            return jsonify({"ok": False, "error": str(e)}), 400
+            return jsonify({"ok": False}), 400
+
+        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        if not user:
+            return jsonify({"ok": False, "not_registered": True})
+
         return jsonify({
             "ok": True,
             "user": {
@@ -585,9 +576,6 @@ def webapp_me():
                 "referrer_id": user.referrer_id,
             }
         })
-    except Exception:
-        app.logger.exception("Unhandled error in /webapp/me")
-        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
 
@@ -598,81 +586,67 @@ def webapp_init():
     try:
         data = request.get_json(silent=True) or {}
         init_data = data.get("initData")
-        ref_from_client = data.get("ref")
-
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
         telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
         if not telegram_id:
-            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+            return jsonify({"ok": False}), 400
 
-        # --- resolve referral from client OR start_param ---
-        raw_ref = ref_from_client or start_param
-        referrer_id = None
-        referrer_username = None
-
-        if raw_ref:
-            ref_user = None
-            try:
-                pk = int(raw_ref)
-                ref_user = db.get(User, pk)
-            except (TypeError, ValueError):
-                ref_user = None
-
-            if not ref_user:
-                ref_user = db.query(User).filter_by(telegram_id=str(raw_ref)).first()
-
-            if ref_user:
-                referrer_id = ref_user.id
-                referrer_username = ref_user.username or ref_user.first_name
-
-        # --- get or create user ---
+        # 🔍 ONLY CHECK USER
         user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
 
-        if not user:
-            user = User(
-                telegram_id=str(telegram_id),
-                username=username,
-                first_name=first_name,
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        # 🔥🔥🔥 REFERRAL LOCKING (THIS IS THE FIX) 🔥🔥🔥
-        if referrer_id and user.referrer_id is None:
-            if referrer_id != user.id:
-                user.referrer_id = referrer_id
-                db.commit()
-
-        # --- compute status ---
-        total_team_business = float(user.total_team_business or 0.0)
-        self_activated = bool(user.self_activated)
-        has_registered = bool(self_activated or total_team_business > 0)
-        is_active = self_activated
+        # 🔍 Resolve referrer ONLY FOR DISPLAY
+        referrer_username = None
+        if start_param:
+            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
+            if ref_user:
+                referrer_username = ref_user.username or ref_user.first_name
 
         return jsonify({
             "ok": True,
-            "exists": True,
-            "has_registered": has_registered,
-            "is_active": is_active,
-            "total_team_business": total_team_business,
-            "active_origin_count": int(getattr(user, "active_origin_count", 0) or 0),
-            "role": user.role,
-            "self_activated": self_activated,
-            "user_id": user.id,
-            "username": user.username,
-            "first_name": user.first_name,
-            "referrer_id": user.referrer_id,
-            "referrer_username": referrer_username,
+            "exists": bool(user),
+            "referrer_username": referrer_username
         })
 
-    except Exception:
-        app.logger.exception("Error in /webapp/init")
-        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
+
+@app.route("/webapp/register", methods=["POST"])
+def webapp_register():
+    db = SessionLocal()
+    try:
+        payload = request.get_json(silent=True) or {}
+        init_data = payload.get("initData")
+
+        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+        if not telegram_id:
+            return jsonify({"ok": False}), 400
+
+        # 🛑 Prevent auto / double registration
+        existing = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        if existing:
+            return jsonify({"ok": True, "already": True})
+
+        referrer_id = None
+        if start_param:
+            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
+            if ref_user:
+                referrer_id = ref_user.id
+
+        user = User(
+            telegram_id=str(telegram_id),
+            username=username,
+            first_name=first_name,
+            referrer_id=referrer_id
+        )
+
+        db.add(user)
+        db.commit()
+
+        return jsonify({"ok": True})
+
+    finally:
+        db.close()
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
@@ -944,7 +918,7 @@ def bot_start():
         return jsonify({"ok": False, "error": "missing_telegram_id"}), 400
     db = SessionLocal()
     try:
-        user = db.get(User, tg_id)
+        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
         is_new = False
         changed = False
         if not user:
@@ -998,9 +972,11 @@ def bot_start():
         })
     finally:
         db.close()
-        @app.route("/webapp/profile", methods=["POST"])
-        def webapp_profile():
-         db = SessionLocal()
+
+
+@app.route("/webapp/profile", methods=["POST"])
+def webapp_profile():
+    db = SessionLocal()
     try:
         data = request.get_json() or {}
         init_data = data.get("initData")
