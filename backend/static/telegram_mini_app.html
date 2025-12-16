@@ -582,6 +582,12 @@
 </div>
 
 <script>
+
+  window.impersonation = {
+  active: false,
+  user: null
+};
+
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
   let ref =
@@ -1354,44 +1360,14 @@ overlay && overlay.addEventListener("click", closeMenu);
     }
   };
 
-async function loadFullUserAndRender() {
-  if (!tg) {
-    console.error("Telegram WebApp not available");
-    return;
-  }
+let u = data.user;
 
-  const res = await fetch('/webapp/user', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      initData: tg.initData
-    })
-  });
-
-  const data = await res.json();
-
-  if (!data.ok) {
-    console.error("Failed to load full user", data);
-    return;
-  }
-
-  const u = data.user;
-
-  window.currentUserData = u;
-
-  const name =
-    ((u.first_name || '') +
-      (u.username ? ' @' + u.username : '')) ||
-    'Unknown';
-
-  renderRegisteredView(
-    u.id,
-    name,
-    null,
-    u            // 🔥 FULL, FRESH DB USER
-  );
-
-   updateAdminMenuVisibility();
+// 🕵️ Admin impersonation override
+if (window.impersonation?.active && window.impersonation?.user) {
+  u = {
+    ...u,
+    ...window.impersonation.user
+  };
 }
 
   // --- YES / NO button handlers + init ---
@@ -1699,6 +1675,72 @@ async function adminUpdateUser(userId, action) {
     console.error("adminUpdateUser error", err);
     alert("Server error");
   }
+}
+
+async function adminImpersonate(userId) {
+  if (!confirm("Impersonate this user?\nYou can exit anytime.")) return;
+
+  const res = await fetch("/admin/impersonate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      initData: tg.initData,
+      user_id: userId
+    })
+  });
+
+  const d = await res.json();
+  if (!d.ok) {
+    alert("Impersonation failed");
+    return;
+  }
+
+  window.impersonation.active = true;
+  window.impersonation.user = d.impersonated_user;
+
+  closeModal();
+  await loadFullUserAndRender();
+
+  showImpersonationBanner();
+}
+
+function showImpersonationBanner() {
+  if (!window.impersonation.active) return;
+
+  const banner = document.createElement("div");
+  banner.id = "impersonationBanner";
+  banner.style.cssText = `
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    background:#b71c1c;
+    color:#fff;
+    padding:10px;
+    font-size:14px;
+    z-index:3000;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  `;
+
+  banner.innerHTML = `
+    <span>🕵️ Impersonating user: ${window.impersonation.user.first_name}</span>
+    <button onclick="stopImpersonation()"
+      style="background:#fff;color:#000;border:0;padding:6px 10px;border-radius:6px">
+      Exit
+    </button>
+  `;
+
+  document.body.appendChild(banner);
+}
+
+function stopImpersonation() {
+  window.impersonation.active = false;
+  window.impersonation.user = null;
+
+  document.getElementById("impersonationBanner")?.remove();
+  loadFullUserAndRender();
 }
 
 

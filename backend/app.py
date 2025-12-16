@@ -809,6 +809,43 @@ def admin_update_user():
     finally:
         db.close()
 
+@app.route("/admin/impersonate", methods=["POST"])
+def admin_impersonate():
+    db = SessionLocal()
+    try:
+        data = request.get_json() or {}
+        init_data = data.get("initData")
+        target_id = data.get("user_id")
+
+        if not init_data or not target_id:
+            return jsonify({"ok": False}), 400
+
+        admin_id, _, _, _ = verify_telegram_init_data(init_data)
+        admin = db.query(User).filter(User.id == admin_id).first()
+
+        if not admin or admin.role not in ("admin", "superadmin"):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+
+        target = db.query(User).filter(User.id == target_id).first()
+        if not target or target.role in ("admin", "superadmin"):
+            return jsonify({"ok": False, "error": "cannot_impersonate"}), 400
+
+        return jsonify({
+            "ok": True,
+            "impersonated_user": {
+                "id": target.id,
+                "first_name": target.first_name,
+                "username": target.username,
+                "role": target.role
+            }
+        })
+
+    except Exception:
+        logger.exception("admin_impersonate failed")
+        return jsonify({"ok": False}), 500
+    finally:
+        db.close()
+
 
 @app.route("/admin/stats", methods=["POST"])
 def admin_stats():
