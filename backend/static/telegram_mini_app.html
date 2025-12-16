@@ -1717,7 +1717,7 @@ function stopImpersonation() {
   window.impersonation.user = null;
 
   document.getElementById("impersonationBanner")?.remove();
-  loadFullUserAndRender();
+  showRegisteredViewFromBackend();
 }
 
   async function openWallet() {
@@ -1802,7 +1802,7 @@ async function doRegister() {
   </div>
 </div>
 
-<!-- 🔹 Overlay 
+ 🔹 Overlay 
 <div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
@@ -1813,7 +1813,7 @@ async function doRegister() {
         · Active Origins:
         <b>${activeOrigins}</b>
         Current: <b>${ranks.current}</b>
-      </div> -->
+      </div> 
 </body>
 </html>
 
