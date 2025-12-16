@@ -1313,7 +1313,7 @@ overlay && overlay.addEventListener("click", closeMenu);
     const registerSection = document.getElementById("registerSection");
     if (!user || !statusEl || !registerSection) return;
 
-    if (!user.has_registered) {
+    if (!user.exists) {
       // FIRST TIME USER – show question + Yes/No
       statusEl.textContent = "Do you want to register?";
       registerSection.style.display = "";
@@ -1354,7 +1354,7 @@ overlay && overlay.addEventListener("click", closeMenu);
         updateActivationStatus(data);
 
         // if user already registered, skip question and show full view
-        if (data.has_registered) {
+        if (data.exists) {
           await loadFullUserAndRender();
         }
       } else {
@@ -1365,15 +1365,6 @@ overlay && overlay.addEventListener("click", closeMenu);
     }
   };
 
-let u = data.user;
-
-// 🕵️ Admin impersonation override
-if (window.impersonation?.active && window.impersonation?.user) {
-  u = {
-    ...u,
-    ...window.impersonation.user
-  };
-}
 
   // --- YES / NO button handlers + init ---
   document.addEventListener('DOMContentLoaded', () => {
@@ -1394,25 +1385,7 @@ if (window.impersonation?.active && window.impersonation?.user) {
     }
   });
 
-  // --- Robust YES button handler (delegation) ---
-  document.addEventListener('click', (e) => {
-    const yes = e.target && e.target.closest && e.target.closest('#yesBtn');
-    if (!yes) return;
-    e.preventDefault();
-    // Call the global function (guaranteed by exposing above)
-    if (typeof window.showRegisteredViewFromBackend === 'function') {
-      window.showRegisteredViewFromBackend().catch(err => {
-        console.error('showRegisteredViewFromBackend failed:', err);
-        if (window.Telegram && window.Telegram.WebApp) {
-          window.Telegram.WebApp.showAlert('Failed to open app: ' + (err && err.message ? err.message : String(err)));
-        }
-      });
-    } else {
-      console.warn('showRegisteredViewFromBackend not found on window');
-    }
-  });
-
-
+  
 // ================= MENU EVENT DELEGATION =================
 function openMenu() {
   document.getElementById("sideMenu")?.classList.add("open");
@@ -1767,6 +1740,7 @@ function updateAdminMenuVisibility() {
 function logout() {
   Telegram.WebApp.close();
 }
+
 async function doRegister() {
   console.log("YES CLICKED");
 
@@ -1780,29 +1754,26 @@ async function doRegister() {
     const res = await fetch("/webapp/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: tg.initData
-      })
+      body: JSON.stringify({ initData: tg.initData })
     });
-
-    console.log("Register status:", res.status);
 
     const data = await res.json();
     console.log("Register response:", data);
 
     if (!data.ok) {
-      alert("Registration failed");
+      tg.showAlert("Registration failed");
       return;
     }
 
-    // ✅ Registration success → reload dashboard
-    location.reload();
+    document.getElementById("registerSection").style.display = "none";
+    await showRegisteredViewFromBackend();
 
   } catch (err) {
     console.error("Register error:", err);
-    alert("Network error");
+    tg.showAlert("Network error");
   }
 }
+
 
 </script>	
 <!-- 🔹 Side Menu -->
