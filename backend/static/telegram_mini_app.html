@@ -565,7 +565,7 @@
     <div id="registerSection">
       <h2 id="accountStatus">Do you want to register?</h2>
       <div class="actions">
-        <button id="yesBtn" onclick="doRegister()">Yes</button>
+        <button id="yesBtn" class="btn" onclick="doRegister()">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
@@ -766,8 +766,10 @@ async function connectTonWallet() {
   // expose globally
   window.verifyInitData = verifyInitData;
 
+
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
+    window.currentUserData = userData;
   // 🔒 SAFETY: ensure backend user data is present
   if (!userData || typeof userData !== 'object') {
     console.error("renderRegisteredView called without userData", userData);
@@ -1277,6 +1279,9 @@ const overlay = document.getElementById("menuOverlay");
 menuBtn && menuBtn.addEventListener("click", openMenu);
 closeBtn && closeBtn.addEventListener("click", closeMenu);
 overlay && overlay.addEventListener("click", closeMenu);
+
+// ✅ show / hide admin menu based on role
+updateAdminMenuVisibility();
   };
 
   // expose renderRegisteredView globally
