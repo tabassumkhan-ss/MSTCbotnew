@@ -556,6 +556,7 @@ def webapp_me():
                 "id": user.id,
                 "username": user.username,
                 "first_name": user.first_name,
+                "role": user.role,
                 "balance_mstc": user.balance_mstc,
                 "balance_musd": user.balance_musd,
                 "referrer_id": user.referrer_id,

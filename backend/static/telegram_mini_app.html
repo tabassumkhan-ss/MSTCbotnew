@@ -769,6 +769,7 @@ async function connectTonWallet() {
 
   // --- Render full registered view (deposit + ranks) ---
   const renderRegisteredView = (uid, name, avatar, userData) => {
+    console.log("currentUserData at render:", JSON.stringify(userData, null, 2));
     window.currentUserData = userData;
   // 🔒 SAFETY: ensure backend user data is present
   if (!userData || typeof userData !== 'object') {
@@ -1289,25 +1290,32 @@ updateAdminMenuVisibility();
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
     const showRegisteredViewFromBackend = async () => {
-    const verifyResp = await verifyInitData();
+  const verifyResp = await verifyInitData();
 
-    const tgApp = tg;
-    const unsafeUser =
-      tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
-        ? tgApp.initDataUnsafe.user
-        : {};
+  // 🔍 DEBUG — THIS IS THE IMPORTANT LOG
+  console.log("🔎 VERIFY RESPONSE:", verifyResp);
+  console.log("🔎 VERIFY RESPONSE USER:", verifyResp?.user);
 
-    const u = verifyResp.user || unsafeUser || {};
-    const id = u.id || 0;
-    const name =
-      ((u.first_name || '') +
-        (u.username ? ' @' + u.username : '')) ||
-      u.username ||
-      'Unknown';
-    const avatar = u.photo_url || baseLogo;
+  const tgApp = tg;
+  const unsafeUser =
+    tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
+      ? tgApp.initDataUnsafe.user
+      : {};
 
-    renderRegisteredView(id, name, avatar, verifyResp.user || {});
-  };
+  const u = verifyResp.user || unsafeUser || {};
+  console.log("🧠 FINAL USER USED FOR RENDER:", u);
+
+  const id = u.id || 0;
+  const name =
+    ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) ||
+    u.username ||
+    'Unknown';
+  const avatar = u.photo_url || baseLogo;
+
+  renderRegisteredView(id, name, avatar, u);
+};
+
   // expose globally
   window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
@@ -1802,7 +1810,7 @@ async function doRegister() {
   </div>
 </div>
 
- 🔹 Overlay 
+ <!--🔹 Overlay 
 <div id="menuOverlay" class="menu-overlay"></div>
       <img src="${avatar || baseLogo}" class="logo glow" />
       <div class="row big">${uid ?? '(unknown)'}</div>
@@ -1813,7 +1821,7 @@ async function doRegister() {
         · Active Origins:
         <b>${activeOrigins}</b>
         Current: <b>${ranks.current}</b>
-      </div> 
+      </div> -->
 </body>
 </html>
 
