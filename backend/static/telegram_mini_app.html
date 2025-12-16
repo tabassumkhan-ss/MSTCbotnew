@@ -1172,7 +1172,7 @@ async function connectTonWallet() {
           if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
 
           msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
-          await loadFullUserAndRender();
+          await showRegisteredViewFromBackend();
 
           // clear fields
           amtInput.value = '';
@@ -1330,40 +1330,41 @@ overlay && overlay.addEventListener("click", closeMenu);
   }
 
   const loadActivationStatus = async () => {
-    const tgApp = tg;
-    if (!tgApp) {
-      console.error("Telegram WebApp not available");
-      return;
-    }
+  const tgApp = tg;
+  if (!tgApp) {
+    console.error("Telegram WebApp not available");
+    return;
+  }
 
-    const initData = tgApp.initData || "";
+  const initData = tgApp.initData || "";
 
-    try {
-      const res = await fetch('/webapp/init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          initData,
-          ref: window.currentRef || null
-        })
-      });
-      const data = await res.json();
-      console.log("VERIFY RESPONSE:", data);
+  try {
+    const res = await fetch('/webapp/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        initData,
+        ref: window.currentRef || null
+      })
+    });
 
-      if (data && data.ok !== false) {
-        updateActivationStatus(data);
+    const data = await res.json();
+    console.log("VERIFY RESPONSE:", data);
 
-        // if user already registered, skip question and show full view
-        if (data.exists) {
-          await loadFullUserAndRender();
-        }
-      } else {
-        console.error("init failed", data);
+    if (data && data.ok !== false) {
+      updateActivationStatus(data);
+
+      // ✅ if user already registered, skip question
+      if (data.exists) {
+        await showRegisteredViewFromBackend();
       }
-    } catch (err) {
-      console.error("Error loading activation status:", err);
+    } else {
+      console.error("init failed", data);
     }
-  };
+  } catch (err) {
+    console.error("Error loading activation status:", err);
+  }
+};
 
 
   // --- YES / NO button handlers + init ---
@@ -1672,7 +1673,7 @@ async function adminImpersonate(userId) {
   window.impersonation.user = d.impersonated_user;
 
   closeModal();
-  await loadFullUserAndRender();
+  await showRegisteredViewFromBackend();
 
   showImpersonationBanner();
 }
