@@ -1266,6 +1266,90 @@ def debug_user(user_id):
     finally:
         db.close()
 
+@app.route("/debug/reset_user/<int:user_id>", methods=["POST"])
+def debug_reset_user(user_id):
+    if request.headers.get("X-DEBUG-KEY") != os.getenv("DEBUG_KEY"):
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    db = SessionLocal()
+    try:
+        user = db.get(User, user_id)
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        # 🔥 RESET USER TO FRESH STATE
+        user.referrer_id = None
+        user.role = "member"
+        user.self_activated = False
+        user.active = False
+        user.balance_musd = 0
+        user.balance_mstc = 0
+        user.total_team_business = 0
+        user.active_origin_count = 0
+
+        # remove referral + transactions
+        db.query(ReferralEvent).filter(
+            (ReferralEvent.from_user_id == user_id) |
+            (ReferralEvent.to_user_id == user_id)
+        ).delete()
+
+        db.query(Transaction).filter_by(user_id=user_id).delete()
+
+        db.commit()
+
+        return jsonify({
+            "ok": True,
+            "message": "User reset to fresh state",
+            "user_id": user_id
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        db.close()
+@app.route("/debug/reset_user/<int:user_id>", methods=["POST"])
+def debug_reset_user(user_id):
+    if request.headers.get("X-DEBUG-KEY") != os.getenv("DEBUG_KEY"):
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+
+    db = SessionLocal()
+    try:
+        user = db.get(User, user_id)
+        if not user:
+            return jsonify({"ok": False, "error": "user_not_found"}), 404
+
+        # 🔥 RESET USER TO FRESH STATE
+        user.referrer_id = None
+        user.role = "member"
+        user.self_activated = False
+        user.active = False
+        user.balance_musd = 0
+        user.balance_mstc = 0
+        user.total_team_business = 0
+        user.active_origin_count = 0
+
+        # remove referral + transactions
+        db.query(ReferralEvent).filter(
+            (ReferralEvent.from_user_id == user_id) |
+            (ReferralEvent.to_user_id == user_id)
+        ).delete()
+
+        db.query(Transaction).filter_by(user_id=user_id).delete()
+
+        db.commit()
+
+        return jsonify({
+            "ok": True,
+            "message": "User reset to fresh state",
+            "user_id": user_id
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route("/debug/transactions/<int:user_id>", methods=["GET"])
 def debug_transactions(user_id):
     db = SessionLocal()
