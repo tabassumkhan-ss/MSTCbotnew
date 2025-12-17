@@ -835,7 +835,7 @@ def bot_start():
         return jsonify({"ok": False, "error": "missing_telegram_id"}), 400
     db = SessionLocal()
     try:
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
         is_new = False
         changed = False
         if not user:
