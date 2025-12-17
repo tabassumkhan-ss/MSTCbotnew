@@ -420,9 +420,14 @@ def deposit_submit():
 
         # --- apply business logic to user ---
         became_origin_now = False
-        if not getattr(user, "self_activated", False) and amount >= 20:
-            user.self_activated = True
-            became_origin_now = True
+        if amount >= 20:
+         if not user.self_activated:
+          user.self_activated = True
+
+    if user.role == "user":
+        user.role = "origin"
+        became_origin_now = True
+
 
         user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
@@ -526,13 +531,12 @@ def deposit_submit():
             "created_tx_id": getattr(deposit_tx, "id", None),
             "created_tx_external_id": getattr(deposit_tx, "external_id", None)
         }
-        return jsonify(response), 200
-
+        return jsonify(response), 20
     except Exception:
         db.rollback()
         app.logger.exception("deposit_submit: failed to persist transaction/referrals")
         return jsonify({"ok": False, "error": "server_error"}), 500
-    finally:
+        finally:
         db.close()
 
 @app.route("/webapp/me", methods=["POST"])
@@ -1188,12 +1192,19 @@ def debug_simulate_deposit():
                 }), 200
 
         # --- apply business logic ---
+               # --- apply business logic ---
         became_origin_now = False
-        if not getattr(user, "self_activated", False) and amount >= 20:
-            user.self_activated = True
-            became_origin_now = True
+
+        if amount >= 20:
+            if not user.self_activated:
+                user.self_activated = True
+
+            if user.role == "user":
+                user.role = "origin"
+                became_origin_now = True
 
         user.total_team_business = (user.total_team_business or 0.0) + amount
+
 
         # update company pool
         company_pool = db.get(User, COMPANY_USER_ID)
