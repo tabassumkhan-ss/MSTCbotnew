@@ -343,17 +343,18 @@ def home():
 
 @app.route("/deposit/submit", methods=["POST"])
 def deposit_submit():
+    # -------- API KEY CHECK --------
     if DEPOSIT_API_KEY:
         supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
         if not supplied or supplied.strip() != DEPOSIT_API_KEY.strip():
             return jsonify(ok=False, error="invalid_api_key"), 401
 
+    # -------- INPUT --------
     payload = request.get_json(silent=True) or {}
     tg_id = payload.get("user_id") or payload.get("telegram_id")
     amount = payload.get("amount")
     tx_musd = payload.get("tx_musd")
     tx_mstc = payload.get("tx_mstc")
-    ref = payload.get("ref")
 
     try:
         tg_id = int(tg_id)
@@ -363,11 +364,12 @@ def deposit_submit():
 
     db = SessionLocal()
     try:
+        # -------- USER LOOKUP --------
         user = db.get(User, tg_id) or db.query(User).filter_by(telegram_id=str(tg_id)).first()
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
-        # ---- idempotency ----
+        # -------- IDEMPOTENCY --------
         if tx_musd:
             existing = db.query(Transaction).filter_by(
                 external_id=str(tx_musd),
@@ -377,25 +379,32 @@ def deposit_submit():
             if existing:
                 return jsonify(ok=True, user_id=user.id), 200
 
-        # ---- activation + role ----
+        # -------- ACTIVATE & ROLE --------
         became_origin_now = False
+
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
+
             if user.role == "user":
                 user.role = "origin"
                 became_origin_now = True
 
-        user.total_team_business = (user.total_team_business or 0) + amount
+        # -------- USER BUSINESS --------
+        user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
-        # ---- company pool ----
+        # 🔥 propagate team business + rank upgrades
+        propagate_team_business(db, user, amount, became_origin_now)
+        update_rank(user)
+
+        # -------- COMPANY POOL --------
         company = db.get(User, COMPANY_USER_ID)
         if company:
-            company.balance_musd = (company.balance_musd or 0) + amount * 0.72
+            company.balance_musd = (company.balance_musd or 0.0) + (amount * 0.72)
             db.add(company)
 
-        # ---- transaction ----
+        # -------- DEPOSIT TRANSACTION --------
         deposit_tx = Transaction(
             user_id=user.id,
             amount=amount,
@@ -409,14 +418,14 @@ def deposit_submit():
         if tx_mstc:
             db.add(Transaction(
                 user_id=user.id,
-                amount=0,
+                amount=0.0,
                 currency="MSTC",
                 type="credit_mstc",
                 external_id=str(tx_mstc),
                 created_at=datetime.utcnow()
             ))
 
-        # ---- referral distribution ----
+        # -------- REFERRAL DISTRIBUTION (3 LEVELS) --------
         referral_records = []
         current = user
         visited = set()
@@ -432,8 +441,9 @@ def deposit_submit():
             reward = round(amount * pct, 2)
 
             if reward > 0:
-                upline.balance_musd = (upline.balance_musd or 0) + reward
+                upline.balance_musd = (upline.balance_musd or 0.0) + reward
                 db.add(upline)
+
                 db.add(Transaction(
                     user_id=upline.id,
                     amount=reward,
@@ -442,11 +452,17 @@ def deposit_submit():
                     external_id=f"REF-{tx_musd}-L{level}",
                     created_at=datetime.utcnow()
                 ))
-                referral_records.append({"level": level, "to_user": upline.id, "amount": reward})
+
+                referral_records.append({
+                    "level": level,
+                    "to_user": upline.id,
+                    "amount": reward
+                })
 
             current = upline
             level += 1
 
+        # -------- COMMIT --------
         db.commit()
         db.refresh(user)
 
@@ -467,9 +483,9 @@ def deposit_submit():
         db.rollback()
         app.logger.exception("deposit_submit failed")
         return jsonify(ok=False, error="server_error"), 500
+
     finally:
         db.close()
-
 
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
@@ -1044,9 +1060,11 @@ def debug_company_pool():
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
+    # -------- DEBUG KEY --------
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
+    # -------- INPUT --------
     payload = request.get_json(silent=True) or {}
     tg_id = payload.get("user_id")
     amount = payload.get("amount")
@@ -1060,21 +1078,31 @@ def debug_simulate_deposit():
 
     db = SessionLocal()
     try:
+        # -------- USER --------
         user = db.get(User, tg_id)
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
+        # -------- ACTIVATE & ROLE --------
         became_origin_now = False
+
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
+
             if user.role == "user":
                 user.role = "origin"
                 became_origin_now = True
 
-        user.total_team_business += amount
+        # -------- USER BUSINESS --------
+        user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
+        # 🔥 propagate team business & ranks
+        propagate_team_business(db, user, amount, became_origin_now)
+        update_rank(user)
+
+        # -------- TRANSACTION --------
         db.add(Transaction(
             user_id=user.id,
             amount=amount,
@@ -1097,9 +1125,16 @@ def debug_simulate_deposit():
                 "total_team_business": user.total_team_business
             }
         ), 200
+
+    except Exception:
+        db.rollback()
+        app.logger.exception("debug_simulate_deposit failed")
+        return jsonify(ok=False, error="server_error"), 500
+
     finally:
         db.close()
-        
+
+
  
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
