@@ -235,6 +235,7 @@ def require_admin(user):
 def update_rank(user: User):
     total = user.total_team_business or 0.0
     active_origins = user.active_origin_count or 0
+
     if total >= 100000:
         user.role = "creator"
     elif total >= 25000:
@@ -243,11 +244,9 @@ def update_rank(user: User):
         user.role = "advisor"
     elif total >= 1000 and active_origins >= 10:
         user.role = "life_changer"
-    elif user.self_activated:
+    elif user.self_activated and user.role == "user":
         user.role = "origin"
-    else:
-        if not user.role:
-            user.role = "user"
+
 
 ROLE_LEVEL1_PCT = {
     "origin": 0.05,
@@ -344,200 +343,133 @@ def home():
 
 @app.route("/deposit/submit", methods=["POST"])
 def deposit_submit():
-    # optional API key gate
     if DEPOSIT_API_KEY:
         supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
-        if not supplied or str(supplied).strip() != str(DEPOSIT_API_KEY).strip():
-            app.logger.warning("deposit_submit: missing/invalid API key")
-            return jsonify({"ok": False, "error": "invalid_api_key"}), 401
+        if not supplied or supplied.strip() != DEPOSIT_API_KEY.strip():
+            return jsonify(ok=False, error="invalid_api_key"), 401
 
     payload = request.get_json(silent=True) or {}
-    tg_id = payload.get("user_id") or payload.get("telegram_id") or (payload.get("user") or {}).get("id")
-    try:
-        tg_id = int(tg_id) if tg_id is not None else None
-    except (TypeError, ValueError):
-        tg_id = None
-
-    try:
-        amount = float(payload.get("amount")) if payload.get("amount") is not None else None
-    except (TypeError, ValueError):
-        amount = None
-
-    if not tg_id or amount is None:
-        return jsonify({"ok": False, "error": "missing_user_or_amount"}), 400
-
+    tg_id = payload.get("user_id") or payload.get("telegram_id")
+    amount = payload.get("amount")
     tx_musd = payload.get("tx_musd")
     tx_mstc = payload.get("tx_mstc")
     ref = payload.get("ref")
 
+    try:
+        tg_id = int(tg_id)
+        amount = float(amount)
+    except Exception:
+        return jsonify(ok=False, error="missing_user_or_amount"), 400
+
     db = SessionLocal()
     try:
-        # --- robust user lookup ---
-        user = None
-        try:
-            user = db.get(User, int(tg_id))
-        except Exception:
-            user = None
-
+        user = db.get(User, tg_id) or db.query(User).filter_by(telegram_id=str(tg_id)).first()
         if not user:
-            try:
-                user = db.query(User).filter_by(telegram_id=str(int(tg_id))).first()
-            except Exception:
-                user = None
+            return jsonify(ok=False, error="user_not_found"), 404
 
-        if not user:
-            try:
-                user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
-            except Exception:
-                user = None
-
-        if not user:
-            app.logger.warning("deposit_submit: user not found tg_id=%s", tg_id)
-            return jsonify({"ok": False, "error": "user_not_found"}), 404
-
-        # --- idempotency: prevent duplicate MUSD deposit for same external_id ---
+        # ---- idempotency ----
         if tx_musd:
-            existing_deposit = (
-                db.query(Transaction)
-                .filter_by(external_id=str(tx_musd), currency="MUSD", type="deposit")
-                .first()
-            )
-            if existing_deposit:
-                app.logger.info("deposit_submit: external_id %s already processed (MUSD deposit)", tx_musd)
-                db.refresh(user)
-                return jsonify({
-                    "ok": True,
-                    "user_id": user.id,
-                    "user": {
-                        "id": user.id,
-                        "role": user.role,
-                        "self_activated": user.self_activated,
-                        "total_team_business": user.total_team_business
-                    },
-                    "amount": amount,
-                    "created_tx_external_id": str(tx_musd)
-                }), 200
+            existing = db.query(Transaction).filter_by(
+                external_id=str(tx_musd),
+                currency="MUSD",
+                type="deposit"
+            ).first()
+            if existing:
+                return jsonify(ok=True, user_id=user.id), 200
 
-        # --- apply business logic to user ---
+        # ---- activation + role ----
         became_origin_now = False
         if amount >= 20:
-         if not user.self_activated:
-          user.self_activated = True
+            if not user.self_activated:
+                user.self_activated = True
+            if user.role == "user":
+                user.role = "origin"
+                became_origin_now = True
 
-    if user.role == "user":
-        user.role = "origin"
-        became_origin_now = True
-
-
-        user.total_team_business = (user.total_team_business or 0.0) + amount
+        user.total_team_business = (user.total_team_business or 0) + amount
         db.add(user)
 
-        # update company pool
-        company_pool = db.get(User, COMPANY_USER_ID)
-        if company_pool:
-            company_pool.balance_musd = (company_pool.balance_musd or 0.0) + (amount * 0.72)
-            db.add(company_pool)
-        else:
-            app.logger.debug("deposit_submit: company_pool user not found")
+        # ---- company pool ----
+        company = db.get(User, COMPANY_USER_ID)
+        if company:
+            company.balance_musd = (company.balance_musd or 0) + amount * 0.72
+            db.add(company)
 
-        # create deposit transaction
+        # ---- transaction ----
         deposit_tx = Transaction(
             user_id=user.id,
             amount=amount,
             currency="MUSD",
             type="deposit",
-            external_id=str(tx_musd) if tx_musd else None,
+            external_id=str(tx_musd),
             created_at=datetime.utcnow()
         )
         db.add(deposit_tx)
 
-        # optional MSTC credit tx
         if tx_mstc:
-            credit_tx = Transaction(
+            db.add(Transaction(
                 user_id=user.id,
-                amount=0.0,
+                amount=0,
                 currency="MSTC",
                 type="credit_mstc",
                 external_id=str(tx_mstc),
                 created_at=datetime.utcnow()
-            )
-            db.add(credit_tx)
+            ))
 
-        # --- REFERRAL DISTRIBUTION (up to 3 levels) ---
-        max_levels = 3
+        # ---- referral distribution ----
+        referral_records = []
         current = user
         visited = set()
         level = 1
-        referral_records = []
-        while level <= max_levels and getattr(current, "referrer_id", None):
+
+        while level <= 3 and current.referrer_id:
             upline = db.get(User, current.referrer_id)
             if not upline or upline.id in visited:
                 break
             visited.add(upline.id)
-            pct = ROLE_LEVEL1_PCT.get(upline.role, ROLE_LEVEL1_PCT.get("origin", 0.05))
+
+            pct = ROLE_LEVEL1_PCT.get(upline.role, 0.05)
             reward = round(amount * pct, 2)
+
             if reward > 0:
-                upline.balance_musd = float(upline.balance_musd or 0.0) + reward
+                upline.balance_musd = (upline.balance_musd or 0) + reward
                 db.add(upline)
-                ref_tx = Transaction(
+                db.add(Transaction(
                     user_id=upline.id,
                     amount=reward,
                     currency="MUSD",
                     type="referral",
-                    external_id=f"REF-{deposit_tx.external_id or deposit_tx.created_at.isoformat()}-L{level}",
+                    external_id=f"REF-{tx_musd}-L{level}",
                     created_at=datetime.utcnow()
-                )
-                db.add(ref_tx)
+                ))
                 referral_records.append({"level": level, "to_user": upline.id, "amount": reward})
+
             current = upline
             level += 1
 
-        # optionally link referrer if provided and missing
-        if ref and getattr(user, "referrer_id", None) is None:
-            try:
-                maybe_ref = db.get(User, int(ref))
-                if maybe_ref:
-                    user.referrer_id = maybe_ref.id
-                    db.add(user)
-            except Exception:
-                pass
-
-        # commit everything
         db.commit()
-
-        # refresh for response
         db.refresh(user)
-        try:
-            db.refresh(deposit_tx)
-        except Exception:
-            deposit_tx = db.query(Transaction).filter_by(user_id=user.id, external_id=str(tx_musd) if tx_musd else None, type="deposit").order_by(Transaction.created_at.desc()).first()
 
-        response = {
-            "ok": True,
-            "amount": amount,
-            "became_origin_now": became_origin_now,
-            "company_pool": {
-                "id": getattr(company_pool, "id", None),
-                "balance_musd": getattr(company_pool, "balance_musd", None)
-            },
-            "referral_dist": referral_records,
-            "user": {
+        return jsonify(
+            ok=True,
+            user_id=user.id,
+            became_origin_now=became_origin_now,
+            referral_dist=referral_records,
+            user={
                 "id": user.id,
                 "role": user.role,
                 "self_activated": user.self_activated,
-                "total_team_business": user.total_team_business
-            },
-            "user_id": user.id,
-            "created_tx_id": getattr(deposit_tx, "id", None),
-            "created_tx_external_id": getattr(deposit_tx, "external_id", None)
-        }
-        return jsonify(response), 20
+                "total_team_business": user.total_team_business,
+            }
+        ), 200
+
     except Exception:
         db.rollback()
-        app.logger.exception("deposit_submit: failed to persist transaction/referrals")
-        return jsonify({"ok": False, "error": "server_error"}), 500
-        finally:
+        app.logger.exception("deposit_submit failed")
+        return jsonify(ok=False, error="server_error"), 500
+    finally:
         db.close()
+
 
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
@@ -1112,156 +1044,59 @@ def debug_company_pool():
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
-    app.logger.info("simulate_deposit attempt headers=%s body=%s", dict(request.headers), request.get_data(as_text=True))
-
     if not check_debug_key():
-        return jsonify({"error": "invalid_debug_key", "ok": False}), 401
+        return jsonify(ok=False, error="invalid_debug_key"), 401
 
     payload = request.get_json(silent=True) or {}
-    tg_id = payload.get("user_id") or payload.get("telegram_id") or (payload.get("user") or {}).get("id")
-    try:
-        tg_id = int(tg_id) if tg_id is not None else None
-    except (TypeError, ValueError):
-        tg_id = None
-
-    try:
-        amount = float(payload.get("amount")) if payload.get("amount") is not None else None
-    except (TypeError, ValueError):
-        amount = None
-
-    if not tg_id or amount is None:
-        app.logger.warning("simulate_deposit missing user or amount: tg_id=%s amount=%s", tg_id, amount)
-        return jsonify({"error": "missing_user_or_amount", "ok": False}), 400
-
+    tg_id = payload.get("user_id")
+    amount = payload.get("amount")
     tx_musd = payload.get("tx_musd")
-    tx_mstc = payload.get("tx_mstc")
+
+    try:
+        tg_id = int(tg_id)
+        amount = float(amount)
+    except Exception:
+        return jsonify(ok=False, error="missing_user_or_amount"), 400
 
     db = SessionLocal()
     try:
-        # --- robust user lookup ---
-        user = None
-        try:
-            user = db.get(User, int(tg_id))
-        except Exception:
-            user = None
-
+        user = db.get(User, tg_id)
         if not user:
-            try:
-                user = db.query(User).filter_by(telegram_id=str(int(tg_id))).first()
-            except Exception:
-                user = None
+            return jsonify(ok=False, error="user_not_found"), 404
 
-        if not user:
-            try:
-                user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
-            except Exception:
-                user = None
-
-        if not user:
-            app.logger.warning("simulate_deposit user not found tg_id=%s", tg_id)
-            return jsonify({"error": "user_not_found", "ok": False}), 404
-
-        # --- idempotency check (ONLY block duplicate MUSD deposit) ---
-        if tx_musd:
-            existing_deposit = (
-                db.query(Transaction)
-                .filter_by(
-                    external_id=str(tx_musd),
-                    currency="MUSD",
-                    type="deposit"
-                )
-                .first()
-            )
-
-            if existing_deposit:
-                app.logger.info(
-                    "simulate_deposit: external_id %s already processed (MUSD deposit)",
-                    tx_musd,
-                )
-                db.refresh(user)
-                return jsonify({
-                    "ok": True,
-                    "user_id": user.id,
-                    "user": {
-                        "id": user.id,
-                        "role": user.role,
-                        "self_activated": user.self_activated,
-                        "total_team_business": user.total_team_business
-                    },
-                    "amount": amount
-                }), 200
-
-        # --- apply business logic ---
-               # --- apply business logic ---
         became_origin_now = False
-
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
-
             if user.role == "user":
                 user.role = "origin"
                 became_origin_now = True
 
-        user.total_team_business = (user.total_team_business or 0.0) + amount
+        user.total_team_business += amount
+        db.add(user)
 
-
-        # update company pool
-        company_pool = db.get(User, COMPANY_USER_ID)
-        if company_pool:
-            company_pool.balance_musd = (company_pool.balance_musd or 0.0) + (amount * 0.72)
-        else:
-            app.logger.debug("simulate_deposit: company_pool user not found")
-
-        # create deposit transaction AFTER updates
-        deposit_tx = Transaction(
+        db.add(Transaction(
             user_id=user.id,
             amount=amount,
             currency="MUSD",
             type="deposit",
-            external_id=str(tx_musd) if tx_musd else None,
+            external_id=str(tx_musd),
             created_at=datetime.utcnow()
-        )
-        db.add(deposit_tx)
-
-        # optional MSTC credit tx
-        if tx_mstc:
-            credit_tx = Transaction(
-                user_id=user.id,
-                amount=0.0,
-                currency="MSTC",
-                type="credit_mstc",
-                external_id=str(tx_mstc),
-                created_at=datetime.utcnow()
-            )
-            db.add(credit_tx)
+        ))
 
         db.commit()
         db.refresh(user)
 
-        return jsonify({
-            "ok": True,
-            "amount": amount,
-            "became_origin_now": became_origin_now,
-            "company_pool": {
-                "id": getattr(company_pool, "id", None),
-                "balance_musd": getattr(company_pool, "balance_musd", None)
-            },
-            "referral_dist": [],
-            "user": {
+        return jsonify(
+            ok=True,
+            became_origin_now=became_origin_now,
+            user={
                 "id": user.id,
                 "role": user.role,
                 "self_activated": user.self_activated,
                 "total_team_business": user.total_team_business
-            },
-            "user_id": user.id
-        }), 200
-
-    except Exception:
-        db.rollback()
-        app.logger.exception("simulate_deposit: failed to persist transactions/referrals")
-        return jsonify({"error": "server_error", "ok": False}), 500
-
+            }
+        ), 200
     finally:
         db.close()
         
@@ -1290,9 +1125,9 @@ def debug_reset_user(user_id):
 
         # 🔥 delete referral events (MATCH NEW MODEL)
         db.query(ReferralEvent).filter(
-            (ReferralEvent.from_user == user_id) |
-            (ReferralEvent.to_user == user_id)
-        ).delete(synchronize_session=False)
+    (ReferralEvent.from_user == user.id) |
+    (ReferralEvent.to_user == user.id)
+).delete(synchronize_session=False)
 
         # 🔥 delete transactions
         db.query(Transaction).filter(
