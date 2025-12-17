@@ -1277,20 +1277,22 @@ def debug_reset_user(user_id):
         if not user:
             return jsonify({"ok": False, "error": "user_not_found"}), 404
 
-        # 🔥 RESET USER TO FRESH STATE
+        # 🔁 RESET USER CORE STATE
         user.referrer_id = None
         user.role = "member"
-        user.self_activated = False
         user.active = False
+        user.self_activated = False
+
+        # 🔁 RESET BALANCES & METRICS
         user.balance_musd = 0
         user.balance_mstc = 0
         user.total_team_business = 0
         user.active_origin_count = 0
 
-        # remove referral + transactions
+        # 🔁 CLEAN RELATED DATA (MATCHING YOUR SCHEMA)
         db.query(ReferralEvent).filter(
-            (ReferralEvent.from_user_id == user_id) |
-            (ReferralEvent.to_user_id == user_id)
+            (ReferralEvent.from_user == user_id) |
+            (ReferralEvent.to_user == user_id)
         ).delete()
 
         db.query(Transaction).filter_by(user_id=user_id).delete()
@@ -1302,11 +1304,14 @@ def debug_reset_user(user_id):
             "message": "User reset to fresh state",
             "user_id": user_id
         })
+
     except Exception as e:
         db.rollback()
         return jsonify({"ok": False, "error": str(e)}), 500
+
     finally:
         db.close()
+
 
 @app.route("/debug/transactions/<int:user_id>", methods=["GET"])
 def debug_transactions(user_id):
