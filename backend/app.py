@@ -1291,9 +1291,9 @@ def debug_reset_user(user_id):
 
         # 🔁 CLEAN RELATED DATA (MATCHING YOUR SCHEMA)
         db.query(ReferralEvent).filter(
-            (ReferralEvent.from_user == user_id) |
-            (ReferralEvent.to_user == user_id)
-        ).delete()
+          (ReferralEvent.from_user_id == user_id) |
+          (ReferralEvent.to_user_id == user_id)
+            ).delete()
 
         db.query(Transaction).filter_by(user_id=user_id).delete()
 

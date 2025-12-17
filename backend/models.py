@@ -108,22 +108,24 @@ class Transaction(Base):
 # REFERRAL EVENTS (Accounting / audit)
 # =========================================================
 class ReferralEvent(Base):
-    __tablename__ = 'referral_events'
+    __tablename__ = "referral_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    from_user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False, index=True)
-    to_user_id = Column(BigInteger, ForeignKey('users.id'), nullable=True, index=True)
 
-    level = Column(Integer, nullable=False)
+    # 👇 plain integers (MATCH YOUR DB)
+    from_user = Column(Integer, nullable=False, index=True)
+    to_user   = Column(Integer, nullable=True, index=True)
+
     amount = Column(Float, nullable=False)
+    note = Column(String, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    from_user = relationship('User', foreign_keys=[from_user_id])
-    to_user = relationship('User', foreign_keys=[to_user_id])
-
     def __repr__(self):
-        return f"<ReferralEvent from={self.from_user_id} to={self.to_user_id} amount={self.amount}>"
+        return (
+            f"<ReferralEvent from_user={self.from_user} "
+            f"to_user={self.to_user} amount={self.amount}>"
+        )
 
 # =========================================================
 # DB INIT
