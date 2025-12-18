@@ -610,16 +610,31 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
   manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'
 });
 
- async function saveTonWallet(address) {
-    await fetch('/webapp/save_wallet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        initData: tg.initData,
-        ton_wallet: address
-      })
-    });
+// 🔐 AUTO-SAVE wallet on connect / reconnect
+  tonConnectUI.onStatusChange(wallet => {
+    if (wallet?.account?.address) {
+      saveTonWallet(wallet.account.address);
+    }
+  });
+
+ let lastSavedWallet = null;
+
+async function saveTonWallet(address) {
+  if (!address || address === lastSavedWallet) return;
+
+  const res = await fetch('/webapp/save_wallet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      initData: tg.initData,
+      ton_wallet: address
+    })
+  });
+
+  if (res.ok) {
+    lastSavedWallet = address;
   }
+}
 
 async function connectTonWallet() {
     try {
@@ -641,6 +656,36 @@ async function connectTonWallet() {
       console.error('TON wallet connection failed', e);
     }
   }
+
+async function sendTonDeposit(amountUsd) {
+  if (!tonConnectUI.wallet?.account?.address) {
+    throw new Error("Wallet not connected");
+  }
+
+  // ⚠️ TEMP rate (replace later with oracle / backend)
+  const TON_USD_RATE = 5; 
+  const tonAmount = amountUsd / TON_USD_RATE;
+
+  // Convert TON → nanoTON
+  const nanoTon = Math.floor(tonAmount * 1e9).toString();
+
+  const transaction = {
+    validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
+    messages: [
+      {
+        // 🔴 YOUR RECEIVING WALLET (company / treasury)
+        address: "UQAcv4GHOBq_NFFYxBDBMrsCb6-65bANiNy9h1Eet9SmRtMr",
+        amount: nanoTon
+      }
+    ]
+  };
+
+  // Opens wallet & sends TON
+  const result = await tonConnectUI.sendTransaction(transaction);
+
+  // return tx hash (BOC)
+  return result.boc;
+}
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
   console.log("DEBUG initDataUnsafe:", unsafe);   // <<< IMPORTANT
@@ -840,58 +885,30 @@ async function connectTonWallet() {
   <div id="walletStatus" class="mini"></div>
 </div>
 
-      <div class="panel">
-      
-        <h3>💳 Deposit</h3>
-        <div class="mini">Minimum deposit — <b>$20</b>.</div>
+           
+       <div class="panel">
+  <h3>💳 Deposit</h3>
+  <div class="mini">Minimum deposit — <b>$20</b>.</div>
 
-        <label>Enter USD amount</label>
-        <input id="amt" type="number" min="20" step="0.01" placeholder="e.g., 20.00" />
-        <div id="err" class="error" style="display:none;"></div>
+  <!-- ✅ AMOUNT INPUT (ADD HERE) -->
+  <label for="amt">Enter Amount (USD)</label>
+  <input
+    id="amt"
+    type="number"
+    min="20"
+    step="0.01"
+    placeholder="Minimum $20"
+  />
 
-        <div class="split">
-          <div>
-            <div class="mini">MUSD (70%)</div>
-            <div class="rowline">
-              <span id="musdAmt" class="big">0.00</span>
-              <span class="mini">USD</span>
-            </div>
+  <div class="submit">
+    <button class="btn secondary" id="submitDeposit">
+      Submit Deposit
+    </button>
+  </div>
 
-            <label class="mini" style="margin-top:8px;">Send to (MUSD address)</label>
-            <div class="addr-box mono">${ADDR_MUSD}</div>
-            <div class="rowline" style="margin-top:6px;">
-              <button class="copy-btn" id="copyMUSD">📋</button>
-              <span class="mini">${CHAIN_LABEL}</span>
-            </div>
+  <div id="submitMsg" class="ok" style="display:none;"></div>
+</div>
 
-            <label class="mini" style="margin-top:8px;">MUSD Tx Hash</label>
-            <input id="txMUSD" type="text" placeholder="Paste transaction hash" />
-          </div>
-
-          <div>
-            <div class="mini">MSTC (30%)</div>
-            <div class="rowline">
-              <span id="mstcAmt" class="big">0.00</span>
-              <span class="mini">USD</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">Send to (MSTC address)</label>
-            <div class="addr-box mono">${ADDR_MSTC}</div>
-            <div class="rowline" style="margin-top:6px;">
-              <button class="copy-btn" id="copyMSTC">📋</button>
-              <span class="mini">${CHAIN_LABEL}</span>
-            </div>
-
-            <label class="mini" style="margin-top:8px;">MSTC Tx Hash</label>
-            <input id="txMSTC" type="text" placeholder="Paste transaction hash" />
-          </div>
-        </div>
-
-        <div class="submit">
-          <button class="btn secondary" id="submitDeposit">Submit Deposit</button>
-        </div>
-        <div id="submitMsg" class="ok" style="display:none;"></div>
-      </div>
 
       <div class="rank-panel">
         <div class="rank-header">
@@ -910,8 +927,8 @@ async function connectTonWallet() {
               <span class="rank-name">Origin</span>
              <!-- <span class="rank-percent">5% Level Income</span>
               <span class="rank-status">
-                ${ranks.isOrigin ? 'Achieved' : 'Locked'}-->
-              </span> 
+                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
+              </span> -->
             </div>
             <div class="rank-progress">
           <!--    <div
@@ -992,8 +1009,8 @@ async function connectTonWallet() {
 
           <button
             class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
-            data-rank="creator"
-          >
+            data-rank="creator">
+          
             <div class="rank-main">
               <span class="rank-name">Creator</span>
               <!--<span class="rank-percent">25% Top Rank</span>
@@ -1031,34 +1048,23 @@ async function connectTonWallet() {
     }
 
     const amtInput = document.getElementById('amt');
-    const musdAmt = document.getElementById('musdAmt');
-    const mstcAmt = document.getElementById('mstcAmt');
-    const errEl = document.getElementById('err');
+const errEl = document.getElementById('submitMsg');
 
-    if (amtInput && musdAmt && mstcAmt && errEl) {
-      amtInput.oninput = () => {
-        const v = parseFloat(amtInput.value || '0');
-        if (isNaN(v) || v <= 0) {
-          musdAmt.textContent = '0.00';
-          mstcAmt.textContent = '0.00';
-          errEl.style.display = 'none';
-          errEl.textContent = '';
-          return;
-        }
+if (amtInput && errEl) {
+  amtInput.oninput = () => {
+    const v = parseFloat(amtInput.value || '0');
 
-        musdAmt.textContent = fmt(v * 0.70);
-        mstcAmt.textContent = fmt(v * 0.30);
-
-        if (v < 20) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Minimum deposit is $20.';
-        } else {
-          errEl.style.display = 'none';
-          errEl.textContent = '';
-        }
-      };
+    if (isNaN(v) || v < 20) {
+      errEl.style.display = 'block';
+      errEl.textContent = 'Minimum deposit is $20.';
+    } else {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
     }
-
+  };
+}
+      };
+    
     const tipCopy = document.getElementById('tipRef');
     const copyMUSDBtn = document.getElementById('copyMUSD');
     const copyMSTCBtn = document.getElementById('copyMSTC');
@@ -1072,128 +1078,95 @@ async function connectTonWallet() {
 
     const submitBtn = document.getElementById('submitDeposit');
     const msgEl = document.getElementById('submitMsg');
-    const txMUSDInput = document.getElementById('txMUSD');
-    const txMSTCInput = document.getElementById('txMSTC');
-
-    if (submitBtn && amtInput && errEl && msgEl && txMUSDInput && txMSTCInput) {
+    const errEl = msgEl;
+    
+    if (submitBtn && amtInput && errEl && msgEl) {
       submitBtn.onclick = async () => {
-        const tgApp = tg;
+  if (submitBtn.disabled) return;
+  submitBtn.disabled = true;   // 🔒 LOCK BUTTON
 
-        // Clear previous messages
-        errEl.style.display = 'none';
-        errEl.textContent = '';
-        msgEl.style.display = 'none';
-        msgEl.textContent = '';
+  const tgApp = tg;
 
-        const valueStr = amtInput.value ? amtInput.value.trim() : "0";
-        const amount = parseFloat(valueStr || "0");
+  try {
+    // =========================
+    // 1️⃣ RESET UI
+    // =========================
+    errEl.style.display = 'none';
+    msgEl.style.display = 'none';
+    errEl.textContent = '';
+    msgEl.textContent = '';
 
-        const tx1 = txMUSDInput.value.trim();
-        const tx2 = txMSTCInput.value.trim();
+    const amount = parseFloat(amtInput.value || '0');
 
-        if (isNaN(amount) || amount < 20) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please enter at least $20.';
-          if (tgApp) {
-            tgApp.showAlert('Please enter at least $20.');
-          }
-          return;
-        }
-
-        if (!tx1 || !tx2) {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Please paste both transaction hashes.';
-          if (tgApp) {
-            tgApp.showAlert('Please paste both transaction hashes.');
-          }
-          return;
-        }
-
-        // --- Use two-step flow: /webapp/me then /deposit/submit ---
-        const initData = tgApp ? tgApp.initData : "";
-        msgEl.style.display = 'block';
-        msgEl.textContent = 'Verifying user...';
-
-        try {
-          const meRes = await fetch('/webapp/me', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData, ref: window.currentRef || null })
-          });
-
-          const meText = await meRes.text();
-          let meJson = null;
-          try { meJson = meText ? JSON.parse(meText) : null; } catch(e) { throw new Error('Failed parsing /webapp/me JSON: ' + e.message + ' => ' + meText.slice(0,1000)); }
-
-          if (!meRes.ok || !meJson || meJson.ok === false) {
-            const err = (meJson && (meJson.error || meJson.detail)) || `HTTP ${meRes.status}`;
-            throw new Error('/webapp/me failed: ' + err);
-          }
-
-          const userId = (meJson.user && meJson.user.id) || meJson.user_id || (meJson && meJson.telegram_id && parseInt(meJson.telegram_id));
-          if (!userId) throw new Error('Could not determine user id from /webapp/me response.');
-
-          // 2) Submit deposit to /deposit/submit
-          msgEl.textContent = 'Submitting deposit...';
-
-          const depositPayload = {
-            user_id: userId,
-            amount: Number(amount.toFixed(2)),
-            tx_musd: tx1,
-            tx_mstc: tx2,
-            ref: window.currentRef || null
-          };
-
-          const depositRes = await fetch('/deposit/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(depositPayload)
-          });
-
-          const depositText = await depositRes.text();
-          let depositJson = null;
-          try { depositJson = depositText ? JSON.parse(depositText) : null; } catch(e) { throw new Error('Failed parsing /deposit/submit JSON: ' + e.message + ' => ' + depositText.slice(0,1000)); }
-
-          if (!depositRes.ok || !depositJson || depositJson.ok === false) {
-            const err = (depositJson && (depositJson.error || depositJson.detail)) || `HTTP ${depositRes.status}`;
-            throw new Error('/deposit/submit failed: ' + err + '\n\n' + depositText.slice(0,1000));
-          }
-
-          // success — show summary
-          const summaryLines = [];
-          if (Array.isArray(depositJson.referral_dist) && depositJson.referral_dist.length) {
-            depositJson.referral_dist.forEach(r => {
-              const level = (r.level === 0 || r.level === null || r.level === undefined) ? 'Pool' : 'Level ' + r.level;
-              summaryLines.push(`${level}: ${r.to_user || r.to_user_id || 'unknown'} → $${r.amount}`);
-            });
-          } else {
-            summaryLines.push('No referral distribution.');
-          }
-
-          const summaryText = summaryLines.join('\n');
-          if (tgApp) tgApp.showAlert('Deposit submitted successfully!\n\n' + summaryText);
-
-          msgEl.innerHTML = 'Deposit submitted successfully!<br><pre style="text-align:left; white-space:pre-wrap;">' + summaryText + '</pre>';
-          await showRegisteredViewFromBackend();
-
-          // clear fields
-          amtInput.value = '';
-          txMUSDInput.value = '';
-          txMSTCInput.value = '';
-          musdAmt.textContent = '0.00';
-          mstcAmt.textContent = '0.00';
-
-        } catch (e) {
-          const errorText = e && e.message ? e.message : String(e);
-          if (tgApp) {
-            tgApp.showAlert('Failed to submit: ' + errorText);
-          }
-          msgEl.style.display = 'block';
-          msgEl.textContent = 'Failed to submit: ' + errorText;
-          console.error('submit error:', e);
-        }
-      };
+    // =========================
+    // 2️⃣ VALIDATION
+    // =========================
+    if (isNaN(amount) || amount < 20) {
+      throw new Error('Minimum deposit is $20.');
     }
+
+    if (!tonConnectUI.wallet?.account?.address) {
+      throw new Error('Please connect your TON wallet first.');
+    }
+
+    // =========================
+    // 3️⃣ SEND TON
+    // =========================
+    msgEl.style.display = 'block';
+    msgEl.textContent = 'Opening TON wallet…';
+
+    const txHash = await sendTonDeposit(amount);
+
+    // =========================
+    // 4️⃣ GET USER ID (NO EXTRA API)
+    // =========================
+    const userId = window.currentUserData?.id;
+    if (!userId) throw new Error('User not loaded');
+
+    // =========================
+    // 5️⃣ SUBMIT TO BACKEND
+    // =========================
+    msgEl.textContent = 'Submitting deposit…';
+
+    const depositPayload = {
+      user_id: userId,
+      amount: Number(amount.toFixed(2)),
+      tx_musd: txHash,
+      ref: window.currentRef || null
+    };
+
+    const res = await fetch('/deposit/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(depositPayload)
+    });
+
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      throw new Error(json.error || 'Deposit failed');
+    }
+
+    // =========================
+    // 6️⃣ SUCCESS
+    // =========================
+    msgEl.textContent = 'Deposit successful!';
+    tgApp && tgApp.showAlert('✅ Deposit successful');
+
+    await showRegisteredViewFromBackend();
+    amtInput.value = '';
+
+  } catch (err) {
+    // ❌ ERROR HANDLING
+    errEl.style.display = 'block';
+    errEl.textContent = err.message;
+    tgApp && tgApp.showAlert(err.message);
+
+  } finally {
+    // 🔓 ALWAYS RE-ENABLE BUTTON
+    submitBtn.disabled = false;
+  }
+};
+
 
     // --- Rank tab details ---
     const rankDetails = document.getElementById('rankDetails');
@@ -1824,6 +1797,5 @@ async function doRegister() {
       </div> -->
 </body>
 </html>
-
 
 
