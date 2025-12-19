@@ -1,5 +1,8 @@
 {
+  "name": "MSTC Test App",
   "url": "https://mstcbotnew-production.up.railway.app",
-  "name": "MSTC Referral Bot",
-  "iconUrl": "https://mstcbotnew-production.up.railway.app/static/Botologo_new.png"
+  "iconUrl": "https://mstcbotnew-production.up.railway.app/static/icon.png",
+  "termsOfUseUrl": "",
+  "privacyPolicyUrl": "",
+  "networks": ["testnet"]
 }

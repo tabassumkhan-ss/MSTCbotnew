@@ -610,6 +610,13 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
   manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'
 });
 
+tonConnectUI.setConnectRequestParameters({
+  testnet: true
+});
+
+const TREASURY_TON_ADDRESS =
+  "UQAZGsz5gaOVtAK67pITWUMUMYNMjccCSbMC5sAMx2say10K";
+
 // 🔐 AUTO-SAVE wallet on connect / reconnect
   tonConnectUI.onStatusChange(wallet => {
     if (wallet?.account?.address) {
@@ -656,35 +663,43 @@ async function connectTonWallet() {
       console.error('TON wallet connection failed', e);
     }
   }
+  const SIMULATE_TON = true;
 
 async function sendTonDeposit(amountUsd) {
-  if (!tonConnectUI.wallet?.account?.address) {
-    throw new Error("Wallet not connected");
+
+  // === 1️⃣ validate amount ===========================
+  if (!amountUsd || amountUsd < 20) {
+    throw new Error("Minimum deposit is $20");
   }
 
-  // ⚠️ TEMP rate (replace later with oracle / backend)
-  const TON_USD_RATE = 5; 
-  const tonAmount = amountUsd / TON_USD_RATE;
+  // === 2️⃣ ignore real wallet requirement ============
+  // (TONConnect wallet not required in simulator mode)
+  if (!tonConnectUI.wallet?.account?.address) {
+    console.warn("⚠ SIM MODE: Wallet not connected, skipping check");
+  }
 
-  // Convert TON → nanoTON
-  const nanoTon = Math.floor(tonAmount * 1e9).toString();
+  // === 3️⃣ simulate wallet open delay ================
+  await new Promise(r => setTimeout(r, 1200));
 
-  const transaction = {
-    validUntil: Math.floor(Date.now() / 1000) + 300, // 5 min
-    messages: [
-      {
-        // 🔴 YOUR RECEIVING WALLET (company / treasury)
-        address: "UQAcv4GHOBq_NFFYxBDBMrsCb6-65bANiNy9h1Eet9SmRtMr",
-        amount: nanoTon
-      }
-    ]
-  };
+  // === 4️⃣ generate deterministic tx hash ============
+  const fakeHash =
+    "SIMTX-" +
+    Date.now().toString(36).toUpperCase() +
+    "-" +
+    Math.random().toString(36).substring(2, 8).toUpperCase();
 
-  // Opens wallet & sends TON
-  const result = await tonConnectUI.sendTransaction(transaction);
+  // === 5️⃣ show internally ===========================
+  console.log(
+    "⚡ SIM TON TX CREATED",
+    {
+      hash: fakeHash,
+      usd_amount: amountUsd,
+      user: window.currentUserData?.id || "unknown"
+    }
+  );
 
-  // return tx hash (BOC)
-  return result.boc;
+  // === 6️⃣ return usable blockchain identifier ========
+  return fakeHash;
 }
 
   const unsafe = tg ? tg.initDataUnsafe || {} : {};
@@ -1078,9 +1093,10 @@ if (amtInput && errEl) {
 
     const submitBtn = document.getElementById('submitDeposit');
     const msgEl = document.getElementById('submitMsg');
-    const errEl = msgEl;
-    
-    if (submitBtn && amtInput && errEl && msgEl) {
+    let errEl = msgEl;
+
+      
+    if (submitBtn && amtInput && msgEl) {
       submitBtn.onclick = async () => {
   if (submitBtn.disabled) return;
   submitBtn.disabled = true;   // 🔒 LOCK BUTTON
@@ -1105,10 +1121,8 @@ if (amtInput && errEl) {
       throw new Error('Minimum deposit is $20.');
     }
 
-    if (!tonConnectUI.wallet?.account?.address) {
-      throw new Error('Please connect your TON wallet first.');
-    }
-
+    console.warn("⚠ SIM MODE: Wallet connection skipped");
+    
     // =========================
     // 3️⃣ SEND TON
     // =========================

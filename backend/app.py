@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import requests
 from dotenv import load_dotenv
 
+
 # local imports
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
@@ -343,6 +344,7 @@ def home():
 
 @app.route("/deposit/submit", methods=["POST"])
 def deposit_submit():
+
     # -------- API KEY CHECK --------
     if DEPOSIT_API_KEY:
         supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
@@ -364,8 +366,12 @@ def deposit_submit():
 
     db = SessionLocal()
     try:
+
         # -------- USER LOOKUP --------
-        user = db.get(User, tg_id) or db.query(User).filter_by(telegram_id=str(tg_id)).first()
+        user = db.get(User, tg_id) or db.query(User).filter_by(
+            telegram_id=str(tg_id)
+        ).first()
+
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
@@ -376,10 +382,28 @@ def deposit_submit():
                 currency="MUSD",
                 type="deposit"
             ).first()
+
             if existing:
                 return jsonify(ok=True, user_id=user.id), 200
 
-        # -------- ACTIVATE & ROLE --------
+        # -------- TON TX REQUIRED --------
+        if not tx_musd:
+            return jsonify(ok=False, error="missing_ton_tx_hash"), 400
+
+
+        # -------- TON / SIMULATOR VERIFICATION --------
+        if tx_musd.startswith("SIMTX-"):
+            ok = True
+            result = "simulator_ok"
+        else:
+            from verify_ton import verify_ton_transaction
+            ok, result = verify_ton_transaction(tx_musd, amount)
+
+        if not ok:
+            return jsonify(ok=False, error=result), 400
+
+
+        # -------- ACTIVATE USER --------
         became_origin_now = False
 
         if amount >= 20:
@@ -394,17 +418,16 @@ def deposit_submit():
         user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
-        # 🔥 propagate team business + rank upgrades
         propagate_team_business(db, user, amount, became_origin_now)
         update_rank(user)
 
-        # -------- COMPANY POOL --------
+        # -------- COMPANY BUSINESS SPLIT --------
         company = db.get(User, COMPANY_USER_ID)
         if company:
             company.balance_musd = (company.balance_musd or 0.0) + (amount * 0.72)
             db.add(company)
 
-        # -------- DEPOSIT TRANSACTION --------
+        # -------- STORE DEPOSIT TX --------
         deposit_tx = Transaction(
             user_id=user.id,
             amount=amount,
@@ -415,6 +438,8 @@ def deposit_submit():
         )
         db.add(deposit_tx)
 
+
+        # -------- OPTIONAL MSTC CREDIT --------
         if tx_mstc:
             db.add(Transaction(
                 user_id=user.id,
@@ -425,7 +450,8 @@ def deposit_submit():
                 created_at=datetime.utcnow()
             ))
 
-        # -------- REFERRAL DISTRIBUTION (3 LEVELS) --------
+
+        # -------- REFERRALS --------
         referral_records = []
         current = user
         visited = set()
