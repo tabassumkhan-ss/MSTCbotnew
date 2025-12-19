@@ -837,10 +837,13 @@ const renderRegisteredView = async (uid, name, avatar, userData) => {
   // override userData role + fields using backend DB data
   try {
     const res = await fetch(BACKEND_URL + "/webapp/me", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegram_id: uid })
-    });
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        initData: tg.initData,
+        ref: window.currentRef || null
+    })
+});
 
     const data = await res.json();
 
@@ -1175,7 +1178,7 @@ if (amtInput && errEl) {
       ref: window.currentRef || null
     };
 
-    const res = await fetch('/deposit/submit', {
+    const res = await fetch(BACKEND_URL + '/deposit/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(depositPayload)
