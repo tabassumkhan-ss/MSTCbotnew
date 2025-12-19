@@ -1285,14 +1285,7 @@ if (amtInput && errEl) {
         setActiveRankTab(btn.dataset.rank);
       });
     });
-    // ================= MENU WIRES =================
-const menuBtn = document.getElementById("menuBtn");
-const closeBtn = document.getElementById("closeMenu");
-const overlay = document.getElementById("menuOverlay");
-
-menuBtn && menuBtn.addEventListener("click", openMenu);
-closeBtn && closeBtn.addEventListener("click", closeMenu);
-overlay && overlay.addEventListener("click", closeMenu);
+    
 
 // ✅ show / hide admin menu based on role
 updateAdminMenuVisibility();
@@ -1619,6 +1612,15 @@ async function openAdminUsers() {
       </div>
     `);
 
+    // ================= MENU WIRES =================
+const menuBtn = document.getElementById("menuBtn");
+const closeBtn = document.getElementById("closeMenu");
+const overlay = document.getElementById("menuOverlay");
+
+menuBtn && menuBtn.addEventListener("click", openMenu);
+closeBtn && closeBtn.addEventListener("click", closeMenu);
+overlay && overlay.addEventListener("click", closeMenu);
+
     // 🔍 Search logic
     const searchInput = document.getElementById("adminUserSearch");
     const rows = document.querySelectorAll(".admin-user-row");
@@ -1823,18 +1825,9 @@ async function doRegister() {
   </div>
 </div>
 
- <!--🔹 Overlay 
+ <!-- 🔹 Overlay Menu -->
 <div id="menuOverlay" class="menu-overlay"></div>
-      <img src="${avatar || baseLogo}" class="logo glow" />
-      <div class="row big">${uid ?? '(unknown)'}</div>
-      <div class="row">${name || 'Unknown'}</div>
-      <div class="row mini">
-        Total Team Business:
-        <b>$${total}</b>
-        · Active Origins:
-        <b>${activeOrigins}</b>
-        Current: <b>${ranks.current}</b>
-      </div> -->
+      
 </body>
 </html>
 
