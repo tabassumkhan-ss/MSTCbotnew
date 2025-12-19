@@ -828,10 +828,34 @@ async function sendTonDeposit(amountUsd) {
 
 
   // --- Render full registered view (deposit + ranks) ---
-  const renderRegisteredView = (uid, name, avatar, userData) => {
-    console.log("currentUserData at render:", JSON.stringify(userData, null, 2));
-    window.currentUserData = userData;
-  // 🔒 SAFETY: ensure backend user data is present
+const renderRegisteredView = async (uid, name, avatar, userData) => {
+
+  console.log("currentUserData at render BEFORE backend fetch:", JSON.stringify(userData, null, 2));
+
+  // override userData role + fields using backend DB data
+  try {
+    const res = await fetch(BACKEND_URL + "/webapp/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegram_id: uid })
+    });
+
+    const data = await res.json();
+
+    if (data && data.user) {
+      userData = data.user;
+    }
+
+  } catch (e) {
+    console.error("Backend fetch failed — using fallback userData", e);
+  }
+
+  // save globally
+  window.currentUserData = userData;
+
+  console.log("🧠 FINAL USER USED FOR RENDER:", window.currentUserData);
+
+  // safety check unchanged
   if (!userData || typeof userData !== 'object') {
     console.error("renderRegisteredView called without userData", userData);
     if (tg) tg.showAlert("User data missing. Please reopen the app.");
