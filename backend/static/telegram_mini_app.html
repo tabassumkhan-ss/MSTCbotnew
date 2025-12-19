@@ -1800,6 +1800,23 @@ async function doRegister() {
   }
 }
 
+document.addEventListener("click", (e) => {
+
+    if (e.target.id === "menuBtn") {
+        openMenu();
+    }
+
+    if (e.target.id === "closeMenu") {
+        closeMenu();
+    }
+
+    if (e.target.id === "menuOverlay") {
+        closeMenu();
+    }
+
+});
+
+
 </script> 
 <!-- 🔹 Side Menu -->
 <div id="sideMenu" class="side-menu">
