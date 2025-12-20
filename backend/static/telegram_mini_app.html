@@ -612,6 +612,10 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
   manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'
 });
 
+tonConnectUI.restoreConnection().then(wallet => {
+   console.log("TON restored wallet:", wallet);
+});
+
 tonConnectUI.setConnectRequestParameters({
   testnet: true
 });
@@ -646,9 +650,18 @@ async function saveTonWallet(address) {
 }
 
 async function connectTonWallet() {
-    try {
-      const wallet = await tonConnectUI.connectWallet();
-      const address = wallet.account.address;
+
+  console.log("🔵 TON connect button pressed");
+
+  // If wallet already connected → open settings instead
+  if (tonConnectUI.wallet) {
+     await tonConnectUI.openModal();
+     return;
+  }
+
+  try {
+     const wallet = await tonConnectUI.connectWallet();
+
 
       console.log("TON wallet connected:", address);
 
@@ -884,48 +897,185 @@ const renderRegisteredView = (uid, name, avatar, userData) => {
       </div>
       <div id="submitMsg" class="ok" style="display:none;"></div>
     </div>
+
+          <div class="rank-panel">
+        <div class="rank-header">
+        <div class="rank-header-title">🏅 Your Rank & Levels</div>
+          <div class="rank-current-label">
+           <!-- Current: <b>${ranks.current}</b> -->
+          </div>
+        </div>
+
+        <div class="rank-tabs">
+          <button
+            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
+            data-rank="origin"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Origin</span>
+             <!-- <span class="rank-percent">5% Level Income</span>
+              <span class="rank-status">
+                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
+              </span> -->
+            </div>
+            <div class="rank-progress">
+          <!--    <div
+                class="rank-progress-bar"
+                style="width:${originProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
+            </div>-->
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
+            data-rank="life_changer"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Life Changer</span>
+             <!-- <span class="rank-percent">10% Direct</span>
+              <span class="rank-status">
+                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}-->
+              </span>
+            </div>
+            <div class="rank-progress">
+           <!--   <div
+                class="rank-progress-bar"
+                style="width:${lifeChangerProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}
+            </div>-->
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
+            data-rank="advisor"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Advisor</span>
+              <!--<span class="rank-percent">15% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}-->
+              </span>
+            </div>
+            <div class="rank-progress">
+            <!--  <div
+                class="rank-progress-bar"
+                style="width:${advisorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}
+            </div>-->
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
+            data-rank="visionary"
+          >
+            <div class="rank-main">
+              <span class="rank-name">Visionary</span>
+            <!--  <span class="rank-percent">20% Club Rank</span>
+              <span class="rank-status">
+                ${ranks.isVisionary ? 'Achieved' : 'Locked'}-->
+              </span>
+            </div>
+            <div class="rank-progress">
+             <!-- <div
+                class="rank-progress-bar"
+                style="width:${visionaryProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}
+            </div>-->
+          </button>
+
+          <button
+            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
+            data-rank="creator">
+          
+            <div class="rank-main">
+              <span class="rank-name">Creator</span>
+              <!--<span class="rank-percent">25% Top Rank</span>
+              <span class="rank-status">
+                ${ranks.isCreator ? 'Achieved' : 'Locked'}-->
+              </span>
+            </div>
+            <div class="rank-progress">
+           <!--   <div
+                class="rank-progress-bar"
+                style="width:${creatorProgress}%;"
+              ></div>
+            </div>
+            <div class="rank-progress-text">
+              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}-->
+            </div>
+          </button>
+        </div>
+
+        <div id="rankDetails" class="rank-details"></div>
+      </div>
     `;
 
 
     // ======================================================
     // ELEMENT REFERENCES MUST BE AFTER app.innerHTML
     // ======================================================
-    const submitBtn   = document.getElementById("submitDeposit");
-    const msgEl       = document.getElementById("submitMsg");
-    const amtInput    = document.getElementById("amt");
-    const copyRefBtn  = document.getElementById("copyRef");
-    const tipRef      = document.getElementById("tipRef");
-    const connectBtn  = document.getElementById("connectWalletBtn");
+   const submitBtn     = document.getElementById("submitDeposit");
+   const msgEl         = document.getElementById("submitMsg");
+   const amtInput      = document.getElementById("amt");
+   const copyRefBtn    = document.getElementById("copyRef");
+   const tipRef        = document.getElementById("tipRef");
+  const connectBtn    = document.getElementById("connectWalletBtn");
+  const walletStatus  = document.getElementById("walletStatus");
 
-    // --------------------------
-    // COPY referral link
-    // --------------------------
-    copyRefBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(refLink);
-        tipRef.classList.add("show");
-        setTimeout(() => tipRef.classList.remove("show"), 1200);
-    });
+  //  DISABLE DEPOSIT UNTIL TON CONNECTED
+// ======================================================
+if (!tonConnectUI.wallet) {
+   submitBtn.disabled = true;
+   submitBtn.style.opacity = "0.4";
+}
 
-    // --------------------------
-    // TON wallet connect
-    // --------------------------
-    connectBtn.addEventListener("click", connectTonWallet);
+// enable after TON connect button press
+connectBtn.addEventListener("click", async () => {
+   await connectTonWallet();
+   submitBtn.disabled = false;
+   submitBtn.style.opacity = "1";
+});
 
-    // --------------------------
-    // amount validation live
-    // --------------------------
-    amtInput.addEventListener("input", () => {
+// ============= INITIAL WALLET STATUS ====================
+if (tonConnectUI.wallet?.account?.address) {
+    walletStatus.textContent =
+        "Connected: " +
+        tonConnectUI.wallet.account.address.slice(0,6) + "..." +
+        tonConnectUI.wallet.account.address.slice(-4);
+} else {
+    walletStatus.textContent = "Not connected";
+}
 
-        const v = parseFloat(amtInput.value);
-        if (isNaN(v) || v < 20) {
-            msgEl.style.display = "block";
-            msgEl.textContent = "Minimum deposit is $20.";
-        } else {
-            msgEl.style.display = "none";
-            msgEl.textContent = "";
-        }
-    });
+// ============= COPY REFERRAL ============================
+copyRefBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(refLink);
+    tipRef.classList.add("show");
+    setTimeout(() => tipRef.classList.remove("show"), 1200);
+});
 
+// ============= LIVE AMOUNT VALIDATION ===================
+amtInput.addEventListener("input", () => {
+    const v = parseFloat(amtInput.value);
+    if (isNaN(v) || v < 20) {
+        msgEl.style.display = "block";
+        msgEl.textContent = "Minimum deposit is $20.";
+    } else {
+        msgEl.style.display = "none";
+        msgEl.textContent = "";
+    }
+});
     
     // ======================================================
     // MAIN DEPOSIT HANDLER
