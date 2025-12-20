@@ -774,13 +774,17 @@ async function sendTonDeposit(amountUsd) {
     const role = user.role || '';
     const selfActivated = !!user.self_activated;
 
-    const isOrigin = selfActivated || role === 'origin';
+    const isOrigin = selfActivated || role === 'origin' || role === 'admin' || role === 'superadmin';
+
     const isLifeChanger = total >= 1000 && activeOrigins >= 10;
     const isAdvisor = total >= 5000;
     const isVisionary = total >= 25000;
     const isCreator = total >= 100000;
 
     let current = 'Member';
+    if (role === 'admin' || role === 'superadmin') {
+   current = 'Admin';
+}
     if (isCreator) current = 'Creator';
     else if (isVisionary) current = 'Visionary';
     else if (isAdvisor) current = 'Advisor';

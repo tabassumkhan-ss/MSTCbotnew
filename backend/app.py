@@ -410,7 +410,7 @@ def deposit_submit():
             if not user.self_activated:
                 user.self_activated = True
 
-            if user.role == "user":
+            if user.role in ("user", "member"):
                 user.role = "origin"
                 became_origin_now = True
 
@@ -720,7 +720,7 @@ def admin_update_user():
         if action == "promote":
             user.role = "admin"
         elif action == "demote":
-            user.role = "member"
+            user.role = "user"
         elif action == "activate":
             user.active = True
         elif action == "deactivate":
@@ -1116,7 +1116,7 @@ def debug_simulate_deposit():
             if not user.self_activated:
                 user.self_activated = True
 
-            if user.role == "user":
+            if user.role not in ("origin", "life_changer", "advisor", "visionary", "creator", "admin", "superadmin"):
                 user.role = "origin"
                 became_origin_now = True
 
