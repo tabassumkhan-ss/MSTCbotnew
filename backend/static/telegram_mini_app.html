@@ -1083,26 +1083,7 @@ amtInput.addEventListener("input", () => {
   window.renderRegisteredView = renderRegisteredView;
 
   // --- Helper: show full view from backend (YES or auto for registered users) ---
-    const showRegisteredViewFromBackend = async () => {
-  const verifyResp = await verifyInitData();
-
-if (!verifyResp || !verifyResp.user) {
-    console.error("Invalid response from /webapp/me:", verifyResp);
-    Telegram.WebApp.showAlert("Server error loading your profile.");
-    return;
-}
-
-if (!verifyResp.user.id) {
-    console.error("Missing uid in /webapp/me:", verifyResp);
-    return;
-}
-
-renderRegisteredView(id, name, avatar, verifyResp.user);
-
-};
-
-  // expose globally
-  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
+   
 
   // --- Activation status (first screen, Yes/No) ---
   function updateActivationStatus(user) {
@@ -1553,6 +1534,34 @@ function updateAdminMenuVisibility() {
 function logout() {
   Telegram.WebApp.close();
 }
+
+ const showRegisteredViewFromBackend = async () => {
+
+  const verifyResp = await verifyInitData();
+
+  if (!verifyResp || !verifyResp.user) {
+      console.error("Invalid /webapp/me:", verifyResp);
+      Telegram.WebApp.showAlert("Server error loading profile");
+      return;
+  }
+
+  const u = verifyResp.user;
+
+  const id = u.id;
+  const name =
+      ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) ||
+      u.username ||
+      'Unknown';
+
+  const avatar = u.photo_url || baseLogo;
+
+  renderRegisteredView(id, name, avatar, u);
+};
+
+
+  // expose globally
+  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
 async function doRegister() {
   console.log("YES CLICKED");
