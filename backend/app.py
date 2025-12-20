@@ -342,21 +342,15 @@ DEPOSIT_API_KEY = os.getenv("DEPOSIT_API_KEY")
 def home():
     return "Backend OK", 200
 
-@app.route("/deposit/submit", methods=["POST"])
-def deposit_submit():
+@app.route("/debug/simulate_deposit", methods=["POST"])
+def debug_simulate_deposit():
+    if not check_debug_key():
+        return jsonify(ok=False, error="invalid_debug_key"), 401
 
-    # -------- API KEY CHECK --------
-    if DEPOSIT_API_KEY:
-        supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
-        if not supplied or supplied.strip() != DEPOSIT_API_KEY.strip():
-            return jsonify(ok=False, error="invalid_api_key"), 401
-
-    # -------- INPUT --------
     payload = request.get_json(silent=True) or {}
-    tg_id = payload.get("user_id") or payload.get("telegram_id")
+    tg_id = payload.get("user_id")
     amount = payload.get("amount")
     tx_musd = payload.get("tx_musd")
-    tx_mstc = payload.get("tx_mstc")
 
     try:
         tg_id = int(tg_id)
@@ -366,150 +360,61 @@ def deposit_submit():
 
     db = SessionLocal()
     try:
-
-        # -------- USER LOOKUP --------
+        # USER LOOKUP FIXED
         user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
+        if not user:
+            user = db.get(User, tg_id)
 
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
-        # -------- IDEMPOTENCY --------
-        if tx_musd:
-            existing = db.query(Transaction).filter_by(
-                external_id=str(tx_musd),
-                currency="MUSD",
-                type="deposit"
-            ).first()
-
-            if existing:
-                return jsonify(ok=True, user_id=user.id), 200
-
-        # -------- TON TX REQUIRED --------
-        if not tx_musd:
-            return jsonify(ok=False, error="missing_ton_tx_hash"), 400
-
-
-        # -------- TON / SIMULATOR VERIFICATION --------
-        if tx_musd.startswith("SIMTX-"):
-            ok = True
-            result = "simulator_ok"
-        else:
-            from verify_ton import verify_ton_transaction
-            ok, result = verify_ton_transaction(tx_musd, amount)
-
-        if not ok:
-            return jsonify(ok=False, error=result), 400
-
-
-        # -------- ACTIVATE USER --------
         became_origin_now = False
 
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
 
-            if user.role in ("user", "member"):
+            if user.role not in ("origin", "life_changer", "advisor", "visionary", "creator", "admin", "superadmin"):
                 user.role = "origin"
                 became_origin_now = True
 
-        # -------- USER BUSINESS --------
         user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
         propagate_team_business(db, user, amount, became_origin_now)
         update_rank(user)
 
-        # -------- COMPANY BUSINESS SPLIT --------
-        company = db.get(User, COMPANY_USER_ID)
-        if company:
-            company.balance_musd = (company.balance_musd or 0.0) + (amount * 0.72)
-            db.add(company)
-
-        # -------- STORE DEPOSIT TX --------
-        deposit_tx = Transaction(
+        db.add(Transaction(
             user_id=user.id,
             amount=amount,
             currency="MUSD",
             type="deposit",
             external_id=str(tx_musd),
             created_at=datetime.utcnow()
-        )
-        db.add(deposit_tx)
+        ))
 
-
-        # -------- OPTIONAL MSTC CREDIT --------
-        if tx_mstc:
-            db.add(Transaction(
-                user_id=user.id,
-                amount=0.0,
-                currency="MSTC",
-                type="credit_mstc",
-                external_id=str(tx_mstc),
-                created_at=datetime.utcnow()
-            ))
-
-
-        # -------- REFERRALS --------
-        referral_records = []
-        current = user
-        visited = set()
-        level = 1
-
-        while level <= 3 and current.referrer_id:
-            upline = db.get(User, current.referrer_id)
-            if not upline or upline.id in visited:
-                break
-            visited.add(upline.id)
-
-            pct = ROLE_LEVEL1_PCT.get(upline.role, 0.05)
-            reward = round(amount * pct, 2)
-
-            if reward > 0:
-                upline.balance_musd = (upline.balance_musd or 0.0) + reward
-                db.add(upline)
-
-                db.add(Transaction(
-                    user_id=upline.id,
-                    amount=reward,
-                    currency="MUSD",
-                    type="referral",
-                    external_id=f"REF-{tx_musd}-L{level}",
-                    created_at=datetime.utcnow()
-                ))
-
-                referral_records.append({
-                    "level": level,
-                    "to_user": upline.id,
-                    "amount": reward
-                })
-
-            current = upline
-            level += 1
-
-        # -------- COMMIT --------
         db.commit()
         db.refresh(user)
 
         return jsonify(
             ok=True,
-            user_id=user.id,
             became_origin_now=became_origin_now,
-            referral_dist=referral_records,
             user={
                 "id": user.id,
                 "role": user.role,
                 "self_activated": user.self_activated,
-                "total_team_business": user.total_team_business,
+                "total_team_business": user.total_team_business
             }
         ), 200
 
     except Exception:
         db.rollback()
-        app.logger.exception("deposit_submit failed")
+        app.logger.exception("debug_simulate_deposit failed")
         return jsonify(ok=False, error="server_error"), 500
 
     finally:
         db.close()
+
 
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
