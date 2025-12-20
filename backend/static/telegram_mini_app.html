@@ -631,7 +631,7 @@ const TREASURY_TON_ADDRESS =
 async function saveTonWallet(address) {
   if (!address || address === lastSavedWallet) return;
 
-  const res = await fetch('/webapp/save_wallet', {
+  const res = await fetch(BACKEND_URL + '/webapp/save_wallet', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -807,7 +807,7 @@ async function sendTonDeposit(amountUsd) {
     console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
 
     try {
-      const res = await fetch('/webapp/me', {
+      const res = await fetch(BACKEND_URL + '/webapp/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData, ref: effectiveRef })
@@ -828,448 +828,172 @@ async function sendTonDeposit(amountUsd) {
   // expose globally
   window.verifyInitData = verifyInitData;
 
-  // --- Render full registered view (deposit + ranks) ---
-const renderRegisteredView = async (uid, name, avatar, userData) => {
+  // CLEAN FULL RENDER FUNCTION
 
-  console.log("currentUserData at render BEFORE backend fetch:", JSON.stringify(userData, null, 2));
+const renderRegisteredView = (uid, name, avatar, userData) => {
 
-    // save globally
-  window.currentUserData = userData;
+    console.log("🔁 renderRegisteredView()", userData);
 
-  console.log("🧠 FINAL USER USED FOR RENDER:", window.currentUserData);
+    // store globally
+    window.currentUserData = userData;
 
-  // safety check unchanged
-  if (!userData || typeof userData !== 'object') {
-    console.error("renderRegisteredView called without userData", userData);
-    if (tg) tg.showAlert("User data missing. Please reopen the app.");
-    return;
-  }
-
-  // 🔍 DEBUG (remove later if you want)
-  console.log("RENDER USER DATA:", userData);
-    
-    const ranks = computeRanks(userData || {});
-
+    // compute ranks
+    const ranks = computeRanks(userData);
     const total = ranks.total.toFixed(2);
-    const activeOrigins = ranks.activeOrigins;
-
-    const originProgress = ranks.isOrigin ? 100 : 0;
-
-    const lcBusiness = Math.min(ranks.total / 1000, 1);
-    const lcOrigins = Math.min(ranks.activeOrigins / 10, 1);
-    const lifeChangerProgress = ranks.isLifeChanger
-      ? 100
-      : Math.round(Math.min((lcBusiness + lcOrigins) / 2, 1) * 100);
-
-    const advisorProgress = ranks.isAdvisor
-      ? 100
-      : Math.round(Math.min(ranks.total / 5000, 1) * 100);
-
-    const visionaryProgress = ranks.isVisionary
-      ? 100
-      : Math.round(Math.min(ranks.total / 25000, 1) * 100);
-
-    const creatorProgress = ranks.isCreator
-      ? 100
-      : Math.round(Math.min(ranks.total / 100000, 1) * 100);
-
-          // referral link for this uid
     const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
 
+    // --------------------------
+    // inject full UI HTML
+    // --------------------------
     app.innerHTML = `
-    <!-- 🔹 Deposit Header -->
-<div class="deposit-header">
-  <button id="menuBtn" class="hamburger">☰</button>
-  <div class="deposit-title"></div>
-  </div>
-
-     <div class="user-header">
-    <img src="${avatar || baseLogo}" class="logo glow" />
-    <div class="row big">${name || 'Unknown'}</div>
-    <div class="row mini">
-      <!--Total Team Business: <b>$${total}</b> ·
-      Active Origins: <b>${activeOrigins}</b><br>-->
-      Current: <b>${ranks.current}</b>
+    <div class="deposit-header">
+      <button id="menuBtn" class="hamburger">☰</button>
+      <div class="deposit-title"></div>
     </div>
-  </div>
 
-          <div class="row ref-line">
-        <span class="mini">Referral Link</span>
-        <button class="copy-btn" id="copyRef">📋</button>
+    <div class="user-header">
+      <img src="${avatar || baseLogo}" class="logo glow" />
+      <div class="row big">${name || 'Unknown'}</div>
+      <div class="row mini">
+        Current: <b>${ranks.current}</b>
       </div>
-      <div class="tooltip" id="tipRef">Copied!</div>
+    </div>
 
-      <div class="panel">
-  <h3>🔗 TON Wallet</h3>
-  <button class="btn secondary" id="connectWalletBtn">
-    Connect TON Wallet
-  </button>
-  <div id="walletStatus" class="mini"></div>
-</div>
+    <div class="row ref-line">
+      <span class="mini">Referral Link</span>
+      <button class="copy-btn" id="copyRef">📋</button>
+    </div>
+    <div class="tooltip" id="tipRef">Copied!</div>
 
-           
-       <div class="panel">
-  <h3>💳 Deposit</h3>
-  <div class="mini">Minimum deposit — <b>$20</b>.</div>
+    <div class="panel">
+      <h3>🔗 TON Wallet</h3>
+      <button class="btn secondary" id="connectWalletBtn">
+        Connect TON Wallet
+      </button>
+      <div id="walletStatus" class="mini"></div>
+    </div>
 
-  <!-- ✅ AMOUNT INPUT (ADD HERE) -->
-  <label for="amt">Enter Amount (USD)</label>
-  <input
-    id="amt"
-    type="number"
-    min="20"
-    step="0.01"
-    placeholder="Minimum $20"
-  />
-
-  <div class="submit">
-    <button class="btn secondary" id="submitDeposit">
-      Submit Deposit
-    </button>
-  </div>
-
-  <div id="submitMsg" class="ok" style="display:none;"></div>
-</div>
-
-      <div class="rank-panel">
-        <div class="rank-header">
-        <div class="rank-header-title">🏅 Your Rank & Levels</div>
-          <div class="rank-current-label">
-           <!-- Current: <b>${ranks.current}</b> -->
-          </div>
-        </div>
-
-        <div class="rank-tabs">
-          <button
-            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
-            data-rank="origin"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Origin</span>
-             <!-- <span class="rank-percent">5% Level Income</span>
-              <span class="rank-status">
-                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
-              </span> -->
-            </div>
-            <div class="rank-progress">
-          <!--    <div
-                class="rank-progress-bar"
-                style="width:${originProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
-            data-rank="life_changer"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Life Changer</span>
-             <!-- <span class="rank-percent">10% Direct</span>
-              <span class="rank-status">
-                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-           <!--   <div
-                class="rank-progress-bar"
-                style="width:${lifeChangerProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
-            data-rank="advisor"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Advisor</span>
-              <!--<span class="rank-percent">15% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-            <!--  <div
-                class="rank-progress-bar"
-                style="width:${advisorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
-            data-rank="visionary"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Visionary</span>
-            <!--  <span class="rank-percent">20% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isVisionary ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-             <!-- <div
-                class="rank-progress-bar"
-                style="width:${visionaryProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
-            data-rank="creator">
-          
-            <div class="rank-main">
-              <span class="rank-name">Creator</span>
-              <!--<span class="rank-percent">25% Top Rank</span>
-              <span class="rank-status">
-                ${ranks.isCreator ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-           <!--   <div
-                class="rank-progress-bar"
-                style="width:${creatorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}-->
-            </div>
-          </button>
-        </div>
-
-        <div id="rankDetails" class="rank-details"></div>
+    <div class="panel">
+      <h3>💳 Deposit</h3>
+      <label>Enter Amount (USD)</label>
+      <input id="amt" type="number" min="20" step="0.01" placeholder="Minimum $20" />
+      <div class="submit">
+        <button class="btn secondary" id="submitDeposit">
+          Submit Deposit
+        </button>
       </div>
+      <div id="submitMsg" class="ok" style="display:none;"></div>
+    </div>
     `;
 
-     const connectBtn = document.getElementById('connectWalletBtn');
-  if (connectBtn) {
-    connectBtn.onclick = connectTonWallet;
-  }
 
-    // --- Wire up events inside rendered view ---
+    // ======================================================
+    // ELEMENT REFERENCES MUST BE AFTER app.innerHTML
+    // ======================================================
+    const submitBtn   = document.getElementById("submitDeposit");
+    const msgEl       = document.getElementById("submitMsg");
+    const amtInput    = document.getElementById("amt");
+    const copyRefBtn  = document.getElementById("copyRef");
+    const tipRef      = document.getElementById("tipRef");
+    const connectBtn  = document.getElementById("connectWalletBtn");
 
-    const tip = document.getElementById('tipRef');
-    const copyRefBtn = document.getElementById('copyRef');
-    if (copyRefBtn && tip) {
-      copyRefBtn.onclick = () => copyText(refLink, tip);
-    }
-
-    const amtInput = document.getElementById('amt');
-const errEl = document.getElementById('submitMsg');
-
-if (amtInput && errEl) {
-  amtInput.oninput = () => {
-    const v = parseFloat(amtInput.value || '0');
-
-    if (isNaN(v) || v < 20) {
-      errEl.style.display = 'block';
-      errEl.textContent = 'Minimum deposit is $20.';
-    } else {
-      errEl.style.display = 'none';
-      errEl.textContent = '';
-    }
-  };
-}
-      };
-    
-    const tipCopy = document.getElementById('tipRef');
-    const copyMUSDBtn = document.getElementById('copyMUSD');
-    const copyMSTCBtn = document.getElementById('copyMSTC');
-
-    if (copyMUSDBtn && tipCopy) {
-      copyMUSDBtn.onclick = () => copyText(ADDR_MUSD, tipCopy);
-    }
-    if (copyMSTCBtn && tipCopy) {
-      copyMSTCBtn.onclick = () => copyText(ADDR_MSTC, tipCopy);
-    }
-
-    const submitBtn = document.getElementById('submitDeposit');
-    const msgEl = document.getElementById('submitMsg');
-    let errEl = msgEl;
-
-      
-    if (submitBtn && amtInput && msgEl) {
-      submitBtn.onclick = async () => {
-  if (submitBtn.disabled) return;
-  submitBtn.disabled = true;   // 🔒 LOCK BUTTON
-
-  const tgApp = tg;
-
-  try {
-    // =========================
-    // 1️⃣ RESET UI
-    // =========================
-    errEl.style.display = 'none';
-    msgEl.style.display = 'none';
-    errEl.textContent = '';
-    msgEl.textContent = '';
-
-    const amount = parseFloat(amtInput.value || '0');
-
-    // =========================
-    // 2️⃣ VALIDATION
-    // =========================
-    if (isNaN(amount) || amount < 20) {
-      throw new Error('Minimum deposit is $20.');
-    }
-
-    console.warn("⚠ SIM MODE: Wallet connection skipped");
-    
-    // =========================
-    // 3️⃣ SEND TON
-    // =========================
-    msgEl.style.display = 'block';
-    msgEl.textContent = 'Opening TON wallet…';
-
-    const txHash = await sendTonDeposit(amount);
-
-    // =========================
-    // 4️⃣ GET USER ID (NO EXTRA API)
-    // =========================
-    const userId = window.currentUserData?.id;
-    if (!userId) throw new Error('User not loaded');
-
-    // =========================
-    // 5️⃣ SUBMIT TO BACKEND
-    // =========================
-    msgEl.textContent = 'Submitting deposit…';
-
-    const depositPayload = {
-      user_id: userId,
-      amount: Number(amount.toFixed(2)),
-      tx_musd: txHash,
-      ref: window.currentRef || null
-    };
-
-    const res = await fetch(BACKEND_URL + '/deposit/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(depositPayload)
+    // --------------------------
+    // COPY referral link
+    // --------------------------
+    copyRefBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(refLink);
+        tipRef.classList.add("show");
+        setTimeout(() => tipRef.classList.remove("show"), 1200);
     });
 
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json.error || 'Deposit failed');
-    }
+    // --------------------------
+    // TON wallet connect
+    // --------------------------
+    connectBtn.addEventListener("click", connectTonWallet);
 
-    // =========================
-    // 6️⃣ SUCCESS
-    // =========================
-    msgEl.textContent = 'Deposit successful!';
-    tgApp && tgApp.showAlert('✅ Deposit successful');
+    // --------------------------
+    // amount validation live
+    // --------------------------
+    amtInput.addEventListener("input", () => {
 
-    await showRegisteredViewFromBackend();
-    amtInput.value = '';
-
-  } catch (err) {
-    // ❌ ERROR HANDLING
-    errEl.style.display = 'block';
-    errEl.textContent = err.message;
-    tgApp && tgApp.showAlert(err.message);
-
-  } finally {
-    // 🔓 ALWAYS RE-ENABLE BUTTON
-    submitBtn.disabled = false;
-  }
-};
-
-    // --- Rank tab details ---
-    const rankDetails = document.getElementById('rankDetails');
-    const rankTabs = app.querySelectorAll('.rank-tab');
-
-    function setActiveRankTab(rankKey) {
-      rankTabs.forEach(btn => {
-        if (btn.dataset.rank === rankKey) {
-          btn.classList.add('active');
+        const v = parseFloat(amtInput.value);
+        if (isNaN(v) || v < 20) {
+            msgEl.style.display = "block";
+            msgEl.textContent = "Minimum deposit is $20.";
         } else {
-          btn.classList.remove('active');
+            msgEl.style.display = "none";
+            msgEl.textContent = "";
         }
-      });
-
-      let html = '';
-      if (rankKey === 'origin') {
-        html = `
-          <b>Origin – 5% Level Income</b>
-          <ul>
-            <li>Self activation required (your own qualifying deposit).</li>
-            <li>You start earning 5% from your direct team as Origin.</li>
-          </ul>
-        `;
-      } else if (rankKey === 'life_changer') {
-        html = `
-          <b>Life Changer – 10% Direct</b>
-          <ul>
-            <li>1000 MUSD total team business.</li>
-            <li>10 active Origins in your group.</li>
-            <li>Eligible for Life Changer club and monthly pool
-                (2% company turnover shared among achievers – handled by admin).</li>
-          </ul>
-        `;
-      } else if (rankKey === 'advisor') {
-        html = `
-          <b>Advisor – 15%</b>
-          <ul>
-            <li>5000 MUSD total team business (target).</li>
-            <li>Higher monthly club requirements decided by company rules.</li>
-            <li>2% company club pool shared among all active Advisors (as per plan).</li>
-          </ul>
-        `;
-      } else if (rankKey === 'visionary') {
-        html = `
-          <b>Visionary – 20%</b>
-          <ul>
-            <li>25000 MUSD total team business (target).</li>
-            <li>Next-level leadership and club participation.</li>
-          </ul>
-        `;
-      } else if (rankKey === 'creator') {
-        html = `
-          <b>Creator – 25%</b>
-          <ul>
-            <li>100000 MUSD total team business (top rank target).</li>
-            <li>Highest reward slab and special company recognition.</li>
-          </ul>
-        `;
-      }
-
-      if (rankDetails) {
-        rankDetails.innerHTML = html;
-      }
-    }
-
-    let defaultRank = 'origin';
-    if (ranks.isCreator) defaultRank = 'creator';
-    else if (ranks.isVisionary) defaultRank = 'visionary';
-    else if (ranks.isAdvisor) defaultRank = 'advisor';
-    else if (ranks.isLifeChanger) defaultRank = 'life_changer';
-
-    setActiveRankTab(defaultRank);
-
-    rankTabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        setActiveRankTab(btn.dataset.rank);
-      });
     });
+
     
+    // ======================================================
+    // MAIN DEPOSIT HANDLER
+    // ======================================================
+    submitBtn.addEventListener("click", async () => {
 
-// ✅ show / hide admin menu based on role
-updateAdminMenuVisibility();
-  };
+        // lock button
+        if (submitBtn.disabled) return;
+        submitBtn.disabled = true;
 
+        try {
+            msgEl.style.display = "none";
+
+            const amount = parseFloat(amtInput.value);
+            if (isNaN(amount) || amount < 20)
+                throw new Error("Minimum deposit is $20");
+
+            // wallet simulation → blockchain hash
+            msgEl.style.display = "block";
+            msgEl.textContent = "Creating TON transaction…";
+
+            const txHash = await sendTonDeposit(amount);
+
+            // submit to backend
+            msgEl.textContent = "Submitting deposit…";
+
+            const res = await fetch(BACKEND_URL + "/deposit/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_id: window.currentUserData.id,
+                    amount: Number(amount.toFixed(2)),
+                    tx_musd: txHash,
+                    ref: window.currentRef || null
+                })
+            });
+
+            const j = await res.json();
+            if (!j.ok) throw new Error(j.error);
+
+            msgEl.textContent = "Deposit successful!";
+            amtInput.value = "";
+
+            await showRegisteredViewFromBackend();
+
+        } catch (err) {
+            msgEl.style.display = "block";
+            msgEl.textContent = err.message;
+        }
+
+        submitBtn.disabled = false;
+
+        
+    });
+
+
+    // ======================================================
+    // ADMIN MENU VISIBILITY
+    // ======================================================
+    updateAdminMenuVisibility();
+
+
+    // ======================================================
+    // MENU BUTTON
+    // ======================================================
+    document.getElementById("menuBtn")
+      .addEventListener("click", openMenu);
+};
   // expose renderRegisteredView globally
   window.renderRegisteredView = renderRegisteredView;
 
@@ -1336,7 +1060,7 @@ updateAdminMenuVisibility();
   const initData = tgApp.initData || "";
 
   try {
-    const res = await fetch('/webapp/init', {
+    const res = await fetch(BACKEND_URL + '/webapp/init', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1377,7 +1101,11 @@ updateAdminMenuVisibility();
         app.innerHTML = `
           <img src="${baseLogo}" class="logo" />
           <div class="row big">❌ Registration Cancelled</div>
+
+          
         `;
+
+        
       };
     }
   });
@@ -1417,7 +1145,7 @@ document.getElementById("modal")?.addEventListener("click", (e) => {
   }
 
   async function openProfile() {
-  const res = await fetch("/webapp/profile", {
+  const res = await fetch(BACKEND_URL + "/webapp/profile", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1437,7 +1165,7 @@ document.getElementById("modal")?.addEventListener("click", (e) => {
 }
 
 async function openRole() {
-  const res = await fetch("/webapp/role", {
+  const res = await fetch(BACKEND_URL + "/webapp/role", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1454,7 +1182,7 @@ async function openRole() {
 }
 
 async function openDownlines() {
-  const res = await fetch("/webapp/downlines", {
+  const res = await fetch(BACKEND_URL + "/webapp/downlines", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1481,7 +1209,7 @@ async function openAdminUsers() {
   try {
     openModal("Admin • Users", "<div class='mini'>Loading users…</div>");
 
-    const res = await fetch("/admin/users", {
+    const res = await fetch(BACKEND_URL + "/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData })
@@ -1630,7 +1358,7 @@ async function adminUpdateUser(userId, action) {
   if (!confirm(confirmMsg)) return;
 
   try {
-    const res = await fetch("/admin/update_user", {
+    const res = await fetch(BACKEND_URL + "/admin/update_user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1659,7 +1387,7 @@ async function adminUpdateUser(userId, action) {
 async function adminImpersonate(userId) {
   if (!confirm("Impersonate this user?\nYou can exit anytime.")) return;
 
-  const res = await fetch("/admin/impersonate", {
+  const res = await fetch(BACKEND_URL + "/admin/impersonate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -1756,7 +1484,7 @@ async function doRegister() {
   }
 
   try {
-    const res = await fetch("/webapp/register", {
+    const res = await fetch(BACKEND_URL + "/webapp/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData })
