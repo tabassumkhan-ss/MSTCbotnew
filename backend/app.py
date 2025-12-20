@@ -949,7 +949,7 @@ def debug_simulate_deposit():
                 user.role = "origin"
                 became_origin_now = True
 
-        # -------- USER BUSINESS --------
+        # --------       USER BUSINESS --------
         user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
