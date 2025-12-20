@@ -612,9 +612,10 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
   manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'
 });
 
-tonConnectUI.restoreConnection().then(wallet => {
-   console.log("TON restored wallet:", wallet);
+tonConnectUI.onStatusChange(wallet => {
+   console.log("TON wallet status updated:", wallet);
 });
+
 
 tonConnectUI.setConnectRequestParameters({
   testnet: true
@@ -856,6 +857,34 @@ async function sendTonDeposit(amountUsd) {
   };
   // expose globally
   window.verifyInitData = verifyInitData;
+
+  const showRegisteredViewFromBackend = async () => {
+
+  const verifyResp = await verifyInitData();
+
+  if (!verifyResp || !verifyResp.user) {
+      console.error("Invalid /webapp/me:", verifyResp);
+      Telegram.WebApp.showAlert("Server error loading profile");
+      return;
+  }
+
+  const u = verifyResp.user;
+
+  const id = u.id;
+  const name =
+      ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) ||
+      u.username ||
+      'Unknown';
+
+  const avatar = u.photo_url || baseLogo;
+
+  renderRegisteredView(id, name, avatar, u);
+};
+
+
+  // expose globally
+  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
 
   // CLEAN FULL RENDER FUNCTION
 
@@ -1535,33 +1564,7 @@ function logout() {
   Telegram.WebApp.close();
 }
 
- const showRegisteredViewFromBackend = async () => {
-
-  const verifyResp = await verifyInitData();
-
-  if (!verifyResp || !verifyResp.user) {
-      console.error("Invalid /webapp/me:", verifyResp);
-      Telegram.WebApp.showAlert("Server error loading profile");
-      return;
-  }
-
-  const u = verifyResp.user;
-
-  const id = u.id;
-  const name =
-      ((u.first_name || '') +
-      (u.username ? ' @' + u.username : '')) ||
-      u.username ||
-      'Unknown';
-
-  const avatar = u.photo_url || baseLogo;
-
-  renderRegisteredView(id, name, avatar, u);
-};
-
-
-  // expose globally
-  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
+ 
 
 async function doRegister() {
   console.log("YES CLICKED");
