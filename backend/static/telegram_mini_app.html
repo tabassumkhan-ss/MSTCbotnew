@@ -631,7 +631,7 @@ const TREASURY_TON_ADDRESS =
 async function saveTonWallet(address) {
   if (!address || address === lastSavedWallet) return;
 
-  const res = await fetch('/webapp/save_wallet', {
+  const res = await fetch(BACKEND_URL + '/webapp/save_wallet', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -807,7 +807,7 @@ async function sendTonDeposit(amountUsd) {
     console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
 
     try {
-      const res = await fetch('/webapp/me', {
+      const res = await fetch(BACKEND_URL + '/webapp/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData, ref: effectiveRef })
@@ -834,28 +834,7 @@ const renderRegisteredView = async (uid, name, avatar, userData) => {
 
   console.log("currentUserData at render BEFORE backend fetch:", JSON.stringify(userData, null, 2));
 
-  // override userData role + fields using backend DB data
-  try {
-    const res = await fetch(BACKEND_URL + "/webapp/me", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-        initData: tg.initData,
-        ref: window.currentRef || null
-    })
-});
-
-    const data = await res.json();
-
-    if (data && data.user) {
-      userData = data.user;
-    }
-
-  } catch (e) {
-    console.error("Backend fetch failed — using fallback userData", e);
-  }
-
-  // save globally
+    // save globally
   window.currentUserData = userData;
 
   console.log("🧠 FINAL USER USED FOR RENDER:", window.currentUserData);
@@ -1360,7 +1339,7 @@ updateAdminMenuVisibility();
   const initData = tgApp.initData || "";
 
   try {
-    const res = await fetch('/webapp/init', {
+    const res = await fetch(BACKEND_URL + '/webapp/init', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1441,7 +1420,7 @@ document.getElementById("modal")?.addEventListener("click", (e) => {
   }
 
   async function openProfile() {
-  const res = await fetch("/webapp/profile", {
+  const res = await fetch(BACKEND_URL + "/webapp/profile", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1461,7 +1440,7 @@ document.getElementById("modal")?.addEventListener("click", (e) => {
 }
 
 async function openRole() {
-  const res = await fetch("/webapp/role", {
+  const res = await fetch(BACKEND_URL + "/webapp/role", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1478,7 +1457,7 @@ async function openRole() {
 }
 
 async function openDownlines() {
-  const res = await fetch("/webapp/downlines", {
+  const res = await fetch(BACKEND_URL + "/webapp/downlines", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initData: tg.initData })
@@ -1505,7 +1484,7 @@ async function openAdminUsers() {
   try {
     openModal("Admin • Users", "<div class='mini'>Loading users…</div>");
 
-    const res = await fetch("/admin/users", {
+    const res = await fetch(BACKEND_URL + "/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData })
@@ -1654,7 +1633,7 @@ async function adminUpdateUser(userId, action) {
   if (!confirm(confirmMsg)) return;
 
   try {
-    const res = await fetch("/admin/update_user", {
+    const res = await fetch(BACKEND_URL + "/admin/update_user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1683,7 +1662,7 @@ async function adminUpdateUser(userId, action) {
 async function adminImpersonate(userId) {
   if (!confirm("Impersonate this user?\nYou can exit anytime.")) return;
 
-  const res = await fetch("/admin/impersonate", {
+  const res = await fetch(BACKEND_URL + "/admin/impersonate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -1780,7 +1759,7 @@ async function doRegister() {
   }
 
   try {
-    const res = await fetch("/webapp/register", {
+    const res = await fetch(BACKEND_URL + "/webapp/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData })
