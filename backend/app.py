@@ -368,9 +368,7 @@ def deposit_submit():
     try:
 
         # -------- USER LOOKUP --------
-        user = db.get(User, tg_id) or db.query(User).filter_by(
-            telegram_id=str(tg_id)
-        ).first()
+        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
 
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
@@ -1105,9 +1103,9 @@ def debug_simulate_deposit():
     db = SessionLocal()
     try:
         # -------- USER --------
-        user = db.get(User, tg_id)
+        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
         if not user:
-            return jsonify(ok=False, error="user_not_found"), 404
+         return jsonify(ok=False, error="user_not_found"), 404
 
         # -------- ACTIVATE & ROLE --------
         became_origin_now = False
