@@ -653,32 +653,48 @@ async function connectTonWallet() {
 
   console.log("🔵 TON connect button pressed");
 
-  // If wallet already connected → open settings instead
+  // if already connected → show modal settings only
   if (tonConnectUI.wallet) {
-     await tonConnectUI.openModal();
-     return;
+    await tonConnectUI.openModal();
+    return;
   }
 
   try {
-     const wallet = await tonConnectUI.connectWallet();
+    // open wallet modal & get wallet object
+    const wallet = await tonConnectUI.connectWallet();
 
-
-      console.log("TON wallet connected:", address);
-
-      const el = document.getElementById('walletStatus');
-      if (el) {
-        el.textContent =
-          'Connected: ' + address.slice(0, 6) + '...' + address.slice(-4);
-      }
-
-      // save to backend
-      await saveTonWallet(address);
-
-    } catch (e) {
-      console.error('TON wallet connection failed', e);
+    // validate wallet
+    if (!wallet?.account?.address) {
+      console.warn("⚠ Wallet returned without address");
+      return;
     }
+
+    const address = wallet.account.address;
+    console.log("TON wallet connected:", address);
+
+    // update UI
+    const el = document.getElementById("walletStatus");
+    if (el) {
+      el.textContent =
+        "Connected: " +
+        address.slice(0, 6) + "..." + address.slice(-4);
+    }
+
+    // enable deposit button
+    const submitBtn = document.getElementById("submitDeposit");
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = "1";
+    }
+
+    // save wallet to backend once
+    await saveTonWallet(address);
+
+  } catch (e) {
+    console.error("TON wallet connection failed", e);
   }
-  const SIMULATE_TON = true;
+}
+
 
 async function sendTonDeposit(amountUsd) {
 
@@ -899,127 +915,53 @@ const renderRegisteredView = (uid, name, avatar, userData) => {
     </div>
 
           <div class="rank-panel">
-        <div class="rank-header">
-        <div class="rank-header-title">🏅 Your Rank & Levels</div>
-          <div class="rank-current-label">
-           <!-- Current: <b>${ranks.current}</b> -->
-          </div>
-        </div>
 
-        <div class="rank-tabs">
-          <button
-            class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}"
-            data-rank="origin"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Origin</span>
-             <!-- <span class="rank-percent">5% Level Income</span>
-              <span class="rank-status">
-                ${ranks.isOrigin ? 'Achieved' : 'Locked'}
-              </span> -->
-            </div>
-            <div class="rank-progress">
-          <!--    <div
-                class="rank-progress-bar"
-                style="width:${originProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${originProgress}% ${originProgress === 100 ? 'achieved' : 'to unlock'}
-            </div>-->
-          </button>
+  <div class="rank-header">
+    <div class="rank-header-title">🏅 Your Rank & Levels</div>
+  </div>
 
-          <button
-            class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}"
-            data-rank="life_changer"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Life Changer</span>
-             <!-- <span class="rank-percent">10% Direct</span>
-              <span class="rank-status">
-                ${ranks.isLifeChanger ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-           <!--   <div
-                class="rank-progress-bar"
-                style="width:${lifeChangerProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${lifeChangerProgress}% ${lifeChangerProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
+  <div class="rank-tabs">
 
-          <button
-            class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}"
-            data-rank="advisor"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Advisor</span>
-              <!--<span class="rank-percent">15% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isAdvisor ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-            <!--  <div
-                class="rank-progress-bar"
-                style="width:${advisorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${advisorProgress}% ${advisorProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}"
-            data-rank="visionary"
-          >
-            <div class="rank-main">
-              <span class="rank-name">Visionary</span>
-            <!--  <span class="rank-percent">20% Club Rank</span>
-              <span class="rank-status">
-                ${ranks.isVisionary ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-             <!-- <div
-                class="rank-progress-bar"
-                style="width:${visionaryProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${visionaryProgress}% ${visionaryProgress === 100 ? 'achieved' : 'towards next rank'}
-            </div>-->
-          </button>
-
-          <button
-            class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}"
-            data-rank="creator">
-          
-            <div class="rank-main">
-              <span class="rank-name">Creator</span>
-              <!--<span class="rank-percent">25% Top Rank</span>
-              <span class="rank-status">
-                ${ranks.isCreator ? 'Achieved' : 'Locked'}-->
-              </span>
-            </div>
-            <div class="rank-progress">
-           <!--   <div
-                class="rank-progress-bar"
-                style="width:${creatorProgress}%;"
-              ></div>
-            </div>
-            <div class="rank-progress-text">
-              ${creatorProgress}% ${creatorProgress === 100 ? 'achieved' : 'towards top rank'}-->
-            </div>
-          </button>
-        </div>
-
-        <div id="rankDetails" class="rank-details"></div>
+    <!-- Origin -->
+    <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
+      <div class="rank-main">
+        <span class="rank-name">Origin</span>
       </div>
+    </button>
+
+    <!-- Life Changer -->
+    <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
+      <div class="rank-main">
+        <span class="rank-name">Life Changer</span>
+      </div>
+    </button>
+
+    <!-- Advisor -->
+    <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
+      <div class="rank-main">
+        <span class="rank-name">Advisor</span>
+      </div>
+    </button>
+
+    <!-- Visionary -->
+    <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
+      <div class="rank-main">
+        <span class="rank-name">Visionary</span>
+      </div>
+    </button>
+
+    <!-- Creator -->
+    <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
+      <div class="rank-main">
+        <span class="rank-name">Creator</span>
+      </div>
+    </button>
+
+  </div>
+
+  <div id="rankDetails" class="rank-details"></div>
+
+</div>
     `;
 
 
@@ -1040,13 +982,6 @@ if (!tonConnectUI.wallet) {
    submitBtn.disabled = true;
    submitBtn.style.opacity = "0.4";
 }
-
-// enable after TON connect button press
-connectBtn.addEventListener("click", async () => {
-   await connectTonWallet();
-   submitBtn.disabled = false;
-   submitBtn.style.opacity = "1";
-});
 
 // ============= INITIAL WALLET STATUS ====================
 if (tonConnectUI.wallet?.account?.address) {
@@ -1151,28 +1086,19 @@ amtInput.addEventListener("input", () => {
     const showRegisteredViewFromBackend = async () => {
   const verifyResp = await verifyInitData();
 
-  // 🔍 DEBUG — THIS IS THE IMPORTANT LOG
-  console.log("🔎 VERIFY RESPONSE:", verifyResp);
-  console.log("🔎 VERIFY RESPONSE USER:", verifyResp?.user);
+if (!verifyResp || !verifyResp.user) {
+    console.error("Invalid response from /webapp/me:", verifyResp);
+    Telegram.WebApp.showAlert("Server error loading your profile.");
+    return;
+}
 
-  const tgApp = tg;
-  const unsafeUser =
-    tgApp && tgApp.initDataUnsafe && tgApp.initDataUnsafe.user
-      ? tgApp.initDataUnsafe.user
-      : {};
+if (!verifyResp.user.id) {
+    console.error("Missing uid in /webapp/me:", verifyResp);
+    return;
+}
 
-  const u = verifyResp.user || unsafeUser || {};
-  console.log("🧠 FINAL USER USED FOR RENDER:", u);
+renderRegisteredView(id, name, avatar, verifyResp.user);
 
-  const id = u.id || 0;
-  const name =
-    ((u.first_name || '') +
-      (u.username ? ' @' + u.username : '')) ||
-    u.username ||
-    'Unknown';
-  const avatar = u.photo_url || baseLogo;
-
-  renderRegisteredView(id, name, avatar, u);
 };
 
   // expose globally
@@ -1606,6 +1532,10 @@ function stopImpersonation() {
     <div>MSTC Balance: ${u.balance_mstc || 0}</div>
     <div>MUSD Balance: ${u.balance_musd || 0}</div>
   `);
+}
+
+function openAdminStats() {
+  openModal("Admin Stats", "Coming soon…");
 }
 
 function updateAdminMenuVisibility() {
