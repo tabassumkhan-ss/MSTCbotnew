@@ -1073,24 +1073,30 @@ def debug_transactions(user_id):
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     app.logger.info("Webhook hit")
-    req_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
-
-    if WEBHOOK_SECRET and req_secret != WEBHOOK_SECRET:
-        app.logger.warning("Invalid/missing webhook secret: %s", req_secret)
-        return jsonify({"ok": False, "error": "invalid_secret"}), 401
 
     update = request.get_json(silent=True)
-    if not update:
-        app.logger.warning("No JSON payload received on /webhook")
-        return jsonify({"ok": False, "error": "no_json"}), 400
+    app.logger.info("Update payload: %s", update)
 
-    app.logger.info("Telegram update received: %s", update)
-
+    # 🔥 TEMPORARY DIRECT TEST (IMPORTANT)
     try:
-        handle_command(update)
-    except Exception:
-        app.logger.exception("Error in handle_command")
+        import requests
+        chat_id = update["message"]["chat"]["id"]
+        token = os.getenv("BOT_TOKEN")
+        r = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": "✅ Webhook reached Railway successfully"
+            },
+            timeout=10
+        )
+        app.logger.info("Direct sendMessage result: %s", r.text)
+    except Exception as e:
+        app.logger.exception("Direct sendMessage failed")
+
+    # ⛔ TEMP: comment out handle_command
+    # from bot import handle_command
+    # handle_command(update)
 
     return jsonify({"ok": True}), 200
 
