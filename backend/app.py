@@ -1069,31 +1069,29 @@ def debug_transactions(user_id):
     finally:
         db.close()
 
-# Telegram webhook handler
+ 
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
+    from bot import handle_command 
     req_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
     if WEBHOOK_SECRET and req_secret != WEBHOOK_SECRET:
-        logging.warning("Invalid/missing webhook secret: %s", req_secret)
+        app.logger.warning("Invalid/missing webhook secret: %s", req_secret)
         return jsonify({"ok": False, "error": "invalid_secret"}), 401
+
     update = request.get_json(silent=True)
-    if update is None:
-        logging.warning("No JSON payload received on /webhook")
+    if not update:
+        app.logger.warning("No JSON payload received on /webhook")
         return jsonify({"ok": False, "error": "no_json"}), 400
-    logging.info("Telegram update received: %s", update)
+
+    app.logger.info("Telegram update received: %s", update)
+
     try:
-        if "message" in update:
-            msg = update["message"]
-            chat_id = msg["chat"]["id"]
-            text = msg.get("text", "")
-            requests.get(f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage", params={"chat_id": chat_id, "text": "Thanks — received: " + (text or "<no text>")}, timeout=5)
-        elif "callback_query" in update:
-            cq = update["callback_query"]
-            cid = cq["message"]["chat"]["id"]
-            requests.get(f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage", params={"chat_id": cid, "text": "Callback received"}, timeout=5)
-    except Exception as e:
-        logging.exception("Error handling update: %s", e)
+        handle_command(update)
+    except Exception:
+        app.logger.exception("Error in handle_command")
+
     return jsonify({"ok": True}), 200
 
 # Entry point for local run
