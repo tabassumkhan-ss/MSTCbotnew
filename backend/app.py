@@ -1072,7 +1072,7 @@ def debug_transactions(user_id):
  
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
-    from bot import handle_command 
+    app.logger.info("Webhook hit")
     req_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
