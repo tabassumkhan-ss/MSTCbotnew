@@ -16,7 +16,11 @@ sys.path.append(os.path.dirname(__file__))
 
 
 load_dotenv()
-BOT_TOKEN = "8487241335:AAHfCDzdzZBiedvPAcYbr5_BRqSa8YTaWVs"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN not set")
+
 POLL_INTERVAL = float(os.getenv('BOT_POLL_INTERVAL', '1.5'))  # seconds between getUpdates
 PAYOUT_INTERVAL_MINUTES = int(os.getenv('PAYOUT_INTERVAL_MINUTES', '5'))
 
