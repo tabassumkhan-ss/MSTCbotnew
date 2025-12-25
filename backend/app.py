@@ -11,6 +11,7 @@ from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 import requests
 from dotenv import load_dotenv
+from sqlalchemy.exc import OperationalError
 
 
 # local imports
@@ -421,6 +422,8 @@ def webapp_init():
     finally:
         db.close()
 
+from sqlalchemy.exc import OperationalError
+
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
     data = request.get_json() or {}
@@ -434,58 +437,53 @@ def webapp_register():
     if not telegram_id:
         return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-    # 🔁 retry once if DB is sleeping
-    for attempt in (1, 2):
+    try:
         db = SessionLocal()
+
+        existing = (
+            db.query(User)
+            .filter(User.telegram_id == telegram_id)
+            .first()
+        )
+
+        if existing:
+            return jsonify({"ok": True, "exists": True})
+
+        user = User(
+            id=telegram_id,
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
+            role="member",
+            active=True
+        )
+
+        db.add(user)
+        db.commit()
+
+        return jsonify({"ok": True, "created": True})
+
+    except OperationalError:
+        # 🚀 Railway DB sleeping — this is EXPECTED
+        app.logger.warning("DB waking up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 200
+
+    except Exception:
+        app.logger.exception("webapp_register failed")
+        return jsonify({
+            "ok": False,
+            "error": "internal_error"
+        }), 500
+
+    finally:
         try:
-            existing = (
-                db.query(User)
-                .filter(User.telegram_id == telegram_id)
-                .first()
-            )
-
-            if existing:
-                return jsonify({"ok": True, "exists": True})
-
-            user = User(
-                id=telegram_id,
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                role="member",
-                active=True
-            )
-
-            db.add(user)
-            db.commit()
-
-            return jsonify({"ok": True, "created": True})
-
-        except OperationalError:
-            db.rollback()
-
-            if attempt == 1:
-                # 🔔 wake DB and retry once
-                app.logger.warning("DB asleep, retrying once…")
-                time.sleep(1.2)
-                continue
-
-            app.logger.exception("DB unavailable after retry")
-            return jsonify({
-                "ok": False,
-                "error": "db_warming_up_try_again"
-            }), 503
-
-        except Exception:
-            db.rollback()
-            app.logger.exception("webapp_register failed")
-            return jsonify({
-                "ok": False,
-                "error": "server_error"
-            }), 500
-
-        finally:
             db.close()
+        except Exception:
+            pass
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
