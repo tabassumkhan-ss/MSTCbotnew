@@ -1167,8 +1167,14 @@ amtInput.addEventListener("input", () => {
 
       // ✅ if user already registered, skip question
       if (data.exists) {
-        await showRegisteredViewFromBackend();
-      }
+  // user already registered → skip YES/NO
+  document.getElementById("registerSection").style.display = "none";
+  await showRegisteredViewFromBackend();
+} else {
+  // new user → wait for YES click
+  document.getElementById("registerSection").style.display = "block";
+}
+
     } else {
       console.error("init failed", data);
     }
