@@ -1,34 +1,42 @@
-import hashlib
-import hmac
-from urllib.parse import parse_qsl
+# backend/utils.py
 
-def verify_telegram_initdata(init_data: str, bot_token: str) -> bool:
+import os
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
+# -------------------------
+# Backend HTTP helper
+# -------------------------
+def call_backend(path, method="GET", json=None, headers=None):
     """
-    Validates Telegram WebApp initData using Telegram's HMAC-SHA256 method.
+    Call backend API from Telegram bot
     """
-    if not init_data:
-        return False
+    base_url = os.getenv(
+        "BASE_URL",
+        "https://mstcbotnew-production.up.railway.app"
+    )
+
+    url = base_url.rstrip("/") + path
 
     try:
-        # Split into dict
-        data = dict(parse_qsl(init_data, keep_blank_values=True))
+        resp = requests.request(
+            method=method,
+            url=url,
+            json=json,
+            headers=headers,
+            timeout=10
+        )
+        return resp
+    except Exception as e:
+        logger.exception("call_backend failed: %s", e)
+        return None
 
-        if "hash" not in data:
-            return False
 
-        received_hash = data.pop("hash")
-
-        # Build data_check_string sorted lexicographically
-        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
-
-        secret_key = hashlib.sha256(bot_token.encode()).digest()
-        calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        return calculated_hash == received_hash
-
-    except Exception:
-        return False
-    
+# -------------------------
+# Admin helper
+# -------------------------
 def is_admin(telegram_id: int) -> bool:
     """
     Check if telegram_id is in ADMIN_TELEGRAM_IDS env variable
