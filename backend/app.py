@@ -11,6 +11,7 @@ from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
 import requests
 from dotenv import load_dotenv
+from sqlalchemy.exc import OperationalError
 
 # local imports
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
@@ -18,10 +19,21 @@ from backend.models import Base, engine, SessionLocal, User, Transaction, Referr
 # -------------------------
 # Load environment & logging
 # -------------------------
+# Load .env
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+# Configure logging FIRST
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
+# Now it is safe to log
+logger.info(
+    "BOT_TOKEN loaded: %s",
+    "YES" if os.getenv("BOT_TOKEN") else "NO"
+)
 # -------------------------
 # Flask app creation
 # -------------------------
@@ -48,11 +60,18 @@ except Exception:
     app.logger.exception("Could not read engine.url")
 
 # Initialize DB metadata (no destructive migrations)
+# Initialize DB metadata (safe for Railway)
 try:
     init_db()
-    Base.metadata.create_all(bind=engine)
-except Exception:
-    app.logger.exception("DB init/create_all failed")
+
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        app.logger.info("Skipping create_all on Railway")
+    else:
+        Base.metadata.create_all(bind=engine)
+        app.logger.info("DB create_all executed (non-Railway)")
+
+except Exception as e:
+    app.logger.error("DB init failed, continuing without crash: %s", e)
 
 app.logger.info("Flask CWD: %s", os.getcwd())
 app.logger.info("Flask DB URL: %s", engine.url)
@@ -340,173 +359,6 @@ DEPOSIT_API_KEY = os.getenv("DEPOSIT_API_KEY")
 def home():
     return "Backend OK", 200
 
-@app.route("/deposit/submit", methods=["POST"])
-def deposit_submit():
-
-    # -------- API KEY CHECK --------
-    if DEPOSIT_API_KEY:
-        supplied = request.headers.get("X-API-KEY") or request.args.get("api_key")
-        if not supplied or supplied.strip() != DEPOSIT_API_KEY.strip():
-            return jsonify(ok=False, error="invalid_api_key"), 401
-
-    # -------- INPUT --------
-    payload = request.get_json(silent=True) or {}
-    tg_id = payload.get("user_id") or payload.get("telegram_id")
-    amount = payload.get("amount")
-    tx_musd = payload.get("tx_musd")
-    tx_mstc = payload.get("tx_mstc")
-
-    try:
-        tg_id = int(tg_id)
-        amount = float(amount)
-    except Exception:
-        return jsonify(ok=False, error="missing_user_or_amount"), 400
-
-    db = SessionLocal()
-    try:
-
-        # -------- USER LOOKUP --------
-        user = db.get(User, tg_id) or db.query(User).filter_by(
-            telegram_id=str(tg_id)
-        ).first()
-
-        if not user:
-            return jsonify(ok=False, error="user_not_found"), 404
-
-        # -------- IDEMPOTENCY --------
-        if tx_musd:
-            existing = db.query(Transaction).filter_by(
-                external_id=str(tx_musd),
-                currency="MUSD",
-                type="deposit"
-            ).first()
-
-            if existing:
-                return jsonify(ok=True, user_id=user.id), 200
-
-        # -------- TON TX REQUIRED --------
-        if not tx_musd:
-            return jsonify(ok=False, error="missing_ton_tx_hash"), 400
-
-        # -------- TON / SIMULATOR VERIFICATION --------
-        if tx_musd.startswith("SIMTX-"):
-            ok = True
-            result = "simulator_ok"
-        else:
-            from verify_ton import verify_ton_transaction
-            ok, result = verify_ton_transaction(tx_musd, amount)
-
-        if not ok:
-            return jsonify(ok=False, error=result), 400
-
-        # -------- ACTIVATE USER --------
-        became_origin_now = False
-
-        if amount >= 20:
-            if not user.self_activated:
-                user.self_activated = True
-
-            if user.role == "user":
-                user.role = "origin"
-                became_origin_now = True
-
-        # -------- USER BUSINESS --------
-        user.total_team_business = (user.total_team_business or 0.0) + amount
-        db.add(user)
-
-        propagate_team_business(db, user, amount, became_origin_now)
-        update_rank(user)
-
-        # -------- COMPANY BUSINESS SPLIT --------
-        company = db.get(User, COMPANY_USER_ID)
-        if company:
-            company.balance_musd = (company.balance_musd or 0.0) + (amount * 0.72)
-            db.add(company)
-
-        # -------- STORE DEPOSIT TX --------
-        deposit_tx = Transaction(
-            user_id=user.id,
-            amount=amount,
-            currency="MUSD",
-            type="deposit",
-            external_id=str(tx_musd),
-            created_at=datetime.utcnow()
-        )
-        db.add(deposit_tx)
-
-        # -------- OPTIONAL MSTC CREDIT --------
-        if tx_mstc:
-            db.add(Transaction(
-                user_id=user.id,
-                amount=0.0,
-                currency="MSTC",
-                type="credit_mstc",
-                external_id=str(tx_mstc),
-                created_at=datetime.utcnow()
-            ))
-
-        # -------- REFERRALS --------
-        referral_records = []
-        current = user
-        visited = set()
-        level = 1
-
-        while level <= 3 and current.referrer_id:
-            upline = db.get(User, current.referrer_id)
-            if not upline or upline.id in visited:
-                break
-            visited.add(upline.id)
-
-            pct = ROLE_LEVEL1_PCT.get(upline.role, 0.05)
-            reward = round(amount * pct, 2)
-
-            if reward > 0:
-                upline.balance_musd = (upline.balance_musd or 0.0) + reward
-                db.add(upline)
-
-                db.add(Transaction(
-                    user_id=upline.id,
-                    amount=reward,
-                    currency="MUSD",
-                    type="referral",
-                    external_id=f"REF-{tx_musd}-L{level}",
-                    created_at=datetime.utcnow()
-                ))
-
-                referral_records.append({
-                    "level": level,
-                    "to_user": upline.id,
-                    "amount": reward
-                })
-
-            current = upline
-            level += 1
-
-        # -------- COMMIT --------
-        db.commit()
-        db.refresh(user)
-
-        return jsonify(
-            ok=True,
-            user_id=user.id,
-            became_origin_now=became_origin_now,
-            referral_dist=referral_records,
-            user={
-                "id": user.id,
-                "role": user.role,
-                "self_activated": user.self_activated,
-                "total_team_business": user.total_team_business,
-            }
-        ), 200
-
-    except Exception:
-        db.rollback()
-        app.logger.exception("deposit_submit failed")
-        return jsonify(ok=False, error="server_error"), 500
-
-    finally:
-        db.close()
-
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
     db = SessionLocal()
@@ -567,42 +419,67 @@ def webapp_init():
     finally:
         db.close()
 
+from sqlalchemy.exc import OperationalError
+
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
-    db = SessionLocal()
+    data = request.get_json() or {}
+    init_data = data.get("initData")
+
+    if not init_data:
+        return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+    telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
+
+    if not telegram_id:
+        return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
+
     try:
-        payload = request.get_json(silent=True) or {}
-        init_data = payload.get("initData")
+        db = SessionLocal()
 
-        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
-        if not telegram_id:
-            return jsonify({"ok": False}), 400
+        existing = (
+            db.query(User)
+            .filter(User.telegram_id == telegram_id)
+            .first()
+        )
 
-        # 🛑 Prevent auto / double registration
-        existing = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
         if existing:
-            return jsonify({"ok": True, "already": True})
-
-        referrer_id = None
-        if start_param:
-            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
-            if ref_user:
-                referrer_id = ref_user.id
+            return jsonify({"ok": True, "exists": True})
 
         user = User(
-            telegram_id=str(telegram_id),
+            id=telegram_id,
+            telegram_id=telegram_id,
             username=username,
             first_name=first_name,
-            referrer_id=referrer_id
+            role="member",
+            active=True
         )
 
         db.add(user)
         db.commit()
 
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "created": True})
+
+    except OperationalError:
+        # 🚀 Railway DB sleeping — this is EXPECTED
+        app.logger.warning("DB waking up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 200
+
+    except Exception:
+        app.logger.exception("webapp_register failed")
+        return jsonify({
+            "ok": False,
+            "error": "internal_error"
+        }), 500
 
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
@@ -714,7 +591,7 @@ def admin_update_user():
         if action == "promote":
             user.role = "admin"
         elif action == "demote":
-            user.role = "member"
+            user.role = "user"
         elif action == "activate":
             user.active = True
         elif action == "deactivate":
@@ -1099,9 +976,9 @@ def debug_simulate_deposit():
     db = SessionLocal()
     try:
         # -------- USER --------
-        user = db.get(User, tg_id)
+        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
         if not user:
-            return jsonify(ok=False, error="user_not_found"), 404
+         return jsonify(ok=False, error="user_not_found"), 404
 
         # -------- ACTIVATE & ROLE --------
         became_origin_now = False
@@ -1110,11 +987,11 @@ def debug_simulate_deposit():
             if not user.self_activated:
                 user.self_activated = True
 
-            if user.role == "user":
+            if user.role not in ("origin", "life_changer", "advisor", "visionary", "creator", "admin", "superadmin"):
                 user.role = "origin"
                 became_origin_now = True
 
-        # -------- USER BUSINESS --------
+        # --------       USER BUSINESS --------
         user.total_team_business = (user.total_team_business or 0.0) + amount
         db.add(user)
 
@@ -1232,32 +1109,22 @@ def debug_transactions(user_id):
     finally:
         db.close()
 
-# Telegram webhook handler
+ 
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
-    req_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
-    if WEBHOOK_SECRET and req_secret != WEBHOOK_SECRET:
-        logging.warning("Invalid/missing webhook secret: %s", req_secret)
-        return jsonify({"ok": False, "error": "invalid_secret"}), 401
     update = request.get_json(silent=True)
-    if update is None:
-        logging.warning("No JSON payload received on /webhook")
-        return jsonify({"ok": False, "error": "no_json"}), 400
-    logging.info("Telegram update received: %s", update)
+    app.logger.info("Webhook update: %s", update)
+
+    if not update:
+        return jsonify(ok=False), 400
+
     try:
-        if "message" in update:
-            msg = update["message"]
-            chat_id = msg["chat"]["id"]
-            text = msg.get("text", "")
-            requests.get(f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage", params={"chat_id": chat_id, "text": "Thanks — received: " + (text or "<no text>")}, timeout=5)
-        elif "callback_query" in update:
-            cq = update["callback_query"]
-            cid = cq["message"]["chat"]["id"]
-            requests.get(f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage", params={"chat_id": cid, "text": "Callback received"}, timeout=5)
-    except Exception as e:
-        logging.exception("Error handling update: %s", e)
-    return jsonify({"ok": True}), 200
+        from .telegram_bot import handle_command
+        handle_command(update)
+    except Exception:
+        app.logger.exception("handle_command failed")
+
+    return jsonify(ok=True), 200
 
 # Entry point for local run
 if __name__ == "__main__":

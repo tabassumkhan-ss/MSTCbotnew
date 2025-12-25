@@ -772,13 +772,17 @@ async function sendTonDeposit(amountUsd) {
     const role = user.role || '';
     const selfActivated = !!user.self_activated;
 
-    const isOrigin = selfActivated || role === 'origin';
+    const isOrigin = selfActivated || role === 'origin' || role === 'admin' || role === 'superadmin';
+
     const isLifeChanger = total >= 1000 && activeOrigins >= 10;
     const isAdvisor = total >= 5000;
     const isVisionary = total >= 25000;
     const isCreator = total >= 100000;
 
     let current = 'Member';
+    if (role === 'admin' || role === 'superadmin') {
+   current = 'Admin';
+}
     if (isCreator) current = 'Creator';
     else if (isVisionary) current = 'Visionary';
     else if (isAdvisor) current = 'Advisor';
@@ -1134,7 +1138,7 @@ amtInput.addEventListener("input", () => {
   const tgApp = tg;
   if (!tgApp) {
     console.error("Telegram WebApp not available");
-    return;
+    return null;   // ✅ RETURN something
   }
 
   const initData = tgApp.initData || "";
@@ -1155,36 +1159,45 @@ amtInput.addEventListener("input", () => {
     if (data && data.ok !== false) {
       updateActivationStatus(data);
 
-      // ✅ if user already registered, skip question
-      if (data.exists) {
-        await showRegisteredViewFromBackend();
-      }
+      // ❌ IMPORTANT: do NOT auto-render dashboard here
+      // We only return data and let caller decide
     } else {
       console.error("init failed", data);
     }
+
+    return data;   // ✅ ADD THIS LINE (MOST IMPORTANT)
+
   } catch (err) {
     console.error("Error loading activation status:", err);
+    return null;   // ✅ RETURN on error
   }
 };
 
   // --- YES / NO button handlers + init ---
-  document.addEventListener('DOMContentLoaded', () => {
-    // Load activation status
-    loadActivationStatus();
+document.addEventListener('DOMContentLoaded', async () => {
 
-    const yesBtn = document.getElementById('yesBtn');
-    const noBtn = document.getElementById('noBtn');
+  // 🔹 Only CHECK status, do NOT auto-navigate
+  const data = await loadActivationStatus();
 
-    
-    if (noBtn) {
-      noBtn.onclick = () => {
-        app.innerHTML = `
-          <img src="${baseLogo}" class="logo" />
-          <div class="row big">❌ Registration Cancelled</div>
+  const yesBtn = document.getElementById('yesBtn');
+  const noBtn  = document.getElementById('noBtn');
 
-          
-        `;
+  // 🔹 If user already exists → skip YES/NO
+  if (data && data.exists) {
+    document.getElementById("registerSection").style.display = "none";
+    await showRegisteredViewFromBackend();
+    return;
+  }
 
+  // 🔹 New user → WAIT for YES
+  document.getElementById("registerSection").style.display = "block";
+
+  if (noBtn) {
+    noBtn.onclick = () => {
+      app.innerHTML = `
+        <img src="${baseLogo}" class="logo" />
+        <div class="row big">❌ Registration Cancelled</div>
+      `;
         
       };
     }
@@ -1561,8 +1574,7 @@ function logout() {
  
 
 async function doRegister() {
-  console.log("YES CLICKED");
-  console.log("Calling /webapp/register now…");
+  console.log("✅ YES CLICKED");
 
   const tg = window.Telegram?.WebApp;
   if (!tg) {
@@ -1570,29 +1582,52 @@ async function doRegister() {
     return;
   }
 
-  try {
-    const res = await fetch(BACKEND_URL + "/webapp/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
-    });
+  const MAX_ATTEMPTS = 2;
 
-    const data = await res.json();
-    console.log("Register response:", data);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      console.log(`🔁 Register attempt ${attempt}`);
 
-    if (!data.ok) {
-      tg.showAlert("Registration failed");
+      const res = await fetch(BACKEND_URL + "/webapp/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData })
+      });
+
+      const data = await res.json();
+      console.log("📦 Register response:", data);
+
+      // ✅ SUCCESS
+      if (data.ok) {
+        document.getElementById("registerSection").style.display = "none";
+        await showRegisteredViewFromBackend();
+        return;
+      }
+
+      // ⏳ DB waking up → retry silently
+      if (data.error === "db_warming_up_try_again") {
+        if (attempt < MAX_ATTEMPTS) {
+          console.warn("⏳ DB waking up, retrying…");
+          await new Promise(r => setTimeout(r, 1500));
+          continue;
+        }
+
+        tg.showAlert("⏳ Server is waking up. Please tap YES again.");
+        return;
+      }
+
+      // ❌ Other backend error
+      tg.showAlert("Registration failed. Please try again.");
+      return;
+
+    } catch (err) {
+      console.error("❌ Register error:", err);
+      tg.showAlert("Network error. Please try again.");
       return;
     }
-
-    document.getElementById("registerSection").style.display = "none";
-    await showRegisteredViewFromBackend();
-
-  } catch (err) {
-    console.error("Register error:", err);
-    tg.showAlert("Network error");
   }
 }
+
 
 document.addEventListener("click", (e) => {
 
