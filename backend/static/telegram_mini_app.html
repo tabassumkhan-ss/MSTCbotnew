@@ -1614,10 +1614,11 @@ async function doRegister() {
 
   } catch (err) {
     console.error("Register error:", err);
-    tg.showAlert("Network error");
+    tg.showAlert(
+  "Server is waking up.\nPlease tap YES again in 2–3 seconds."
+);
   }
 }
-
 
 document.addEventListener("click", (e) => {
 

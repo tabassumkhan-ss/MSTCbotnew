@@ -425,38 +425,51 @@ def webapp_init():
 def webapp_register():
     db = SessionLocal()
     try:
-        payload = request.get_json(silent=True) or {}
-        init_data = payload.get("initData")
+        data = request.get_json() or {}
+        init_data = data.get("initData")
 
-        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+        telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
+
         if not telegram_id:
-            return jsonify({"ok": False}), 400
+            return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-        # 🛑 Prevent auto / double registration
-        existing = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        # 🔐 SAFE DB QUERY
+        existing = (
+            db.query(User)
+            .filter(User.telegram_id == telegram_id)
+            .first()
+        )
+
         if existing:
-            return jsonify({"ok": True, "already": True})
-
-        referrer_id = None
-        if start_param:
-            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
-            if ref_user:
-                referrer_id = ref_user.id
+            return jsonify({"ok": True, "exists": True})
 
         user = User(
-            telegram_id=str(telegram_id),
+            id=telegram_id,
+            telegram_id=telegram_id,
             username=username,
             first_name=first_name,
-            referrer_id=referrer_id
+            role="member",
+            active=True
         )
 
         db.add(user)
         db.commit()
 
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "created": True})
+
+    except Exception as e:
+        app.logger.exception("❌ webapp_register failed")
+        return jsonify({
+            "ok": False,
+            "error": "db_unavailable_try_again"
+        }), 503
 
     finally:
         db.close()
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
