@@ -1144,7 +1144,7 @@ amtInput.addEventListener("input", () => {
   const tgApp = tg;
   if (!tgApp) {
     console.error("Telegram WebApp not available");
-    return;
+    return null;   // ✅ RETURN something
   }
 
   const initData = tgApp.initData || "";
@@ -1165,42 +1165,46 @@ amtInput.addEventListener("input", () => {
     if (data && data.ok !== false) {
       updateActivationStatus(data);
 
-      // ✅ if user already registered, skip question
-      if (data.exists) {
-  // user already registered → skip YES/NO
-  document.getElementById("registerSection").style.display = "none";
-  await showRegisteredViewFromBackend();
-} else {
-  // new user → wait for YES click
-  document.getElementById("registerSection").style.display = "block";
-}
-
+      // ❌ IMPORTANT: do NOT auto-render dashboard here
+      // We only return data and let caller decide
     } else {
       console.error("init failed", data);
     }
+
+    return data;   // ✅ ADD THIS LINE (MOST IMPORTANT)
+
   } catch (err) {
     console.error("Error loading activation status:", err);
+    return null;   // ✅ RETURN on error
   }
 };
 
+
   // --- YES / NO button handlers + init ---
-  document.addEventListener('DOMContentLoaded', () => {
-    // Load activation status
-    loadActivationStatus();
+document.addEventListener('DOMContentLoaded', async () => {
 
-    const yesBtn = document.getElementById('yesBtn');
-    const noBtn = document.getElementById('noBtn');
+  // 🔹 Only CHECK status, do NOT auto-navigate
+  const data = await loadActivationStatus();
 
-    
-    if (noBtn) {
-      noBtn.onclick = () => {
-        app.innerHTML = `
-          <img src="${baseLogo}" class="logo" />
-          <div class="row big">❌ Registration Cancelled</div>
+  const yesBtn = document.getElementById('yesBtn');
+  const noBtn  = document.getElementById('noBtn');
 
-          
-        `;
+  // 🔹 If user already exists → skip YES/NO
+  if (data && data.exists) {
+    document.getElementById("registerSection").style.display = "none";
+    await showRegisteredViewFromBackend();
+    return;
+  }
 
+  // 🔹 New user → WAIT for YES
+  document.getElementById("registerSection").style.display = "block";
+
+  if (noBtn) {
+    noBtn.onclick = () => {
+      app.innerHTML = `
+        <img src="${baseLogo}" class="logo" />
+        <div class="row big">❌ Registration Cancelled</div>
+      `;
         
       };
     }
