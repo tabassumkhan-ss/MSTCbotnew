@@ -802,61 +802,63 @@ async function sendTonDeposit(amountUsd) {
   };
 
   // --- Verify with backend; fallback to Telegram user ---
-  const verifyInitData = async () => {
-    const tgApp = tg;
-    const initData = tgApp ? tgApp.initData : "";
-    const unsafeLocal = tgApp && tgApp.initDataUnsafe ? tgApp.initDataUnsafe : null;
-    const unsafeUser = unsafeLocal && unsafeLocal.user ? unsafeLocal.user : null;
+  let VERIFY_RETRIES = 0;
+const MAX_VERIFY_RETRIES = 4;
 
-    const startParam =
-      unsafeLocal && (unsafeLocal.start_param || unsafeLocal.startParam)
-        ? (unsafeLocal.start_param || unsafeLocal.startParam)
-        : null;
+const verifyInitData = async () => {
+  const tgApp = tg;
+  const initData = tgApp ? tgApp.initData : "";
+  const unsafeLocal = tgApp?.initDataUnsafe || null;
+  const unsafeUser = unsafeLocal?.user || null;
 
-    if (!window.currentRef && startParam) {
-      window.currentRef = startParam;
-    }
+  const startParam =
+    unsafeLocal?.start_param || unsafeLocal?.startParam || null;
 
-    const effectiveRef = window.currentRef || null;
+  if (!window.currentRef && startParam) {
+    window.currentRef = startParam;
+  }
 
-    if (!tgApp) {
-      console.warn("Not inside Telegram WebApp – using test user.");
-      return {
-        ok: false,
-        user: {
-          id: 123456,
-          first_name: "Test User",
-          username: "testuser",
-          photo_url: null,
-          total_team_business: 0,
-          active_origin_count: 0,
-          role: "",
-          self_activated: false
-        }
-      };
-    }
+  const effectiveRef = window.currentRef || null;
 
-    console.log("🚀 Sending to /webapp/me:", { initData, ref: effectiveRef });
+  if (!tgApp) {
+    console.warn("Not inside Telegram WebApp – using test user.");
+    return { ok: false, user: unsafeUser || {} };
+  }
 
-    try {
-      const res = await fetch(BACKEND_URL + '/webapp/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData, ref: effectiveRef })
-      });
+  try {
+    const res = await fetch(BACKEND_URL + "/webapp/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData, ref: effectiveRef })
+    });
 
-      const j = await res.json();
+    const j = await res.json();
 
-      if (!res.ok || !j.ok) {
-        const msg = j.error || j.detail || 'verify failed';
-        throw new Error(msg);
+    // 🔁 HANDLE RAILWAY DB COLD START
+    if (j.error === "db_warming_up_try_again") {
+      if (VERIFY_RETRIES < MAX_VERIFY_RETRIES) {
+        VERIFY_RETRIES++;
+        console.warn(`DB warming up (${VERIFY_RETRIES}/${MAX_VERIFY_RETRIES})`);
+        await new Promise(r => setTimeout(r, 1500));
+        return verifyInitData();
       }
-      return j;
-    } catch (err) {
-      console.warn('verify error, using unsafe Telegram user as fallback:', err);
-      return { ok: false, user: unsafeUser || {} };
+
+      throw new Error("Database unavailable");
     }
-  };
+
+    VERIFY_RETRIES = 0; // reset on success
+
+    if (!res.ok || !j.ok) {
+      throw new Error(j.error || "verify failed");
+    }
+
+    return j;
+
+  } catch (err) {
+    console.warn("verify error, using unsafe fallback:", err);
+    return { ok: false, user: unsafeUser || {} };
+  }
+};
   // expose globally
   window.verifyInitData = verifyInitData;
 

@@ -393,31 +393,60 @@ def webapp_me():
 def webapp_init():
     db = SessionLocal()
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json() or {}
         init_data = data.get("initData")
 
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
         telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+
         if not telegram_id:
-            return jsonify({"ok": False}), 400
+            return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-        # 🔍 ONLY CHECK USER
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        try:
+            user = (
+                db.query(User)
+                .filter(User.telegram_id == telegram_id)
+                .first()
+            )
+        except OperationalError:
+            app.logger.warning("DB waking up, ask client to retry")
+            return jsonify({
+                "ok": False,
+                "error": "db_warming_up_try_again"
+            }), 503
 
-        # 🔍 Resolve referrer ONLY FOR DISPLAY
-        referrer_username = None
-        if start_param:
-            ref_user = db.query(User).filter_by(telegram_id=str(start_param)).first()
-            if ref_user:
-                referrer_username = ref_user.username or ref_user.first_name
+        if not user:
+            return jsonify({
+                "ok": True,
+                "exists": False
+            })
 
         return jsonify({
             "ok": True,
-            "exists": bool(user),
-            "referrer_username": referrer_username
+            "exists": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "username": user.username,
+                "role": user.role,
+                "self_activated": user.self_activated,
+                "total_team_business": user.total_team_business,
+                "active_origin_count": user.active_origin_count
+            }
         })
+
+    except Exception:
+        app.logger.exception("❌ webapp_init failed")
+        return jsonify({
+            "ok": False,
+            "error": "server_error"
+        }), 500
 
     finally:
         db.close()
+
 
 from sqlalchemy.exc import OperationalError
 
