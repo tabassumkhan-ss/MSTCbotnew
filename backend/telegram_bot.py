@@ -5,7 +5,7 @@ import logging
 from dotenv import load_dotenv
 from telegram import Bot
 from telegram import WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from utils import is_admin, call_backend
+from .utils import is_admin, call_backend
 
 # local helpers
 sys.path.append(os.path.dirname(__file__))
