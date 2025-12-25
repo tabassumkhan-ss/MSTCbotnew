@@ -131,7 +131,8 @@ class ReferralEvent(Base):
 # DB INIT
 # =========================================================
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    # Railway-safe: do NOT create tables at import time
+    return
 
 if __name__ == '__main__':
     init_db()

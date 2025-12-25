@@ -19,11 +19,21 @@ from backend.models import Base, engine, SessionLocal, User, Transaction, Referr
 # -------------------------
 # Load environment & logging
 # -------------------------
+# Load .env
 load_dotenv()
-print("BOT_TOKEN loaded:", "YES" if os.getenv("BOT_TOKEN") else "NO")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+# Configure logging FIRST
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
+# Now it is safe to log
+logger.info(
+    "BOT_TOKEN loaded: %s",
+    "YES" if os.getenv("BOT_TOKEN") else "NO"
+)
 # -------------------------
 # Flask app creation
 # -------------------------
@@ -1082,26 +1092,13 @@ def debug_transactions(user_id):
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
     update = request.get_json(silent=True)
-    app.logger.info("Webhook hit: %s", update)
+    app.logger.info("Webhook update: %s", update)
 
-    if not update or "message" not in update:
+    if not update:
         return jsonify(ok=True)
 
-    chat_id = update["message"]["chat"]["id"]
-    text = update["message"].get("text", "")
-
-    token = os.getenv("BOT_TOKEN")
-
-    r = requests.post(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        json={
-            "chat_id": chat_id,
-            "text": f"✅ Webhook working. You sent: {text}"
-        },
-        timeout=10
-    )
-
-    app.logger.info("Telegram sendMessage result: %s", r.text)
+    from bot import handle_command
+    handle_command(update)
 
     return jsonify(ok=True)
 
