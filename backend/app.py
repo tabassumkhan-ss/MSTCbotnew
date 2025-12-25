@@ -1072,33 +1072,30 @@ def debug_transactions(user_id):
  
 @app.route("/webhook", methods=["POST"])
 def telegram_webhook():
-    app.logger.info("Webhook hit")
-
     update = request.get_json(silent=True)
-    app.logger.info("Update payload: %s", update)
+    app.logger.info("Webhook hit: %s", update)
 
-    # 🔥 TEMPORARY DIRECT TEST (IMPORTANT)
-    try:
-        import requests
-        chat_id = update["message"]["chat"]["id"]
-        token = os.getenv("BOT_TOKEN")
-        r = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": "✅ Webhook reached Railway successfully"
-            },
-            timeout=10
-        )
-        app.logger.info("Direct sendMessage result: %s", r.text)
-    except Exception as e:
-        app.logger.exception("Direct sendMessage failed")
+    if not update or "message" not in update:
+        return jsonify(ok=True)
 
-    # ⛔ TEMP: comment out handle_command
-    # from bot import handle_command
-    # handle_command(update)
+    chat_id = update["message"]["chat"]["id"]
+    text = update["message"].get("text", "")
 
-    return jsonify({"ok": True}), 200
+    token = os.getenv("BOT_TOKEN")
+
+    r = requests.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        json={
+            "chat_id": chat_id,
+            "text": f"✅ Webhook working. You sent: {text}"
+        },
+        timeout=10
+    )
+
+    app.logger.info("Telegram sendMessage result: %s", r.text)
+
+    return jsonify(ok=True)
+
 
 # Entry point for local run
 if __name__ == "__main__":
