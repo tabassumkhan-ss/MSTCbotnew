@@ -1581,44 +1581,54 @@ function logout() {
  
 
 async function doRegister() {
-  console.log("✅ YES CLICKED");
+  console.log("YES CLICKED");
 
   const tg = window.Telegram?.WebApp;
-  if (!tg || !tg.initData) {
-    alert("Telegram WebApp not initialized");
+  if (!tg) {
+    alert("Telegram WebApp not found");
     return;
   }
 
-  try {
-    const res = await fetch(BACKEND_URL + "/webapp/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        initData: tg.initData,
-        ref: window.currentRef || null
-      })
-    });
+  let attempts = 0;
+  const MAX_ATTEMPTS = 2;
 
-    const data = await res.json();
-    console.log("Register response:", data);
+  while (attempts < MAX_ATTEMPTS) {
+    try {
+      const res = await fetch(BACKEND_URL + "/webapp/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData })
+      });
 
-    if (!data.ok) {
-      tg.showAlert(data.error || "Registration failed");
+      const data = await res.json();
+      console.log("Register response:", data);
+
+      if (data.ok) {
+        document.getElementById("registerSection").style.display = "none";
+        await showRegisteredViewFromBackend();
+        return;
+      }
+
+      if (data.error === "db_unavailable_try_again") {
+        attempts++;
+        console.warn("DB waking up, retrying…", attempts);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+
+      tg.showAlert("Registration failed");
+      return;
+
+    } catch (err) {
+      console.error("Register error:", err);
+      tg.showAlert("Network error");
       return;
     }
-
-    document.getElementById("registerSection").style.display = "none";
-    await showRegisteredViewFromBackend();
-
-  } catch (err) {
-    console.error("Register error:", err);
-    tg.showAlert(
-  "Server is waking up.\nPlease tap YES again in 2–3 seconds."
-);
   }
+
+  tg.showAlert("Server is waking up. Please tap YES again.");
 }
+
 
 document.addEventListener("click", (e) => {
 
