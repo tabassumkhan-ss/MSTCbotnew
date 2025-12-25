@@ -25,13 +25,9 @@ if not DATABASE_URL:
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,        # recycle before Railway kills it
+    pool_recycle=300,     # 🔑 recycle dead connections
     pool_size=5,
-    max_overflow=5,
-    connect_args={
-        "connect_timeout": 10
-    },
-    echo=False,
+    max_overflow=10,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

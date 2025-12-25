@@ -444,6 +444,7 @@ def webapp_register():
         )
 
         if existing:
+            db.rollback()
             return jsonify({"ok": True, "exists": True})
 
         user = User(
@@ -456,11 +457,13 @@ def webapp_register():
         )
 
         db.add(user)
+        db.flush()     # 🔑 IMPORTANT
         db.commit()
 
         return jsonify({"ok": True, "created": True})
 
-    except Exception as e:
+    except Exception:
+        db.rollback()  # 🔑 REQUIRED
         app.logger.exception("❌ webapp_register failed")
         return jsonify({
             "ok": False,
@@ -468,7 +471,7 @@ def webapp_register():
         }), 503
 
     finally:
-        db.close()
+        db.close()     # 🔑 YOU ALREADY DID THIS RIGHT
 
 
 @app.route("/webapp/user", methods=["POST"])
