@@ -28,3 +28,20 @@ def verify_telegram_initdata(init_data: str, bot_token: str) -> bool:
 
     except Exception:
         return False
+    
+def is_admin(telegram_id: int) -> bool:
+    """
+    Check if telegram_id is in ADMIN_TELEGRAM_IDS env variable
+    """
+    admin_ids = os.getenv("ADMIN_TELEGRAM_IDS", "")
+
+    try:
+        admin_set = {
+            int(x.strip())
+            for x in admin_ids.split(",")
+            if x.strip().isdigit()
+        }
+    except Exception:
+        admin_set = set()
+
+    return int(telegram_id) in admin_set
