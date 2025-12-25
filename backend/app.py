@@ -50,11 +50,19 @@ except Exception:
     app.logger.exception("Could not read engine.url")
 
 # Initialize DB metadata (no destructive migrations)
+# Initialize DB metadata (safe for Railway)
 try:
     init_db()
-    Base.metadata.create_all(bind=engine)
-except Exception:
-    app.logger.exception("DB init/create_all failed")
+
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        app.logger.info("Skipping create_all on Railway")
+    else:
+        Base.metadata.create_all(bind=engine)
+        app.logger.info("DB create_all executed (non-Railway)")
+
+except Exception as e:
+    app.logger.error("DB init failed, continuing without crash: %s", e)
+
 
 app.logger.info("Flask CWD: %s", os.getcwd())
 app.logger.info("Flask DB URL: %s", engine.url)
