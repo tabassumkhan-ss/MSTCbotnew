@@ -22,15 +22,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,     # 🔑 recycle dead connections
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-)
-
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -139,9 +131,10 @@ class ReferralEvent(Base):
 # DB INIT
 # =========================================================
 def init_db():
-    # Railway-safe: do NOT create tables at import time
-    return
+    Base.metadata.create_all(bind=engine)
 
 if __name__ == '__main__':
     init_db()
     print("DB initialized:", DATABASE_URL)
+
+
