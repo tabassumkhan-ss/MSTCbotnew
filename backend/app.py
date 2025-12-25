@@ -1097,7 +1097,7 @@ def telegram_webhook():
     if not update:
         return jsonify(ok=True)
 
-    from bot import handle_command
+    from telegram_bot import handle_command
     handle_command(update)
 
     return jsonify(ok=True)
