@@ -1094,12 +1094,16 @@ def telegram_webhook():
     update = request.get_json(silent=True)
     app.logger.info("Webhook update: %s", update)
 
+    if not update:
+        return jsonify(ok=False), 400
+
     try:
+        from .telegram_bot import handle_command
         handle_command(update)
     except Exception:
         app.logger.exception("handle_command failed")
 
-    return jsonify(ok=True)
+    return jsonify(ok=True), 200
 
 # Entry point for local run
 if __name__ == "__main__":
