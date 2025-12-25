@@ -1581,27 +1581,31 @@ function logout() {
  
 
 async function doRegister() {
-  console.log("YES CLICKED");
-  console.log("Calling /webapp/register now…");
+  console.log("✅ YES CLICKED");
 
   const tg = window.Telegram?.WebApp;
-  if (!tg) {
-    alert("Telegram WebApp not found");
+  if (!tg || !tg.initData) {
+    alert("Telegram WebApp not initialized");
     return;
   }
 
   try {
     const res = await fetch(BACKEND_URL + "/webapp/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        initData: tg.initData,
+        ref: window.currentRef || null
+      })
     });
 
     const data = await res.json();
     console.log("Register response:", data);
 
     if (!data.ok) {
-      tg.showAlert("Registration failed");
+      tg.showAlert(data.error || "Registration failed");
       return;
     }
 
@@ -1613,6 +1617,7 @@ async function doRegister() {
     tg.showAlert("Network error");
   }
 }
+
 
 document.addEventListener("click", (e) => {
 
