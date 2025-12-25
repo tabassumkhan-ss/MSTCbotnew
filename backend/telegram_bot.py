@@ -1,11 +1,11 @@
 import os
 import sys
 import logging
+import asyncio
 
 from dotenv import load_dotenv
 from telegram import Bot
 from telegram import WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from .utils import is_admin, call_backend
 
 # local helpers
 sys.path.append(os.path.dirname(__file__))
@@ -25,9 +25,23 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN)
 
 # -------------------------
+# Helper: safe async send
+# -------------------------
+def send_message_safe(**kwargs):
+    """
+    Safely send Telegram messages from sync Flask context
+    """
+    try:
+        asyncio.run(bot.send_message(**kwargs))
+    except RuntimeError:
+        # If event loop already running
+        loop = asyncio.get_event_loop()
+        loop.create_task(bot.send_message(**kwargs))
+
+# -------------------------
 # Command handler
 # -------------------------
-def handle_command(update):
+def handle_command(update: dict):
     """
     Handles Telegram webhook updates
     """
@@ -47,44 +61,27 @@ def handle_command(update):
         if not text.startswith("/"):
             return
 
-        parts = text.split()
-        cmd = parts[0].lower()
-        args = parts[1:]
+        cmd = text.split()[0].lower()
 
         # -------------------------
         # /start
         # -------------------------
         if cmd == "/start":
-            # ✅ ALWAYS send something
             text_to_send = "Welcome! Tap below to open the deposit mini app."
-            webapp_url = "https://mstcbotnew-production.up.railway.app/webapp"
-            button_label = "Open Deposit Mini App"
 
-            try:
-                payload = {
-                    "telegram_id": user_id,
-                    "username": from_user.get("username"),
-                    "first_name": from_user.get("first_name"),
-                }
-
-                r = call_backend("/bot/start", method="POST", json=payload)
-                if r is not None and r.ok:
-                    data = r.json()
-                    text_to_send = data.get("message", text_to_send)
-                    webapp_url = data.get("webapp_url", webapp_url)
-                    button_label = data.get("button_label", button_label)
-
-            except Exception:
-                logger.exception("Backend /bot/start failed, using fallback")
+            webapp_url = (
+                "https://mstcbotnew-production.up.railway.app/"
+                "static/telegram_mini_app.html"
+            )
 
             keyboard = [[
                 InlineKeyboardButton(
-                    text=button_label,
+                    text="Open Deposit Mini App",
                     web_app=WebAppInfo(url=webapp_url)
                 )
             ]]
 
-            bot.send_message(
+            send_message_safe(
                 chat_id=chat_id,
                 text=text_to_send,
                 reply_markup=InlineKeyboardMarkup(keyboard)
@@ -92,63 +89,22 @@ def handle_command(update):
             return
 
         # -------------------------
-        # /balance
+        # /balance (placeholder)
         # -------------------------
         if cmd == "/balance":
-            bot.send_message(
+            send_message_safe(
                 chat_id=chat_id,
-                text="Use the backend admin endpoints to view balances."
+                text="Please open the mini app to view your balance."
             )
-            return
-
-        # -------------------------
-        # Admin commands
-        # -------------------------
-        if cmd == "/admin_stats":
-            if not is_admin(user_id):
-                bot.send_message(chat_id=chat_id, text="Unauthorized")
-                return
-
-            r = call_backend("/admin/stats", method="POST")
-            bot.send_message(chat_id=chat_id, text=str(r.json() if r and r.ok else "Failed"))
-            return
-
-        if cmd == "/run_payout":
-            if not is_admin(user_id):
-                bot.send_message(chat_id=chat_id, text="Unauthorized")
-                return
-
-            r = call_backend("/cron/payout", method="POST")
-            bot.send_message(chat_id=chat_id, text=str(r.json() if r and r.ok else "Failed"))
-            return
-
-        if cmd == "/recompute_team":
-            if not is_admin(user_id):
-                bot.send_message(chat_id=chat_id, text="Unauthorized")
-                return
-
-            if not args:
-                bot.send_message(chat_id=chat_id, text="Usage: /recompute_team <user_id>")
-                return
-
-            try:
-                uid = int(args[0])
-            except ValueError:
-                bot.send_message(chat_id=chat_id, text="Invalid user_id")
-                return
-
-            r = call_backend(
-                "/admin/recompute-team",
-                method="POST",
-                json={"user_id": uid}
-            )
-            bot.send_message(chat_id=chat_id, text=str(r.json() if r and r.ok else "Failed"))
             return
 
         # -------------------------
         # Unknown command
         # -------------------------
-        bot.send_message(chat_id=chat_id, text="Unknown command")
+        send_message_safe(
+            chat_id=chat_id,
+            text="Unknown command. Please use /start."
+        )
 
     except Exception:
-        logger.exception("Error handling update")
+        logger.exception("Error handling Telegram update")
