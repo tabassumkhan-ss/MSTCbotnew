@@ -20,6 +20,7 @@ from backend.models import Base, engine, SessionLocal, User, Transaction, Referr
 # Load environment & logging
 # -------------------------
 load_dotenv()
+logger.info("BOT_TOKEN loaded: %s", "YES" if os.getenv("BOT_TOKEN") else "NO")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
