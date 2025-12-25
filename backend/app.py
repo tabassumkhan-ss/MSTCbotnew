@@ -423,56 +423,69 @@ def webapp_init():
 
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
-    db = SessionLocal()
-    try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
+    data = request.get_json() or {}
+    init_data = data.get("initData")
 
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+    if not init_data:
+        return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
+    telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
 
-        if not telegram_id:
-            return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
+    if not telegram_id:
+        return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-        # 🔐 SAFE DB QUERY
-        existing = (
-            db.query(User)
-            .filter(User.telegram_id == telegram_id)
-            .first()
-        )
+    # 🔁 retry once if DB is sleeping
+    for attempt in (1, 2):
+        db = SessionLocal()
+        try:
+            existing = (
+                db.query(User)
+                .filter(User.telegram_id == telegram_id)
+                .first()
+            )
 
-        if existing:
+            if existing:
+                return jsonify({"ok": True, "exists": True})
+
+            user = User(
+                id=telegram_id,
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                role="member",
+                active=True
+            )
+
+            db.add(user)
+            db.commit()
+
+            return jsonify({"ok": True, "created": True})
+
+        except OperationalError:
             db.rollback()
-            return jsonify({"ok": True, "exists": True})
 
-        user = User(
-            id=telegram_id,
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            role="member",
-            active=True
-        )
+            if attempt == 1:
+                # 🔔 wake DB and retry once
+                app.logger.warning("DB asleep, retrying once…")
+                time.sleep(1.2)
+                continue
 
-        db.add(user)
-        db.flush()     # 🔑 IMPORTANT
-        db.commit()
+            app.logger.exception("DB unavailable after retry")
+            return jsonify({
+                "ok": False,
+                "error": "db_warming_up_try_again"
+            }), 503
 
-        return jsonify({"ok": True, "created": True})
+        except Exception:
+            db.rollback()
+            app.logger.exception("webapp_register failed")
+            return jsonify({
+                "ok": False,
+                "error": "server_error"
+            }), 500
 
-    except Exception:
-        db.rollback()  # 🔑 REQUIRED
-        app.logger.exception("❌ webapp_register failed")
-        return jsonify({
-            "ok": False,
-            "error": "db_unavailable_try_again"
-        }), 503
-
-    finally:
-        db.close()     # 🔑 YOU ALREADY DID THIS RIGHT
-
+        finally:
+            db.close()
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
