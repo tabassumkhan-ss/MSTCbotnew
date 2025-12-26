@@ -2,6 +2,7 @@ import os
 import logging
 import traceback
 import json
+import time
 from urllib.parse import parse_qsl
 from datetime import datetime
 from typing import Optional
@@ -478,8 +479,7 @@ def webapp_register():
         except OperationalError as e:
             db.rollback()
             app.logger.warning("DB retry %s: %s", attempt + 1, e)
-            time.sleep(1.2)
-
+            
         finally:
             db.close()
 
