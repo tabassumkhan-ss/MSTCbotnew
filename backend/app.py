@@ -5,6 +5,7 @@ import json
 from urllib.parse import parse_qsl
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import text
 
 from flask import Flask, request, jsonify, send_from_directory, current_app
 from flask_cors import CORS
@@ -79,6 +80,14 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # -------------------------
 # Helpers
 # -------------------------
+
+def db_is_ready() -> bool:
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except OperationalError:
+        return False
 
 @app.route("/debug/routes", methods=["GET"])
 def debug_routes():
@@ -361,18 +370,34 @@ def home():
 
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
+    payload = request.get_json(silent=True) or {}
+    init_data = payload.get("initData")
+
+    telegram_id, _, _, _ = verify_telegram_init_data(init_data)
+    if not telegram_id:
+        return jsonify({"ok": False, "error": "invalid_init_data"}), 400
+
+    # 🚨 VERY IMPORTANT — do NOT touch DB if it is sleeping
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        payload = request.get_json(silent=True) or {}
-        init_data = payload.get("initData")
+        user = (
+            db.query(User)
+            .filter(User.telegram_id == telegram_id)
+            .first()
+        )
 
-        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
-        if not telegram_id:
-            return jsonify({"ok": False}), 400
-
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
         if not user:
-            return jsonify({"ok": False, "not_registered": True})
+            return jsonify({
+                "ok": False,
+                "not_registered": True
+            })
 
         return jsonify({
             "ok": True,
@@ -381,41 +406,40 @@ def webapp_me():
                 "username": user.username,
                 "first_name": user.first_name,
                 "role": user.role,
-                "balance_mstc": user.balance_mstc,
-                "balance_musd": user.balance_musd,
+                "balance_mstc": float(user.balance_mstc or 0),
+                "balance_musd": float(user.balance_musd or 0),
                 "referrer_id": user.referrer_id,
             }
         })
+
     finally:
         db.close()
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
+    data = request.get_json() or {}
+    init_data = data.get("initData")
+
+    if not init_data:
+        return jsonify({"ok": False, "error": "missing_init_data"}), 400
+
+    telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
+    if not telegram_id:
+        return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
+
+    # 🚨 DB NOT READY → DO NOT TOUCH SESSION
+    if not db_is_ready():
+        app.logger.warning("DB waking up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
-
-        telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
-
-        if not telegram_id:
-            return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
-
-        try:
-            user = (
-                db.query(User)
-                .filter(User.telegram_id == telegram_id)
-                .first()
-            )
-        except OperationalError:
-            app.logger.warning("DB waking up, ask client to retry")
-            return jsonify({
-                "ok": False,
-                "error": "db_warming_up_try_again"
-            }), 503
+        user = db.query(User).filter(
+            User.telegram_id == telegram_id
+        ).first()
 
         if not user:
             return jsonify({
@@ -437,13 +461,6 @@ def webapp_init():
             }
         })
 
-    except Exception:
-        app.logger.exception("❌ webapp_init failed")
-        return jsonify({
-            "ok": False,
-            "error": "server_error"
-        }), 500
-
     finally:
         db.close()
 
@@ -463,9 +480,16 @@ def webapp_register():
     if not telegram_id:
         return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-    try:
-        db = SessionLocal()
+    # 🚨 DO NOT TOUCH DB IF NOT READY
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503   # ✅ IMPORTANT
 
+    db = SessionLocal()
+    try:
         existing = (
             db.query(User)
             .filter(User.telegram_id == telegram_id)
@@ -489,14 +513,6 @@ def webapp_register():
 
         return jsonify({"ok": True, "created": True})
 
-    except OperationalError:
-        # 🚀 Railway DB sleeping — this is EXPECTED
-        app.logger.warning("DB waking up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
     except Exception:
         app.logger.exception("webapp_register failed")
         return jsonify({
@@ -505,33 +521,52 @@ def webapp_register():
         }), 500
 
     finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+        db.close()
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
+    data = request.get_json(silent=True) or {}
+    init_data = data.get("initData")
+
+    telegram_id, _, _, _ = verify_telegram_init_data(init_data)
+    if not telegram_id:
+        return jsonify({
+            "ok": False,
+            "error": "invalid_init_data"
+        }), 400
+
+    # 🚨 DO NOT OPEN SESSION IF DB IS SLEEPING
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
+        user = (
+            db.query(User)
+            .filter(User.telegram_id == telegram_id)
+            .first()
+        )
 
-        telegram_id, _, _, _ = verify_telegram_init_data(init_data)
-        if not telegram_id:
-            return jsonify({"ok": False}), 400
-
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
         if not user:
-            return jsonify({"ok": False, "error": "user_not_found"}), 404
+            return jsonify({
+                "ok": False,
+                "error": "user_not_found"
+            }), 404
 
         # ✅ ADMIN CHECK VIA ENV
         admin_ids = os.getenv("ADMIN_TELEGRAM_IDS", "")
         admin_set = {
-            int(x.strip()) for x in admin_ids.split(",") if x.strip().isdigit()
+            int(x.strip())
+            for x in admin_ids.split(",")
+            if x.strip().isdigit()
         }
 
-        is_admin = int(telegram_id) in admin_set
+        is_admin = telegram_id in admin_set
 
         return jsonify({
             "ok": True,
@@ -546,26 +581,50 @@ def webapp_user():
                 "is_admin": is_admin
             }
         })
+
     finally:
         db.close()
 
 @app.route("/admin/users", methods=["POST"])
 def admin_users():
+    data = request.get_json(silent=True) or {}
+    init_data = data.get("initData")
+
+    if not init_data:
+        return jsonify({
+            "ok": False,
+            "error": "missing_init_data"
+        }), 400
+
+    uid, _, _, _ = verify_telegram_init_data(init_data)
+    if not uid:
+        return jsonify({
+            "ok": False,
+            "error": "unauthorized"
+        }), 401
+
+    # 🚨 DO NOT TOUCH DB IF IT IS SLEEPING
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
+        admin_user = (
+            db.query(User)
+            .filter(User.id == uid)
+            .first()
+        )
 
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
+        if not require_admin(admin_user):
+            return jsonify({
+                "ok": False,
+                "error": "forbidden"
+            }), 403
 
-        uid, _, _, _ = verify_telegram_init_data(init_data)
-        if not uid:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-
-        user = db.query(User).filter(User.id == uid).first()
-        if not require_admin(user):
-         return jsonify({"ok": False, "error": "forbidden"}), 403
         users = (
             db.query(User)
             .order_by(User.created_at.desc())
@@ -581,52 +640,89 @@ def admin_users():
                     "username": u.username,
                     "first_name": u.first_name,
                     "role": u.role,
-                    "balance_musd": float(u.balance_musd),
-                    "balance_mstc": float(u.balance_mstc),
-                    "active": u.active
+                    "balance_musd": float(u.balance_musd or 0),
+                    "balance_mstc": float(u.balance_mstc or 0),
+                    "active": bool(u.active)
                 }
                 for u in users
             ]
         })
-    except Exception as e:
-        logger.exception("admin_users failed")
-        return jsonify({"ok": False, "error": "server_error"}), 500
+
     finally:
-        db.close()    
+        db.close()
 
 @app.route("/admin/update_user", methods=["POST"])
 def admin_update_user():
+    data = request.get_json(silent=True) or {}
+    init_data = data.get("initData")
+    target_id = data.get("user_id")
+    action = data.get("action")
+
+    if not init_data or not target_id or not action:
+        return jsonify({
+            "ok": False,
+            "error": "missing_params"
+        }), 400
+
+    admin_id, _, _, _ = verify_telegram_init_data(init_data)
+    if not admin_id:
+        return jsonify({
+            "ok": False,
+            "error": "unauthorized"
+        }), 401
+
+    # 🚨 DO NOT TOUCH DB IF RAILWAY DB IS SLEEPING
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-        target_id = data.get("user_id")
-        action = data.get("action")
-
-        if not init_data or not target_id or not action:
-            return jsonify({"ok": False, "error": "missing_params"}), 400
-
-        admin_id, _, _, _ = verify_telegram_init_data(init_data)
-        admin = db.query(User).filter(User.id == admin_id).first()
+        admin = (
+            db.query(User)
+            .filter(User.id == admin_id)
+            .first()
+        )
 
         if not admin or admin.role not in ("admin", "superadmin"):
-            return jsonify({"ok": False, "error": "forbidden"}), 403
+            return jsonify({
+                "ok": False,
+                "error": "forbidden"
+            }), 403
 
-        user = db.query(User).filter(User.id == target_id).first()
+        user = (
+            db.query(User)
+            .filter(User.id == int(target_id))
+            .first()
+        )
+
         if not user:
-            return jsonify({"ok": False, "error": "user_not_found"}), 404
+            return jsonify({
+                "ok": False,
+                "error": "user_not_found"
+            }), 404
 
-        # ---- ACTIONS ----
+        # -------- ACTIONS --------
         if action == "promote":
             user.role = "admin"
+
         elif action == "demote":
             user.role = "user"
+
         elif action == "activate":
             user.active = True
+
         elif action == "deactivate":
             user.active = False
+
         else:
-            return jsonify({"ok": False, "error": "invalid_action"}), 400
+            return jsonify({
+                "ok": False,
+                "error": "invalid_action"
+            }), 400
 
         db.commit()
 
@@ -635,13 +731,10 @@ def admin_update_user():
             "user": {
                 "id": user.id,
                 "role": user.role,
-                "active": user.active
+                "active": bool(user.active)
             }
         })
 
-    except Exception:
-        logger.exception("admin_update_user failed")
-        return jsonify({"ok": False, "error": "server_error"}), 500
     finally:
         db.close()
 
@@ -684,26 +777,58 @@ def admin_impersonate():
 
 @app.route("/admin/stats", methods=["POST"])
 def admin_stats():
+    data = request.get_json(silent=True) or {}
+    init_data = data.get("initData")
+
+    if not init_data:
+        return jsonify({
+            "ok": False,
+            "error": "missing_init_data"
+        }), 400
+
+    admin_id, _, _, _ = verify_telegram_init_data(init_data)
+    if not admin_id:
+        return jsonify({
+            "ok": False,
+            "error": "unauthorized"
+        }), 401
+
+    # 🚨 DO NOT TOUCH DB IF RAILWAY DB IS SLEEPING
+    if not db_is_ready():
+        app.logger.warning("DB warming up, ask client to retry")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
+        admin = (
+            db.query(User)
+            .filter(User.id == admin_id)
+            .first()
+        )
 
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
-
-        uid, _, _, _ = verify_telegram_init_data(init_data)
-        if not uid:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-
-        admin = db.query(User).get(uid)
-        if not require_admin(admin):
-            return jsonify({"ok": False, "error": "forbidden"}), 403
+        if not admin or not require_admin(admin):
+            return jsonify({
+                "ok": False,
+                "error": "forbidden"
+            }), 403
 
         # --------- STATS ----------
         total_users = db.query(User).count()
-        active_users = db.query(User).filter(User.active == True).count()
-        admin_count = db.query(User).filter(User.role.in_(("admin", "superadmin"))).count()
+
+        active_users = (
+            db.query(User)
+            .filter(User.active.is_(True))
+            .count()
+        )
+
+        admin_count = (
+            db.query(User)
+            .filter(User.role.in_(("admin", "superadmin")))
+            .count()
+        )
 
         total_team_business = (
             db.query(func.coalesce(func.sum(User.total_team_business), 0))
@@ -716,6 +841,7 @@ def admin_stats():
         )
 
         today = datetime.utcnow().date()
+
         today_deposits = (
             db.query(func.coalesce(func.sum(Transaction.amount), 0))
             .filter(func.date(Transaction.created_at) == today)
@@ -725,17 +851,15 @@ def admin_stats():
         return jsonify({
             "ok": True,
             "stats": {
-                "total_users": total_users,
-                "active_users": active_users,
-                "admin_count": admin_count,
-                "total_team_business": float(total_team_business),
-                "total_musd_balance": float(total_musd_balance),
-                "today_deposits": float(today_deposits),
+                "total_users": int(total_users),
+                "active_users": int(active_users),
+                "admin_count": int(admin_count),
+                "total_team_business": float(total_team_business or 0),
+                "total_musd_balance": float(total_musd_balance or 0),
+                "today_deposits": float(today_deposits or 0),
             }
         })
-    except Exception:
-        logger.exception("admin_stats failed")
-        return jsonify({"ok": False, "error": "server_error"}), 500
+
     finally:
         db.close()
 
@@ -921,122 +1045,274 @@ def webapp_role():
 
 @app.route("/debug/downlines/<int:user_id>")
 def debug_downlines(user_id):
+
+    # 🚨 Do NOT open DB session if DB is sleeping
+    if not db_is_ready():
+        app.logger.warning("DB warming up, debug_downlines retry later")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     db = SessionLocal()
     try:
-        user = db.get(User, user_id)
+        user = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .first()
+        )
+
         if not user:
-            return jsonify({"exists": False, "error": "user_not_found"})
-        direct = db.query(User).filter(User.referrer_id == user_id).all()
+            return jsonify({
+                "ok": False,
+                "error": "user_not_found"
+            }), 404
+
+        direct_downlines = (
+            db.query(User)
+            .filter(User.referrer_id == user_id)
+            .all()
+        )
+
         return jsonify({
-            "exists": True,
-            "user": {"id": user.id, "first_name": user.first_name, "username": user.username, "role": user.role, "self_activated": user.self_activated, "referrer_id": user.referrer_id, "total_team_business": float(user.total_team_business or 0)},
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "username": user.username,
+                "role": user.role,
+                "self_activated": bool(user.self_activated),
+                "referrer_id": user.referrer_id,
+                "total_team_business": float(user.total_team_business or 0),
+            },
             "direct_downlines": [
-                {"id": d.id, "first_name": d.first_name, "username": d.username, "role": d.role, "self_activated": d.self_activated, "referrer_id": d.referrer_id, "total_team_business": float(d.total_team_business or 0)}
-                for d in direct
+                {
+                    "id": d.id,
+                    "first_name": d.first_name,
+                    "username": d.username,
+                    "role": d.role,
+                    "self_activated": bool(d.self_activated),
+                    "referrer_id": d.referrer_id,
+                    "total_team_business": float(d.total_team_business or 0),
+                }
+                for d in direct_downlines
             ],
-            "direct_downline_count": len(direct),
+            "direct_downline_count": len(direct_downlines),
         })
+
     finally:
         db.close()
-
 @app.route("/debug/link_referrer", methods=["POST"])
 def debug_link_referrer():
-    data = request.get_json(force=True) or {}
-    user_id = data.get("user_id")
-    referrer_id = data.get("referrer_id")
-    if not user_id or not referrer_id:
-        return jsonify(ok=False, error="missing_ids"), 400
+
+    # 🚨 Never touch DB if Railway DB is sleeping
+    if not db_is_ready():
+        app.logger.warning("DB warming up, debug_link_referrer retry later")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
+    data = request.get_json(silent=True) or {}
+
+    try:
+        user_id = int(data.get("user_id"))
+        referrer_id = int(data.get("referrer_id"))
+    except (TypeError, ValueError):
+        return jsonify({
+            "ok": False,
+            "error": "invalid_ids"
+        }), 400
+
+    if user_id == referrer_id:
+        return jsonify({
+            "ok": False,
+            "error": "cannot_self_refer"
+        }), 400
+
     db = SessionLocal()
     try:
-        user = db.get(User, int(user_id))
-        ref = db.get(User, int(referrer_id))
-        if not user or not ref:
-            return jsonify(ok=False, error="not_found"), 404
-        user.referrer_id = ref.id
+        user = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .first()
+        )
+
+        referrer = (
+            db.query(User)
+            .filter(User.id == referrer_id)
+            .first()
+        )
+
+        if not user or not referrer:
+            return jsonify({
+                "ok": False,
+                "error": "user_or_referrer_not_found"
+            }), 404
+
+        # Prevent overwriting existing referrer
+        if user.referrer_id is not None:
+            return jsonify({
+                "ok": False,
+                "error": "referrer_already_set"
+            }), 400
+
+        user.referrer_id = referrer.id
         db.commit()
-        return jsonify(ok=True, user_id=user.id, referrer_id=ref.id)
+
+        return jsonify({
+            "ok": True,
+            "user_id": user.id,
+            "referrer_id": referrer.id
+        })
+
+    except OperationalError:
+        db.rollback()
+        app.logger.warning("DB error during link_referrer")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     except Exception as e:
         db.rollback()
-        app.logger.exception("Error in /debug/link_referrer: %s", e)
-        return jsonify(ok=False, error="db_error", detail=str(e)), 500
+        app.logger.exception("Error in /debug/link_referrer")
+        return jsonify({
+            "ok": False,
+            "error": "internal_error"
+        }), 500
+
     finally:
         db.close()
 
 @app.route("/debug/list_users", methods=["GET"])
 def debug_list_users():
+
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     db = SessionLocal()
     try:
         users = db.query(User).all()
-        data = [{"id": u.id, "username": u.username, "first_name": u.first_name, "self_activated": u.self_activated, "referrer_id": u.referrer_id, "total_team_business": u.total_team_business, "active_origin_count": u.active_origin_count, "role": u.role} for u in users]
-        return jsonify(ok=True, users=data)
+
+        return jsonify(
+            ok=True,
+            users=[
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "first_name": u.first_name,
+                    "self_activated": bool(u.self_activated),
+                    "referrer_id": u.referrer_id,
+                    "total_team_business": float(u.total_team_business or 0),
+                    "active_origin_count": int(u.active_origin_count or 0),
+                    "role": u.role,
+                }
+                for u in users
+            ],
+        )
+
+    except Exception:
+        app.logger.exception("debug_list_users failed")
+        return jsonify(ok=False, error="server_error"), 500
     finally:
         db.close()
 
 @app.route("/debug/company_pool", methods=["GET"])
 def debug_company_pool():
+
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     db = SessionLocal()
     try:
-        company = db.get(User, COMPANY_USER_ID)
+        company = db.query(User).filter(User.id == COMPANY_USER_ID).first()
+
         if not company:
-            return jsonify(ok=True, exists=False, balance_musd=0.0, balance_mstc=0.0)
-        return jsonify(ok=True, exists=True, user_id=company.id, username=company.username, role=company.role, balance_musd=float(company.balance_musd or 0.0), balance_mstc=float(company.balance_mstc or 0.0), club_income=float(company.club_income or 0.0) if hasattr(company, "club_income") else 0.0)
+            return jsonify(
+                ok=True,
+                exists=False,
+                balance_musd=0.0,
+                balance_mstc=0.0,
+                club_income=0.0,
+            )
+
+        return jsonify(
+            ok=True,
+            exists=True,
+            user_id=company.id,
+            username=company.username,
+            role=company.role,
+            balance_musd=float(company.balance_musd or 0),
+            balance_mstc=float(company.balance_mstc or 0),
+            club_income=float(getattr(company, "club_income", 0.0) or 0),
+        )
+
+    except Exception:
+        app.logger.exception("debug_company_pool failed")
+        return jsonify(ok=False, error="server_error"), 500
     finally:
         db.close()
 
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
-    # -------- DEBUG KEY --------
+
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
-    # -------- INPUT --------
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     payload = request.get_json(silent=True) or {}
-    tg_id = payload.get("user_id")
-    amount = payload.get("amount")
-    tx_musd = payload.get("tx_musd")
 
     try:
-        tg_id = int(tg_id)
-        amount = float(amount)
-    except Exception:
+        tg_id = int(payload.get("user_id"))
+        amount = float(payload.get("amount"))
+        tx_musd = str(payload.get("tx_musd") or "")
+    except (TypeError, ValueError):
         return jsonify(ok=False, error="missing_user_or_amount"), 400
 
     db = SessionLocal()
     try:
-        # -------- USER --------
-        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
+        user = db.query(User).filter(User.telegram_id == tg_id).first()
         if not user:
-         return jsonify(ok=False, error="user_not_found"), 404
+            return jsonify(ok=False, error="user_not_found"), 404
 
-        # -------- ACTIVATE & ROLE --------
         became_origin_now = False
 
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
 
-            if user.role not in ("origin", "life_changer", "advisor", "visionary", "creator", "admin", "superadmin"):
+            if user.role not in (
+                "origin",
+                "life_changer",
+                "advisor",
+                "visionary",
+                "creator",
+                "admin",
+                "superadmin",
+            ):
                 user.role = "origin"
                 became_origin_now = True
 
-        # --------       USER BUSINESS --------
-        user.total_team_business = (user.total_team_business or 0.0) + amount
+        user.total_team_business = float(user.total_team_business or 0) + amount
         db.add(user)
 
-        # 🔥 propagate team business & ranks
         propagate_team_business(db, user, amount, became_origin_now)
         update_rank(user)
 
-        # -------- TRANSACTION --------
-        db.add(Transaction(
-            user_id=user.id,
-            amount=amount,
-            currency="MUSD",
-            type="deposit",
-            external_id=str(tx_musd),
-            created_at=datetime.utcnow()
-        ))
+        db.add(
+            Transaction(
+                user_id=user.id,
+                amount=amount,
+                currency="MUSD",
+                type="deposit",
+                external_id=tx_musd,
+                created_at=datetime.utcnow(),
+            )
+        )
 
         db.commit()
         db.refresh(user)
@@ -1047,35 +1323,56 @@ def debug_simulate_deposit():
             user={
                 "id": user.id,
                 "role": user.role,
-                "self_activated": user.self_activated,
-                "total_team_business": user.total_team_business
-            }
-        ), 200
+                "self_activated": bool(user.self_activated),
+                "total_team_business": float(user.total_team_business),
+            },
+        )
 
     except Exception:
         db.rollback()
         app.logger.exception("debug_simulate_deposit failed")
         return jsonify(ok=False, error="server_error"), 500
-
     finally:
         db.close()
+
 
  
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
+
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     db = SessionLocal()
     try:
-        user = db.get(User, user_id)
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            return jsonify({"exists": False})
-        return jsonify({"exists": True, "id": user.id, "username": user.username, "first_name": user.first_name, "self_activated": user.self_activated, "role": user.role, "referrer_id": user.referrer_id, "total_team_business": float(user.total_team_business or 0)})
+            return jsonify(ok=False, exists=False)
+
+        return jsonify(
+            ok=True,
+            exists=True,
+            user={
+                "id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "self_activated": bool(user.self_activated),
+                "role": user.role,
+                "referrer_id": user.referrer_id,
+                "total_team_business": float(user.total_team_business or 0),
+            },
+        )
     finally:
         db.close()
 
 @app.route("/debug/reset_user/<int:user_id>", methods=["POST"])
 def debug_reset_user(user_id):
+
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
+
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
 
     db = SessionLocal()
     try:
@@ -1083,21 +1380,18 @@ def debug_reset_user(user_id):
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
-        # 🔥 delete referral events (MATCH NEW MODEL)
         db.query(ReferralEvent).filter(
-    (ReferralEvent.from_user == user.id) |
-    (ReferralEvent.to_user == user.id)
-).delete(synchronize_session=False)
-
-        # 🔥 delete transactions
-        db.query(Transaction).filter(
-            Transaction.user_id == user_id
+            (ReferralEvent.from_user == user.id)
+            | (ReferralEvent.to_user == user.id)
         ).delete(synchronize_session=False)
 
-        # 🔥 reset user fields
-        user.balance_musd = 0
-        user.balance_mstc = 0
-        user.total_team_business = 0
+        db.query(Transaction).filter(
+            Transaction.user_id == user.id
+        ).delete(synchronize_session=False)
+
+        user.balance_musd = 0.0
+        user.balance_mstc = 0.0
+        user.total_team_business = 0.0
         user.active_origin_count = 0
         user.self_activated = False
         user.referrer_id = None
@@ -1105,36 +1399,45 @@ def debug_reset_user(user_id):
 
         db.commit()
 
-        return jsonify(ok=True, user_id=user_id)
+        return jsonify(ok=True, user_id=user.id)
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return jsonify(ok=False, error=str(e)), 500
+        app.logger.exception("debug_reset_user failed")
+        return jsonify(ok=False, error="server_error"), 500
     finally:
         db.close()
 
 @app.route("/debug/transactions/<int:user_id>", methods=["GET"])
 def debug_transactions(user_id):
+
+    if not db_is_ready():
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     db = SessionLocal()
     try:
         txs = (
             db.query(Transaction)
-            .filter_by(user_id=user_id)
+            .filter(Transaction.user_id == user_id)
             .order_by(Transaction.created_at.desc())
             .all()
         )
-        out = []
-        for t in txs:
-            out.append({
-                "id": getattr(t, "id", None),
-                "user_id": t.user_id,
-                "amount": float(t.amount or 0.0),
-                "currency": t.currency,
-                "type": t.type,
-                "external_id": t.external_id,
-                "created_at": t.created_at.isoformat() if getattr(t, "created_at", None) else None
-            })
-        return jsonify(ok=True, transactions=out)
+
+        return jsonify(
+            ok=True,
+            transactions=[
+                {
+                    "id": t.id,
+                    "user_id": t.user_id,
+                    "amount": float(t.amount or 0),
+                    "currency": t.currency,
+                    "type": t.type,
+                    "external_id": t.external_id,
+                    "created_at": t.created_at.isoformat(),
+                }
+                for t in txs
+            ],
+        )
     finally:
         db.close()
 
