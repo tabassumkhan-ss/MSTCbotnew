@@ -892,7 +892,7 @@ const verifyInitData = async () => {
   // CLEAN FULL RENDER FUNCTION
 
 const renderRegisteredView = (uid, name, avatar, userData) => {
-
+ console.log("🟣 renderRegisteredView ENTERED", uid, userData);
     console.log("🔁 renderRegisteredView()", userData);
 
     // store globally
@@ -1574,93 +1574,84 @@ function logout() {
 }
 
 async function doRegister() {
-  console.log("✅ YES CLICKED");
+  console.log("🟢 doRegister() START");
 
-  if (!window.Telegram?.WebApp?.initData) {
-    safeAlert("Please open this app from Telegram");
+  const tg = Telegram.WebApp;
+  if (!tg || !tg.initData) {
+    console.error("❌ Telegram initData missing");
+    alert("Please open from Telegram");
     return;
   }
 
-  const tg = Telegram.WebApp;
-  const MAX_ATTEMPTS = 3;
+  try {
+    console.log("➡️ Sending /webapp/register");
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      console.log(`🔁 Register attempt ${attempt + 1}`);
+    const res = await fetch("/webapp/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData })
+    });
 
-      const res = await fetch("/webapp/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData: tg.initData })
-      });
+    console.log("⬅️ /webapp/register response status:", res.status);
 
-      const data = await res.json();
-      console.log("📦 Register response:", data);
+    const data = await res.json();
+    console.log("📦 register JSON:", data);
 
-      if (data.ok) {
-        console.log("✅ Registration success");
-        await loadDashboardAfterRegister();
-        return;
-      }
-
-      // ⏳ DB waking up → retry silently
-      if (data.error === "db_warming_up_try_again") {
-        if (attempt < MAX_ATTEMPTS - 1) {
-          console.warn("⏳ DB waking up, retrying…");
-          await new Promise(r => setTimeout(r, 1500));
-          continue;
-        }
-
-        safeAlert("⏳ Server is waking up. Please tap YES again.");
-        return;
-      }
-
-      // ❌ Other backend error
-      safeAlert("Registration failed. Please try again.");
-      return;
-
-    } catch (err) {
-      console.error("❌ Register error:", err);
-      safeAlert("Network error. Please try again.");
+    if (!data.ok) {
+      console.error("❌ Register failed");
+      alert("Register failed");
       return;
     }
+
+    console.log("✅ Register OK → calling loadDashboardAfterRegister()");
+    await loadDashboardAfterRegister();
+
+  } catch (e) {
+    console.error("🔥 doRegister crash:", e);
+    alert("Network error");
   }
 }
 
+
 async function loadDashboardAfterRegister() {
-  console.log("🔄 Loading dashboard after register");
+  console.log("🟢 loadDashboardAfterRegister() START");
 
   try {
     const res = await fetch("/webapp/me", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: Telegram.WebApp.initData })
+      body: JSON.stringify({
+        initData: Telegram.WebApp.initData
+      })
     });
 
+    console.log("⬅️ /webapp/me status:", res.status);
+
     const data = await res.json();
-    console.log("👤 /webapp/me:", data);
+    console.log("👤 /webapp/me JSON:", data);
 
     if (!data.ok || !data.user) {
-      safeAlert("Please tap YES again");
+      console.error("❌ Invalid /webapp/me response");
+      alert("Profile load failed");
       return;
     }
+
+    console.log("✅ Calling renderRegisteredView()");
 
     const u = data.user;
     const uid = u.id;
     const name =
       ((u.first_name || '') +
-      (u.username ? ' @' + u.username : '')) || 'Unknown';
-    const avatar = u.photo_url || baseLogo;
+       (u.username ? ' @' + u.username : '')) || 'Unknown';
+    const avatar = u.photo_url || './Botologo_new.png';
 
-    // ✅ THIS WILL NOW WORK
     renderRegisteredView(uid, name, avatar, u);
 
   } catch (e) {
-    console.error("❌ dashboard load failed", e);
-    safeAlert("Network error");
+    console.error("🔥 loadDashboardAfterRegister crash:", e);
+    alert("Dashboard error");
   }
 }
-
 
 
 document.addEventListener("click", (e) => {
