@@ -607,6 +607,11 @@ const BACKEND_URL = "https://mstcbotnew-production.up.railway.app";
   const tg = window.Telegram && window.Telegram.WebApp
     ? window.Telegram.WebApp
     : null;
+
+    // 🔍 Browser vs Telegram detection
+if (!tg?.initData) {
+  console.warn("⚠️ Browser mode detected (Telegram initData not available)");
+}
     // --- TON Connect UI (global, only once) ---
 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
   manifestUrl: 'https://mstcbotnew-production.up.railway.app/static/tonconnect-manifest.json'

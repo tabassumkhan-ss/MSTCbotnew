@@ -80,16 +80,6 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # -------------------------
 # Helpers
 # -------------------------
-
-def db_is_ready() -> bool:
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        current_app.logger.warning("db_is_ready failed: %s", e)
-        return False
-
 @app.route("/debug/routes", methods=["GET"])
 def debug_routes():
     routes = []
@@ -378,14 +368,7 @@ def webapp_me():
     if not telegram_id:
         return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-    # 🚨 VERY IMPORTANT — do NOT touch DB if it is sleeping
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+      
     db = SessionLocal()
     try:
         user = (
@@ -428,14 +411,7 @@ def webapp_init():
     if not telegram_id:
         return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
 
-    # 🚨 DB NOT READY → DO NOT TOUCH SESSION
-    if not db_is_ready():
-        app.logger.warning("DB waking up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+    
     db = SessionLocal()
     try:
         user = db.query(User).filter(
@@ -470,59 +446,44 @@ from sqlalchemy.exc import OperationalError
 
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
-    if not init_data:
-        return jsonify({"ok": False, "error": "missing_init_data"}), 400
-
     telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
-
     if not telegram_id:
-        return jsonify({"ok": False, "error": "invalid_telegram_user"}), 400
+        return jsonify(ok=False, error="invalid_init_data"), 400
 
-    # 🚨 DO NOT TOUCH DB IF NOT READY
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200   # ✅ IMPORTANT
+    for attempt in range(3):
+        try:
+            db = SessionLocal()
 
-    db = SessionLocal()
-    try:
-        existing = (
-            db.query(User)
-            .filter(User.telegram_id == telegram_id)
-            .first()
-        )
+            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+            if user:
+                return jsonify(ok=True, exists=True)
 
-        if existing:
-            return jsonify({"ok": True, "exists": True})
+            user = User(
+                id=telegram_id,
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                role="member",
+                active=True
+            )
 
-        user = User(
-            id=telegram_id,
-            telegram_id=telegram_id,
-            username=username,
-            first_name=first_name,
-            role="member",
-            active=True
-        )
+            db.add(user)
+            db.commit()
 
-        db.add(user)
-        db.commit()
+            return jsonify(ok=True, created=True)
 
-        return jsonify({"ok": True, "created": True})
+        except OperationalError as e:
+            db.rollback()
+            app.logger.warning("DB retry %s: %s", attempt + 1, e)
+            time.sleep(1.2)
 
-    except Exception:
-        app.logger.exception("webapp_register failed")
-        return jsonify({
-            "ok": False,
-            "error": "internal_error"
-        }), 500
+        finally:
+            db.close()
 
-    finally:
-        db.close()
+    return jsonify(ok=False, error="db_unavailable_try_again"), 200
 
 
 @app.route("/webapp/user", methods=["POST"])
@@ -538,13 +499,7 @@ def webapp_user():
         }), 400
 
     # 🚨 DO NOT OPEN SESSION IF DB IS SLEEPING
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+    
     db = SessionLocal()
     try:
         user = (
@@ -604,14 +559,7 @@ def admin_users():
             "error": "unauthorized"
         }), 401
 
-    # 🚨 DO NOT TOUCH DB IF IT IS SLEEPING
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+   
     db = SessionLocal()
     try:
         admin_user = (
@@ -672,14 +620,7 @@ def admin_update_user():
             "error": "unauthorized"
         }), 401
 
-    # 🚨 DO NOT TOUCH DB IF RAILWAY DB IS SLEEPING
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+    
     db = SessionLocal()
     try:
         admin = (
@@ -794,14 +735,7 @@ def admin_stats():
             "error": "unauthorized"
         }), 401
 
-    # 🚨 DO NOT TOUCH DB IF RAILWAY DB IS SLEEPING
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+    
     db = SessionLocal()
     try:
         admin = (
@@ -1047,14 +981,6 @@ def webapp_role():
 @app.route("/debug/downlines/<int:user_id>")
 def debug_downlines(user_id):
 
-    # 🚨 Do NOT open DB session if DB is sleeping
-    if not db_is_ready():
-        app.logger.warning("DB warming up, debug_downlines retry later")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
     db = SessionLocal()
     try:
         user = (
@@ -1106,14 +1032,7 @@ def debug_downlines(user_id):
 @app.route("/debug/link_referrer", methods=["POST"])
 def debug_link_referrer():
 
-    # 🚨 Never touch DB if Railway DB is sleeping
-    if not db_is_ready():
-        app.logger.warning("DB warming up, debug_link_referrer retry later")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+    
     data = request.get_json(silent=True) or {}
 
     try:
@@ -1189,9 +1108,7 @@ def debug_link_referrer():
 @app.route("/debug/list_users", methods=["GET"])
 def debug_list_users():
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         users = db.query(User).all()
@@ -1222,9 +1139,7 @@ def debug_list_users():
 @app.route("/debug/company_pool", methods=["GET"])
 def debug_company_pool():
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         company = db.query(User).filter(User.id == COMPANY_USER_ID).first()
@@ -1262,9 +1177,7 @@ def debug_simulate_deposit():
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     payload = request.get_json(silent=True) or {}
 
     try:
@@ -1341,9 +1254,7 @@ def debug_simulate_deposit():
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -1372,9 +1283,7 @@ def debug_reset_user(user_id):
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -1412,9 +1321,7 @@ def debug_reset_user(user_id):
 @app.route("/debug/transactions/<int:user_id>", methods=["GET"])
 def debug_transactions(user_id):
 
-    if not db_is_ready():
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         txs = (
