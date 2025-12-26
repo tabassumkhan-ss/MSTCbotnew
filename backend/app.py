@@ -86,7 +86,8 @@ def db_is_ready() -> bool:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True
-    except OperationalError:
+    except Exception as e:
+        current_app.logger.warning("db_is_ready failed: %s", e)
         return False
 
 @app.route("/debug/routes", methods=["GET"])
@@ -383,7 +384,7 @@ def webapp_me():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -433,7 +434,7 @@ def webapp_init():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -486,7 +487,7 @@ def webapp_register():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503   # ✅ IMPORTANT
+        }), 200   # ✅ IMPORTANT
 
     db = SessionLocal()
     try:
@@ -542,7 +543,7 @@ def webapp_user():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -609,7 +610,7 @@ def admin_users():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -677,7 +678,7 @@ def admin_update_user():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -799,7 +800,7 @@ def admin_stats():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -1052,7 +1053,7 @@ def debug_downlines(user_id):
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     db = SessionLocal()
     try:
@@ -1111,7 +1112,7 @@ def debug_link_referrer():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     data = request.get_json(silent=True) or {}
 
@@ -1172,7 +1173,7 @@ def debug_link_referrer():
         return jsonify({
             "ok": False,
             "error": "db_warming_up_try_again"
-        }), 503
+        }), 200
 
     except Exception as e:
         db.rollback()
