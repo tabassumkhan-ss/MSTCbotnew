@@ -1599,7 +1599,7 @@ async function doRegister() {
 
       if (data.ok) {
         console.log("✅ Registration success");
-        location.reload();
+        await loadDashboardAfterRegister();
         return;
       }
 
@@ -1626,6 +1626,41 @@ async function doRegister() {
     }
   }
 }
+
+async function loadDashboardAfterRegister() {
+  console.log("🔄 Loading dashboard after register");
+
+  try {
+    const res = await fetch("/webapp/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: Telegram.WebApp.initData })
+    });
+
+    const data = await res.json();
+    console.log("👤 /webapp/me:", data);
+
+    if (!data.ok || !data.user) {
+      safeAlert("Please tap YES again");
+      return;
+    }
+
+    const u = data.user;
+    const uid = u.id;
+    const name =
+      ((u.first_name || '') +
+      (u.username ? ' @' + u.username : '')) || 'Unknown';
+    const avatar = u.photo_url || baseLogo;
+
+    // ✅ THIS WILL NOW WORK
+    renderRegisteredView(uid, name, avatar, u);
+
+  } catch (e) {
+    console.error("❌ dashboard load failed", e);
+    safeAlert("Network error");
+  }
+}
+
 
 
 document.addEventListener("click", (e) => {
