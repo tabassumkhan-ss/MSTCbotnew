@@ -475,7 +475,7 @@ def webapp_register():
     if not telegram_id:
         return jsonify(ok=False, error="invalid_init_data"), 400
 
-    for attempt in range(3):
+    for attempt in range(1):
         try:
             db = SessionLocal()
 

@@ -582,6 +582,7 @@
 </div>
 
 <script>
+
   document.addEventListener("click", (e) => {
   if (e.target.closest("#yesBtn")) {
     console.log("✅ YES BUTTON CLICKED");
@@ -1578,6 +1579,9 @@ function logout() {
   Telegram.WebApp.close();
 }
 
+let REGISTER_RETRIES = 0;
+const MAX_REGISTER_RETRIES = 6;
+
 async function doRegister() {
   console.log("🟢 doRegister() START");
 
@@ -1587,48 +1591,47 @@ async function doRegister() {
     return;
   }
 
-  let attempts = 0;
-  const MAX_ATTEMPTS = 6;
+  const yesBtn = document.getElementById("yesBtn");
 
-  while (attempts < MAX_ATTEMPTS) {
-    try {
-      attempts++;
-      console.log(`➡️ Register attempt ${attempts}`);
+  yesBtn.disabled = true;
+  yesBtn.innerText = "⏳ Waking server...";
 
-      const res = await fetch("/webapp/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initData: tg.initData })
-      });
+  try {
+    const res = await fetch("/webapp/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData })
+    });
 
-      const data = await res.json();
-      console.log("📦 register JSON:", data);
+    if (res.status === 503) {
+      REGISTER_RETRIES++;
 
-      // 🟡 DB waking up → retry
-      if (data.error === "db_warming_up_try_again") {
-        console.warn("⏳ DB waking up, retrying...");
-        await new Promise(r => setTimeout(r, 1500));
-        continue;
-      }
-
-      // ❌ real failure
-      if (!data.ok) {
-        alert("Register failed");
+      if (REGISTER_RETRIES >= MAX_REGISTER_RETRIES) {
+        yesBtn.disabled = false;
+        yesBtn.innerText = "Yes";
+        alert("Server is still starting. Please try again shortly.");
         return;
       }
 
-      // ✅ success
-      console.log("✅ Register OK");
-      await loadDashboardAfterRegister();
+      setTimeout(() => {
+        yesBtn.innerText = "⏳ Still waking...";
+        doRegister();
+      }, 3000);
       return;
-
-    } catch (e) {
-      console.error("🔥 NETWORK ERROR (register):", e);
-      await new Promise(r => setTimeout(r, 1500));
     }
-  }
 
-  alert("Server is taking too long. Please tap YES again.");
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Register failed");
+
+    REGISTER_RETRIES = 0;
+    yesBtn.innerText = "✅ Registered";
+    await loadDashboardAfterRegister();
+
+  } catch (e) {
+    console.error("🔥 register error:", e);
+    yesBtn.disabled = false;
+    yesBtn.innerText = "Yes";
+  }
 }
 
 

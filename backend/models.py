@@ -24,10 +24,13 @@ if not DATABASE_URL:
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,   # 🔑 detect dead Railway connections
-    pool_recycle=300,     # 🔑 prevent proxy idle timeout
+    pool_pre_ping=True,
+    pool_recycle=300,
     pool_size=5,
     max_overflow=5,
+    connect_args={
+        "connect_timeout": 2  # 🔑 FAIL FAST (2 seconds)
+    },
     future=True,
 )
 
