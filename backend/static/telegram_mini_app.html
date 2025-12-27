@@ -1583,45 +1583,52 @@ async function doRegister() {
 
   const tg = Telegram.WebApp;
   if (!tg || !tg.initData) {
-    console.error("❌ Telegram initData missing");
     alert("Please open from Telegram");
     return;
   }
 
-  try {
-    console.log("➡️ Sending /webapp/register");
+  let attempts = 0;
+  const MAX_ATTEMPTS = 6;
 
-    const res = await fetch(BACKEND_URL +"/webapp/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
-    });
+  while (attempts < MAX_ATTEMPTS) {
+    try {
+      attempts++;
+      console.log(`➡️ Register attempt ${attempts}`);
 
-    console.log("⬅️ /webapp/register response status:", res.status);
+      const res = await fetch("/webapp/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData })
+      });
 
-    const data = await res.json();
-    console.log("📦 register JSON:", data);
+      const data = await res.json();
+      console.log("📦 register JSON:", data);
 
-    if (data.error === "db_warming_up_try_again") {
-  console.warn("⏳ DB warming up, retrying…");
-  await new Promise(r => setTimeout(r, 1500));
-  return doRegister();
-}
+      // 🟡 DB waking up → retry
+      if (data.error === "db_warming_up_try_again") {
+        console.warn("⏳ DB waking up, retrying...");
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
 
-if (!data.ok) {
-  alert("Register failed");
-  return;
-}
+      // ❌ real failure
+      if (!data.ok) {
+        alert("Register failed");
+        return;
+      }
 
+      // ✅ success
+      console.log("✅ Register OK");
+      await loadDashboardAfterRegister();
+      return;
 
-    console.log("✅ Register OK → calling loadDashboardAfterRegister()");
-    await loadDashboardAfterRegister();
+    } catch (e) {
+      console.error("🔥 NETWORK ERROR (register):", e);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
 
-  } catch (e) {
-  console.error("🔥 NETWORK ERROR (register):", e, e?.message);
-  alert("Network error – server waking up, please tap YES again");
-}
-
+  alert("Server is taking too long. Please tap YES again.");
 }
 
 
