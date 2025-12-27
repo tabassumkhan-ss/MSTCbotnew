@@ -1008,6 +1008,9 @@ function renderUserHeader(userData) {
     tgUser.id ||
     "";
 
+  // 🔗 Referral link (Telegram deep link)
+  const refLink = `https://t.me/${Telegram.WebApp?.initDataUnsafe?.user?.username || "mstcbot"}?start=${tgId}`;
+
   document.getElementById("userHeader").innerHTML = `
     <div class="user-header">
       <img src="${avatar}" class="logo glow" />
@@ -1020,8 +1023,27 @@ function renderUserHeader(userData) {
       <div class="row mini">
         Telegram ID: <span class="mono">${tgId}</span>
       </div>
+
+      <!-- 🔗 Referral row -->
+      <div class="row ref-line">
+        <span class="mini mono" id="refText">${refLink}</span>
+        <button class="copy-btn" id="copyRefBtn">📋</button>
+      </div>
+
+      <div class="tooltip" id="refTip">Copied!</div>
     </div>
   `;
+
+  // 📋 Copy logic
+  const btn = document.getElementById("copyRefBtn");
+  const tip = document.getElementById("refTip");
+
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(refLink).then(() => {
+      tip.classList.add("show");
+      setTimeout(() => tip.classList.remove("show"), 1200);
+    });
+  });
 }
 
 
