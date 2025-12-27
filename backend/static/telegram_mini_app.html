@@ -1414,51 +1414,45 @@ const MAX_REGISTER_RETRIES = 6;
 
 async function doRegister() {
   const yesBtn = document.getElementById("yesBtn");
-
   yesBtn.disabled = true;
-  yesBtn.innerText = "⏳ Waking server...";
 
-  let attempts = 0;
-  const MAX_ATTEMPTS = 8;
+  // 1️⃣ Get user info directly from Telegram (no backend)
+  const tgUser = Telegram.WebApp.initDataUnsafe?.user;
 
-  while (attempts < MAX_ATTEMPTS) {
-    try {
-      attempts++;
-
-      const res = await fetch(BACKEND_URL + "/webapp/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          initData: Telegram.WebApp.initData
-        })
-      });
-
-      // 🟡 DB still waking → retry silently
-      if (res.status === 503) {
-        console.warn("⏳ DB warming, retrying register...");
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-
-      const data = await res.json();
-
-      if (!data.ok) {
-        throw new Error(data.error || "register_failed");
-      }
-
-      // ✅ SUCCESS → load dashboard
-      await loadDashboardAfterRegister();
-      return;
-
-    } catch (e) {
-      console.error("Register attempt failed", e);
-      await new Promise(r => setTimeout(r, 2000));
-    }
+  if (!tgUser) {
+    alert("Telegram user not available");
+    yesBtn.disabled = false;
+    return;
   }
 
-  alert("Server is starting. Please reopen the app.");
-  yesBtn.disabled = false;
-  yesBtn.innerText = "YES";
+  // 2️⃣ OPEN DEPOSIT PANEL IMMEDIATELY
+  renderRegisteredView(
+    tgUser.id,
+    tgUser.first_name,
+    tgUser.photo_url || null,
+    {
+      id: tgUser.id,
+      first_name: tgUser.first_name,
+      username: tgUser.username,
+      role: "member",
+      self_activated: false,
+      balance_musd: 0,
+      balance_mstc: 0,
+      total_team_business: 0,
+      active_origin_count: 0
+    }
+  );
+
+  // 3️⃣ Fire registration in background (DON’T BLOCK UI)
+  fetch("/webapp/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      initData: Telegram.WebApp.initData
+    })
+  }).catch(err => {
+    console.warn("Registration deferred (DB warming)", err);
+  });
 }
 
 
