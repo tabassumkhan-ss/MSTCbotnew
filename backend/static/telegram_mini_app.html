@@ -1622,24 +1622,25 @@ async function loadDashboardAfterRegister() {
   console.log("🟢 loadDashboardAfterRegister() START");
 
   try {
-    const res = await fetch("/webapp/me", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: Telegram.WebApp.initData
-      })
-    });
+    const res = await fetch("/webapp/init", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    initData: Telegram.WebApp.initData,
+    ref: window.currentRef || null
+  })
+});
+
 
     console.log("⬅️ /webapp/me status:", res.status);
 
     const data = await res.json();
     console.log("👤 /webapp/me JSON:", data);
 
-    if (!data.ok || !data.user) {
-      console.error("❌ Invalid /webapp/me response");
-      alert("Profile load failed");
-      return;
-    }
+    if (!data.ok || !data.exists || !data.user) {
+  alert("Profile load failed");
+  return;
+}
 
     console.log("✅ Calling renderRegisteredView()");
 
