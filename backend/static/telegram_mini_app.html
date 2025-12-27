@@ -619,7 +619,11 @@ const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
 });
 
 tonConnectUI.onStatusChange(wallet => {
-   console.log("TON wallet status updated:", wallet);
+  console.log("TON wallet status updated:", wallet);
+
+  if (wallet?.account?.address) {
+    saveTonWallet(wallet.account.address);
+  }
 });
 
 tonConnectUI.setConnectRequestParameters({
@@ -629,12 +633,6 @@ tonConnectUI.setConnectRequestParameters({
 const TREASURY_TON_ADDRESS =
   "UQAZGsz5gaOVtAK67pITWUMUMYNMjccCSbMC5sAMx2say10K";
 
-// 🔐 AUTO-SAVE wallet on connect / reconnect
-  tonConnectUI.onStatusChange(wallet => {
-    if (wallet?.account?.address) {
-      saveTonWallet(wallet.account.address);
-    }
-  });
 
  let lastSavedWallet = null;
 
@@ -807,94 +805,7 @@ async function sendTonDeposit(amountUsd) {
     };
   };
 
-  // --- Verify with backend; fallback to Telegram user ---
-  let VERIFY_RETRIES = 0;
-const MAX_VERIFY_RETRIES = 4;
-
-const verifyInitData = async () => {
-  const tgApp = tg;
-  const initData = tgApp ? tgApp.initData : "";
-  const unsafeLocal = tgApp?.initDataUnsafe || null;
-  const unsafeUser = unsafeLocal?.user || null;
-
-  const startParam =
-    unsafeLocal?.start_param || unsafeLocal?.startParam || null;
-
-  if (!window.currentRef && startParam) {
-    window.currentRef = startParam;
-  }
-
-  const effectiveRef = window.currentRef || null;
-
-  if (!tgApp) {
-    console.warn("Not inside Telegram WebApp – using test user.");
-    return { ok: false, user: unsafeUser || {} };
-  }
-
-  try {
-    const res = await fetch(BACKEND_URL + "/webapp/me", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData, ref: effectiveRef })
-    });
-
-    const j = await res.json();
-
-    // 🔁 HANDLE RAILWAY DB COLD START
-    if (j.error === "db_warming_up_try_again") {
-      if (VERIFY_RETRIES < MAX_VERIFY_RETRIES) {
-        VERIFY_RETRIES++;
-        console.warn(`DB warming up (${VERIFY_RETRIES}/${MAX_VERIFY_RETRIES})`);
-        await new Promise(r => setTimeout(r, 1500));
-        return verifyInitData();
-      }
-
-      throw new Error("Database unavailable");
-    }
-
-    VERIFY_RETRIES = 0; // reset on success
-
-    if (!res.ok || !j.ok) {
-      throw new Error(j.error || "verify failed");
-    }
-
-    return j;
-
-  } catch (err) {
-    console.warn("verify error, using unsafe fallback:", err);
-    return { ok: false, user: unsafeUser || {} };
-  }
-};
-  // expose globally
-  window.verifyInitData = verifyInitData;
-
-  const showRegisteredViewFromBackend = async () => {
-
-  const verifyResp = await verifyInitData();
-
-  if (!verifyResp || !verifyResp.user) {
-      console.error("Invalid /webapp/me:", verifyResp);
-      Telegram.WebApp.showAlert("Server error loading profile");
-      return;
-  }
-
-  const u = verifyResp.user;
-
-  const id = u.id;
-  const name =
-      ((u.first_name || '') +
-      (u.username ? ' @' + u.username : '')) ||
-      u.username ||
-      'Unknown';
-
-  const avatar = u.photo_url || baseLogo;
-
-  renderRegisteredView(id, name, avatar, u);
-};
-
-  // expose globally
-  window.showRegisteredViewFromBackend = showRegisteredViewFromBackend;
-
+   
   // CLEAN FULL RENDER FUNCTION
 
 const renderRegisteredView = (uid, name, avatar, userData) => {
@@ -1030,6 +941,10 @@ if (tonConnectUI.wallet?.account?.address) {
     walletStatus.textContent = "Not connected";
 }
 
+if (connectBtn) {
+  connectBtn.addEventListener("click", connectTonWallet);
+}
+
 // ============= COPY REFERRAL ============================
 copyRefBtn.addEventListener("click", () => {
     navigator.clipboard.writeText(refLink);
@@ -1091,8 +1006,7 @@ amtInput.addEventListener("input", () => {
             msgEl.textContent = "Deposit successful!";
             amtInput.value = "";
 
-            await showRegisteredViewFromBackend();
-
+            
         } catch (err) {
             msgEl.style.display = "block";
             msgEl.textContent = err.message;
@@ -1190,16 +1104,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const yesBtn = document.getElementById('yesBtn');
   const noBtn  = document.getElementById('noBtn');
 
-  // 🔹 If user already exists → skip YES/NO
-  if (data && data.exists) {
-    document.getElementById("registerSection").style.display = "none";
-    await showRegisteredViewFromBackend();
-    return;
-  }
+  if (data && data.ok && data.exists && data.user) {
+  document.getElementById("registerSection").style.display = "none";
+  await loadDashboardAfterRegister();
+  return;
+}
 
   // 🔹 New user → WAIT for YES
-  document.getElementById("registerSection").style.display = "block";
-
+  
   if (noBtn) {
     noBtn.onclick = () => {
       app.innerHTML = `
@@ -1507,8 +1419,7 @@ async function adminImpersonate(userId) {
   window.impersonation.user = d.impersonated_user;
 
   closeModal();
-  await showRegisteredViewFromBackend();
-
+ 
   showImpersonationBanner();
 }
 
@@ -1548,7 +1459,7 @@ function stopImpersonation() {
   window.impersonation.user = null;
 
   document.getElementById("impersonationBanner")?.remove();
-  showRegisteredViewFromBackend();
+ 
 }
 
   async function openWallet() {
@@ -1592,9 +1503,12 @@ async function doRegister() {
   }
 
   const yesBtn = document.getElementById("yesBtn");
+  yesBtn.disabled = true;
 
+  if (yesBtn) {
   yesBtn.disabled = true;
   yesBtn.innerText = "⏳ Waking server...";
+}
 
   try {
     const res = await fetch("/webapp/register", {
@@ -1634,32 +1548,44 @@ async function doRegister() {
   }
 }
 
+let DASHBOARD_RETRIES = 0;
+const MAX_DASHBOARD_RETRIES = 8;
 
 async function loadDashboardAfterRegister() {
   console.log("🟢 loadDashboardAfterRegister() START");
 
   try {
-    const res = await fetch(BACKEND_URL +"/webapp/init", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    initData: Telegram.WebApp.initData,
-    ref: window.currentRef || null
-  })
-});
+    const res = await fetch(BACKEND_URL + "/webapp/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: Telegram.WebApp.initData,
+        ref: window.currentRef || null
+      })
+    });
 
+    // 🟡 DB still warming → retry
+    if (res.status === 503) {
+      DASHBOARD_RETRIES++;
 
-    console.log("⬅️ /webapp/me status:", res.status);
+      if (DASHBOARD_RETRIES >= MAX_DASHBOARD_RETRIES) {
+        alert("Server is still starting. Please reopen the app.");
+        return;
+      }
+
+      console.warn("⏳ Dashboard DB warming, retrying...");
+      setTimeout(loadDashboardAfterRegister, 3000);
+      return;
+    }
 
     const data = await res.json();
-    console.log("👤 /webapp/me JSON:", data);
+    console.log("👤 /webapp/init JSON:", data);
 
-    if (!data.ok || !data.exists || !data.user) {
-  alert("Profile load failed");
-  return;
-}
+    if (!data.ok || !data.user) {
+      throw new Error("Invalid dashboard response");
+    }
 
-    console.log("✅ Calling renderRegisteredView()");
+    DASHBOARD_RETRIES = 0;
 
     const u = data.user;
     const uid = u.id;
@@ -1671,11 +1597,10 @@ async function loadDashboardAfterRegister() {
     renderRegisteredView(uid, name, avatar, u);
 
   } catch (e) {
-    console.error("🔥 loadDashboardAfterRegister crash:", e);
-    alert("Dashboard error");
+    console.error("🔥 Dashboard load error:", e);
+    setTimeout(loadDashboardAfterRegister, 3000);
   }
 }
-
 
 document.addEventListener("click", (e) => {
 
