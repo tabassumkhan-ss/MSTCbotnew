@@ -18,6 +18,26 @@ from sqlalchemy.exc import OperationalError
 # local imports
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
+def db_is_ready():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        # logger may not exist yet, use print as fallback
+        try:
+            logging.getLogger(__name__).warning("db_is_ready failed: %s", e)
+        except Exception:
+            print("db_is_ready failed:", e)
+        return False
+    
+def require_db_ready():
+    if not db_is_ready():
+        current_app.logger.warning("DB warming up, ask client to retry")
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+    return None
+
+
 # -------------------------
 # Load environment & logging
 # -------------------------
@@ -81,25 +101,8 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # -------------------------
 # Helpers
 # -------------------------
-def db_is_ready():
-    """
-    Lightweight DB readiness check.
-    Returns True if DB accepts connections, False if cold/asleep.
-    """
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        app.logger.warning("db_is_ready failed: %s", e)
-        return False
 
 
-def require_db_ready():
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-    return None
 
 @app.route("/debug/routes", methods=["GET"])
 def debug_routes():
