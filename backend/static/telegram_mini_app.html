@@ -1029,15 +1029,22 @@ function renderUserHeader(userData) {
       <button class="copy-btn" id="copyRef">📋</button>
     </div>
     <div class="tooltip" id="tipRef">Copied!</div>
-
-
-      <div class="tooltip" id="refTip">Copied!</div>
     </div>
   `;
 
   // 📋 Copy logic
-  const btn = document.getElementById("copyRefBtn");
-  const tip = document.getElementById("refTip");
+  const btn = document.getElementById("copyRef");
+const tip = document.getElementById("tipRef");
+
+if (btn && tip) {
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(refLink).then(() => {
+      tip.classList.add("show");
+      setTimeout(() => tip.classList.remove("show"), 1200);
+    });
+  });
+}
+
 
   btn.addEventListener("click", () => {
     navigator.clipboard.writeText(refLink).then(() => {
