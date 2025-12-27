@@ -595,6 +595,7 @@
 };
 
 const BACKEND_URL = "https://mstcbotnew-production.up.railway.app";
+const BOT_USERNAME = "mstcrewardbot"; 
 
   // --- Referral from URL (?ref=...) ---
   const urlParams = new URLSearchParams(window.location.search);
@@ -1008,8 +1009,8 @@ function renderUserHeader(userData) {
     tgUser.id ||
     "";
 
-  // 🔗 Referral link (Telegram deep link)
-  const refLink = `https://t.me/${Telegram.WebApp?.initDataUnsafe?.user?.username || "mstcbot"}?start=${tgId}`;
+  // ✅ CORRECT referral link
+  const refLink = `https://t.me/${BOT_USERNAME}?start=${tgId}`;
 
   document.getElementById("userHeader").innerHTML = `
     <div class="user-header">
@@ -1025,26 +1026,16 @@ function renderUserHeader(userData) {
       </div>
 
       <div class="row ref-line">
-      <span class="mini">Referral Link</span>
-      <button class="copy-btn" id="copyRef">📋</button>
-    </div>
-    <div class="tooltip" id="tipRef">Copied!</div>
+        <span class="mini">Referral Link</span>
+        <button class="copy-btn" id="copyRef">📋</button>
+      </div>
+      <div class="tooltip" id="tipRef">Copied!</div>
     </div>
   `;
 
   // 📋 Copy logic
   const btn = document.getElementById("copyRef");
-const tip = document.getElementById("tipRef");
-
-if (btn && tip) {
-  btn.addEventListener("click", () => {
-    navigator.clipboard.writeText(refLink).then(() => {
-      tip.classList.add("show");
-      setTimeout(() => tip.classList.remove("show"), 1200);
-    });
-  });
-}
-
+  const tip = document.getElementById("tipRef");
 
   btn.addEventListener("click", () => {
     navigator.clipboard.writeText(refLink).then(() => {
