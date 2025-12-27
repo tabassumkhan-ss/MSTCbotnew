@@ -1024,11 +1024,12 @@ function renderUserHeader(userData) {
         Telegram ID: <span class="mono">${tgId}</span>
       </div>
 
-      <!-- 🔗 Referral row -->
       <div class="row ref-line">
-        <span class="mini mono" id="refText">${refLink}</span>
-        <button class="copy-btn" id="copyRefBtn">📋</button>
-      </div>
+      <span class="mini">Referral Link</span>
+      <button class="copy-btn" id="copyRef">📋</button>
+    </div>
+    <div class="tooltip" id="tipRef">Copied!</div>
+
 
       <div class="tooltip" id="refTip">Copied!</div>
     </div>
