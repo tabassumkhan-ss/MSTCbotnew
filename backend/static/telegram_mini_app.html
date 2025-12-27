@@ -822,7 +822,13 @@ function renderDepositPanel() {
       <h3>💳 Deposit</h3>
 
       <label>Enter Amount (USD)</label>
-      <input id="amt" type="number" min="20" placeholder="Minimum $20" />
+      <input
+        id="amt"
+        type="number"
+        min="20"
+        step="0.01"
+        placeholder="Minimum $20"
+      />
 
       <div class="submit">
         <button class="btn secondary" id="submitDeposit">
@@ -830,10 +836,11 @@ function renderDepositPanel() {
         </button>
       </div>
 
-      <div id="submitMsg" class="mini"></div>
+      <div id="submitMsg" class="ok" style="display:none;"></div>
     </div>
   `;
 }
+
 
 function bindDepositLogic() {
   const submitBtn = document.getElementById("submitDeposit");
@@ -850,6 +857,7 @@ function bindDepositLogic() {
     const v = parseFloat(amtInput.value);
     if (isNaN(v) || v < 20) {
       submitBtn.disabled = true;
+      msgEl.style.display = "block";
       msgEl.textContent = "Minimum deposit is $20";
     } else {
       submitBtn.disabled = false;
