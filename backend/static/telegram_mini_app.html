@@ -676,15 +676,7 @@ async function connectTonWallet() {
     const address = wallet.account.address;
     console.log("TON wallet connected:", address);
 
-    // update UI
-    const el = document.getElementById("walletStatus");
-    if (el) {
-      el.textContent =
-        "Connected: " +
-        address.slice(0, 6) + "..." + address.slice(-4);
-    }
-
-    // enable deposit button
+      // enable deposit button
     const submitBtn = document.getElementById("submitDeposit");
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -806,228 +798,152 @@ async function sendTonDeposit(amountUsd) {
   };
 
    
-  // CLEAN FULL RENDER FUNCTION
+  const renderRegisteredView = (uid, name, avatar, userData) => {
+  console.log("🟣 renderRegisteredView ENTERED", uid);
 
-const renderRegisteredView = (uid, name, avatar, userData) => {
- console.log("🟣 renderRegisteredView ENTERED", uid, userData);
-    console.log("🔁 renderRegisteredView()", userData);
+  // 1️⃣ store user globally
+  window.currentUserData = userData;
 
-    // store globally
-    window.currentUserData = userData;
+  // 2️⃣ hide registration
+  const reg = document.getElementById("registerSection");
+  if (reg) reg.style.display = "none";
 
-    // compute ranks
-    const ranks = computeRanks(userData);
-    const total = ranks.total.toFixed(2);
-    const refLink = `https://t.me/mstcrefbot/mstcapp?start=${uid}`;
+  // 3️⃣ show dashboard shell
+  const app = document.getElementById("app");
+  app.innerHTML = getDashboardSkeletonHTML();
 
-    // --------------------------
-    // inject full UI HTML
-    // --------------------------
-    app.innerHTML = `
-    <div class="deposit-header">
-      <button id="menuBtn" class="hamburger">☰</button>
-      <div class="deposit-title"></div>
-    </div>
+  // 4️⃣ now initialize dashboard parts
+  initDashboardUI(userData);
+};
 
-    <div class="user-header">
-      <img src="${avatar || baseLogo}" class="logo glow" />
-      <div class="row big">${name || 'Unknown'}</div>
-      <div class="row mini">
-        Current: <b>${ranks.current}</b>
-      </div>
-    </div>
-
-    <div class="row ref-line">
-      <span class="mini">Referral Link</span>
-      <button class="copy-btn" id="copyRef">📋</button>
-    </div>
-    <div class="tooltip" id="tipRef">Copied!</div>
-
-    <div class="panel">
-      <h3>🔗 TON Wallet</h3>
-      <button class="btn secondary" id="connectWalletBtn">
-        Connect TON Wallet
-      </button>
-      <div id="walletStatus" class="mini"></div>
-    </div>
-
+function renderDepositPanel() {
+  document.getElementById("depositSection").innerHTML = `
     <div class="panel">
       <h3>💳 Deposit</h3>
+
       <label>Enter Amount (USD)</label>
-      <input id="amt" type="number" min="20" step="0.01" placeholder="Minimum $20" />
+      <input id="amt" type="number" min="20" placeholder="Minimum $20" />
+
       <div class="submit">
         <button class="btn secondary" id="submitDeposit">
           Submit Deposit
         </button>
       </div>
-      <div id="submitMsg" class="ok" style="display:none;"></div>
+
+      <div id="submitMsg" class="mini"></div>
     </div>
-
-          <div class="rank-panel">
-
-  <div class="rank-header">
-    <div class="rank-header-title">🏅 Your Rank & Levels</div>
-  </div>
-
-  <div class="rank-tabs">
-
-    <!-- Origin -->
-    <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
-      <div class="rank-main">
-        <span class="rank-name">Origin</span>
-      </div>
-    </button>
-
-    <!-- Life Changer -->
-    <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
-      <div class="rank-main">
-        <span class="rank-name">Life Changer</span>
-      </div>
-    </button>
-
-    <!-- Advisor -->
-    <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
-      <div class="rank-main">
-        <span class="rank-name">Advisor</span>
-      </div>
-    </button>
-
-    <!-- Visionary -->
-    <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
-      <div class="rank-main">
-        <span class="rank-name">Visionary</span>
-      </div>
-    </button>
-
-    <!-- Creator -->
-    <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
-      <div class="rank-main">
-        <span class="rank-name">Creator</span>
-      </div>
-    </button>
-
-  </div>
-
-  <div id="rankDetails" class="rank-details"></div>
-
-</div>
-    `;
-
-    // ======================================================
-    // ELEMENT REFERENCES MUST BE AFTER app.innerHTML
-    // ======================================================
-   const submitBtn     = document.getElementById("submitDeposit");
-   const msgEl         = document.getElementById("submitMsg");
-   const amtInput      = document.getElementById("amt");
-   const copyRefBtn    = document.getElementById("copyRef");
-   const tipRef        = document.getElementById("tipRef");
-  const connectBtn    = document.getElementById("connectWalletBtn");
-  const walletStatus  = document.getElementById("walletStatus");
-
-  //  DISABLE DEPOSIT UNTIL TON CONNECTED
-// ======================================================
-if (!tonConnectUI.wallet) {
-   submitBtn.disabled = true;
-   submitBtn.style.opacity = "0.4";
+  `;
 }
 
-// ============= INITIAL WALLET STATUS ====================
-if (tonConnectUI.wallet?.account?.address) {
-    walletStatus.textContent =
-        "Connected: " +
-        tonConnectUI.wallet.account.address.slice(0,6) + "..." +
-        tonConnectUI.wallet.account.address.slice(-4);
-} else {
-    walletStatus.textContent = "Not connected";
-}
+function bindDepositLogic() {
+  const submitBtn = document.getElementById("submitDeposit");
+  const amtInput  = document.getElementById("amt");
+  const msgEl     = document.getElementById("submitMsg");
 
-if (connectBtn) {
-  connectBtn.addEventListener("click", connectTonWallet);
-}
+  if (!submitBtn || !amtInput || !msgEl) {
+    console.warn("Deposit elements not ready");
+    return;
+  }
 
-// ============= COPY REFERRAL ============================
-copyRefBtn.addEventListener("click", () => {
-    navigator.clipboard.writeText(refLink);
-    tipRef.classList.add("show");
-    setTimeout(() => tipRef.classList.remove("show"), 1200);
-});
-
-// ============= LIVE AMOUNT VALIDATION ===================
-amtInput.addEventListener("input", () => {
+  // live validation
+  amtInput.addEventListener("input", () => {
     const v = parseFloat(amtInput.value);
     if (isNaN(v) || v < 20) {
-        msgEl.style.display = "block";
-        msgEl.textContent = "Minimum deposit is $20.";
+      submitBtn.disabled = true;
+      msgEl.textContent = "Minimum deposit is $20";
     } else {
-        msgEl.style.display = "none";
-        msgEl.textContent = "";
+      submitBtn.disabled = false;
+      msgEl.textContent = "";
     }
-});
-    
-    // ======================================================
-    // MAIN DEPOSIT HANDLER
-    // ======================================================
-    submitBtn.addEventListener("click", async () => {
+  });
 
-        // lock button
-        if (submitBtn.disabled) return;
-        submitBtn.disabled = true;
+  submitBtn.onclick = async () => {
+    if (submitBtn.disabled) return;
 
-        try {
-            msgEl.style.display = "none";
+    submitBtn.disabled = true;
 
-            const amount = parseFloat(amtInput.value);
-            if (isNaN(amount) || amount < 20)
-                throw new Error("Minimum deposit is $20");
+    try {
+      const amount = parseFloat(amtInput.value);
+      if (isNaN(amount) || amount < 20) {
+        throw new Error("Minimum deposit is $20");
+      }
 
-            // wallet simulation → blockchain hash
-            msgEl.style.display = "block";
-            msgEl.textContent = "Creating TON transaction…";
+      msgEl.textContent = "Creating transaction…";
 
-            const txHash = await sendTonDeposit(amount);
+      const txHash = await sendTonDeposit(amount);
 
-            // submit to backend
-            msgEl.textContent = "Submitting deposit…";
+      msgEl.textContent = "Submitting deposit…";
 
-            const res = await fetch(BACKEND_URL + "/deposit/submit", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    user_id: window.currentUserData.id,
-                    amount: Number(amount.toFixed(2)),
-                    tx_musd: txHash,
-                    ref: window.currentRef || null
-                })
-            });
-
-            const j = await res.json();
-            if (!j.ok) throw new Error(j.error);
-
-            msgEl.textContent = "Deposit successful!";
-            amtInput.value = "";
-
-            
-        } catch (err) {
-            msgEl.style.display = "block";
-            msgEl.textContent = err.message;
+      const res = await fetch(
+        BACKEND_URL + "/debug/simulate_deposit",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-DEBUG-KEY": "48549630436fd1cb439e62b62e888b6c"
+          },
+          body: JSON.stringify({
+            user_id: window.currentUserData.id,
+            amount: Number(amount.toFixed(2)),
+            tx_musd: txHash
+          })
         }
+      );
 
-        submitBtn.disabled = false;
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Deposit failed");
 
-        
-    });
+      msgEl.textContent = "✅ Deposit successful!";
+      amtInput.value = "";
 
-    // ======================================================
-    // ADMIN MENU VISIBILITY
-    // ======================================================
-    updateAdminMenuVisibility();
+    } catch (err) {
+      msgEl.textContent = err.message;
+    }
 
-    // ======================================================
-    // MENU BUTTON
-    // ======================================================
-    document.getElementById("menuBtn")
-      .addEventListener("click", openMenu);
-};
+    submitBtn.disabled = false;
+  };
+
+}
+
+function initDashboardUI(userData) {
+  const ranks = computeRanks(userData);
+
+  // 🔹 render deposit UI
+  renderDepositPanel();
+
+  // 🔹 attach deposit logic
+  bindDepositLogic();
+
+  // 🔹 wallet connect
+  const connectBtn = document.getElementById("connectWalletBtn");
+  if (connectBtn) {
+    connectBtn.onclick = connectTonWallet;
+  }
+
+  updateAdminMenuVisibility();
+}
+
+function getDashboardSkeletonHTML() {
+  return `
+    <div class="deposit-header">
+      <button id="menuBtn" class="hamburger">☰</button>
+      <h2>MSTC Dashboard</h2>
+    </div>
+
+    <div class="stats">
+      Total Business: <span id="totalBusiness">0</span>
+    </div>
+
+    <input id="refLink" readonly />
+
+    <button id="connectWalletBtn">
+      Connect TON Wallet
+    </button>
+
+    <div id="depositSection"></div>
+  `;
+}
+ 
   // expose renderRegisteredView globally
   window.renderRegisteredView = renderRegisteredView;
 
@@ -1095,33 +1011,36 @@ amtInput.addEventListener("input", () => {
   }
 };
 
-  // --- YES / NO button handlers + init ---
-document.addEventListener('DOMContentLoaded', async () => {
-
-  // 🔹 Only CHECK status, do NOT auto-navigate
-  const data = await loadActivationStatus();
-
-  const yesBtn = document.getElementById('yesBtn');
-  const noBtn  = document.getElementById('noBtn');
-
-  if (data && data.ok && data.exists && data.user) {
-  document.getElementById("registerSection").style.display = "none";
-  await loadDashboardAfterRegister();
-  return;
+function showRegisterScreen() {
+  const reg = document.getElementById("registerSection");
+  if (reg) reg.style.display = "";
 }
 
-  // 🔹 New user → WAIT for YES
-  
-  if (noBtn) {
-    noBtn.onclick = () => {
-      app.innerHTML = `
-        <img src="${baseLogo}" class="logo" />
-        <div class="row big">❌ Registration Cancelled</div>
-      `;
-        
-      };
+  // --- YES / NO button handlers + init ---
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const data = await loadActivationStatus(); // calls /webapp/init
+
+    if (data?.ok && data.exists === true) {
+      // user already registered earlier
+      renderRegisteredView(
+        data.user.id,
+        data.user.first_name,
+        null,
+        data.user
+      );
+      return;
     }
-  });
+
+    // 👇 NEW USER — show YES / NO only
+    showRegisterScreen();
+
+  } catch (e) {
+    console.error("Init failed", e);
+    showRegisterScreen();
+  }
+});
+
 
   
 // ================= MENU EVENT DELEGATION =================
@@ -1494,59 +1413,39 @@ let REGISTER_RETRIES = 0;
 const MAX_REGISTER_RETRIES = 6;
 
 async function doRegister() {
-  console.log("🟢 doRegister() START");
-
-  const tg = Telegram.WebApp;
-  if (!tg || !tg.initData) {
-    alert("Please open from Telegram");
-    return;
-  }
-
   const yesBtn = document.getElementById("yesBtn");
-  yesBtn.disabled = true;
 
-  if (yesBtn) {
   yesBtn.disabled = true;
-  yesBtn.innerText = "⏳ Waking server...";
-}
+  yesBtn.innerText = "⏳ Registering...";
 
   try {
     const res = await fetch("/webapp/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData })
+      body: JSON.stringify({
+        initData: Telegram.WebApp.initData
+      })
     });
 
-    if (res.status === 503) {
-      REGISTER_RETRIES++;
+    const data = await res.json();
 
-      if (REGISTER_RETRIES >= MAX_REGISTER_RETRIES) {
-        yesBtn.disabled = false;
-        yesBtn.innerText = "Yes";
-        alert("Server is still starting. Please try again shortly.");
-        return;
-      }
-
-      setTimeout(() => {
-        yesBtn.innerText = "⏳ Still waking...";
-        doRegister();
-      }, 3000);
+    if (!data.ok) {
+      alert("Registration failed. Please try again.");
       return;
     }
 
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "Register failed");
-
-    REGISTER_RETRIES = 0;
-    yesBtn.innerText = "✅ Registered";
+    // ✅ SUCCESS → NOW open deposit panel
     await loadDashboardAfterRegister();
 
-  } catch (e) {
-    console.error("🔥 register error:", e);
+  } catch (err) {
+    console.error("Register failed", err);
+    alert("Network error. Please try again.");
+  } finally {
     yesBtn.disabled = false;
-    yesBtn.innerText = "Yes";
+    yesBtn.innerText = "YES";
   }
 }
+
 
 let DASHBOARD_RETRIES = 0;
 const MAX_DASHBOARD_RETRIES = 8;

@@ -54,18 +54,17 @@ db_warmed = False
 @app.before_request
 def warmup_db_once():
     global db_warmed
-
     if db_warmed:
         return
 
     try:
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         db_warmed = True
-        app.logger.info("DB warmed up successfully")
-    except Exception as e:
-        app.logger.warning("DB warmup failed, retrying later")
+        current_app.logger.info("DB warmed up")
+    except Exception:
+        current_app.logger.warning("DB warming up, retry later")
+
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -168,76 +167,6 @@ def link_referrer_if_needed(db, user: User, maybe_referrer_id: int | None):
     user.referrer_id = ref.id
     db.commit()
     db.refresh(user)
-
-def create_user_only(db, tg_user, ref_id=None):
-    """Create or update user.
-
-    tg_user expected to be dict with keys: id, username, first_name, last_name(optional)
-    """
-    if not isinstance(tg_user, dict):
-        raise ValueError(f"tg_user is not a dict: {tg_user!r}")
-
-    tg_id = tg_user.get("id")
-    if tg_id is None:
-        raise ValueError("Telegram user id missing")
-
-    username = tg_user.get("username")
-    first_name = tg_user.get("first_name")
-    last_name = tg_user.get("last_name")
-
-    # Prefer to lookup by primary key if your app uses id as telegram id
-    # Many parts of your code use User.id == telegram id; adjust if you use telegram_id column instead
-    user = db.get(User, int(tg_id)) if hasattr(User, 'id') else None
-
-    # Fallback: try telegram_id column
-    if user is None:
-        try:
-            user = db.query(User).filter_by(telegram_id=tg_id).first()
-        except Exception:
-            user = None
-
-    if user is None:
-        user = User(
-            id=int(tg_id),
-            telegram_id=int(tg_id) if hasattr(User, 'telegram_id') else None,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            created_at=datetime.utcnow(),
-            balance_mstc=0.0,
-            balance_musd=0.0,
-            active=True,
-            referrer_id=ref_id,
-            role="user",
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
-
-    # Existing user: update basic fields if changed
-    changed = False
-    if username and user.username != username:
-        user.username = username
-        changed = True
-    if first_name and user.first_name != first_name:
-        user.first_name = first_name
-        changed = True
-    if last_name and getattr(user, 'last_name', None) != last_name:
-        user.last_name = last_name
-        changed = True
-
-    # Only set referrer if currently None
-    if user.referrer_id is None and ref_id is not None:
-        user.referrer_id = ref_id
-        changed = True
-
-    if changed:
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    return user
 
 def get_uplines(db, user, max_levels=3):
     uplines = []
@@ -400,11 +329,7 @@ def webapp_me():
       
     db = SessionLocal()
     try:
-        user = (
-            db.query(User)
-            .filter(User.telegram_id == telegram_id)
-            .first()
-        )
+        user = db.query(User).filter(User.id == telegram_id).first()
 
         if not user:
             return jsonify({
@@ -448,7 +373,7 @@ def webapp_init():
     try:
         user = (
             db.query(User)
-            .filter(User.telegram_id == telegram_id)
+            .filter(User.id == telegram_id)
             .first()
         )
 
@@ -476,48 +401,49 @@ from sqlalchemy.exc import OperationalError
 
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
-    
     guard = require_db_ready()
     if guard:
         return guard
+
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
-    telegram_id, username, first_name, _ = verify_telegram_init_data(init_data)
+    telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
     if not telegram_id:
         return jsonify(ok=False, error="invalid_init_data"), 400
 
-    for attempt in range(1):
-        try:
-            db = SessionLocal()
+    ref_id = get_ref_from_payload(data)
+    if not ref_id and start_param and start_param.isdigit():
+        ref_id = int(start_param)
 
-            user = db.query(User).filter_by(telegram_id=telegram_id).first()
-            if user:
-                return jsonify(ok=True, exists=True)
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.id == telegram_id).first()
+        if existing:
+            return jsonify(ok=True, exists=True)
 
-            user = User(
-                id=telegram_id,
-                telegram_id=telegram_id,
-                username=username,
-                first_name=first_name,
-                role="member",
-                active=True
-            )
+        user = User(
+            id=telegram_id,
+            username=username,
+            first_name=first_name,
+            role="user",
+            active=True,
+            self_activated=False,
+            created_at=datetime.utcnow(),
+        )
 
-            db.add(user)
-            db.commit()
+        if ref_id and ref_id != telegram_id:
+            ref = db.query(User).filter(User.id == ref_id).first()
+            if ref:
+                user.referrer_id = ref.id
 
-            return jsonify(ok=True, created=True)
+        db.add(user)
+        db.commit()
 
-        except OperationalError as e:
-            db.rollback()
-            app.logger.warning("DB retry %s: %s", attempt + 1, e)
-            time.sleep(2)
-        finally:
-            db.close()
+        return jsonify(ok=True, created=True)
 
-    return jsonify(ok=False, error="db_unavailable_try_again"), 200
-
+    finally:
+        db.close()
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
@@ -540,7 +466,7 @@ def webapp_user():
     try:
         user = (
             db.query(User)
-            .filter(User.telegram_id == telegram_id)
+            .filter(User.id == telegram_id)
             .first()
         )
 
@@ -858,7 +784,7 @@ def save_wallet():
         if not telegram_id:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        user = db.query(User).filter_by(telegram_id=(telegram_id)).first()
+        user = db.query(User).filter(User.id == telegram_id).first()
         if not user:
             return jsonify({"ok": False, "error": "user_not_found"}), 404
 
@@ -876,66 +802,41 @@ def save_wallet():
 @app.post("/bot/start")
 def bot_start():
     data = request.get_json(silent=True) or {}
+
     tg_id = data.get("telegram_id")
-    username = data.get("username")
     first_name = data.get("first_name")
-    ref_code = data.get("ref_code")
+
     if not tg_id:
         return jsonify({"ok": False, "error": "missing_telegram_id"}), 400
+
     db = SessionLocal()
     try:
-        user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
-        is_new = False
-        changed = False
-        if not user:
-            is_new = True
-            user = User(
-                id=tg_id,
-                username=username or "",
-                first_name=first_name or "",
-                role="user",
-                self_activated=False,
-                balance_musd=0.0,
-                balance_mstc=0.0,
-            )
-            if ref_code:
-                try:
-                    user.referrer_id = int(ref_code)
-                except Exception:
-                    pass
-            db.add(user)
-            changed = True
-        else:
-            if ref_code and not getattr(user, "referrer_id", None):
-                try:
-                    user.referrer_id = int(ref_code)
-                    changed = True
-                except Exception:
-                    pass
-            if username and user.username != username:
-                user.username = username
-                changed = True
-            if first_name and user.first_name != first_name:
-                user.first_name = first_name
-                changed = True
-            if changed:
-                db.add(user)
-        if changed:
-            db.commit()
-            db.refresh(user)
-        if is_new:
-            message = f"Welcome {first_name or ''}! Tap below to open the MSTC deposit mini app."
-            button_label = "Register / Open Mini App"
-        else:
+        # 🔒 READ ONLY — NO CREATE HERE
+        user = (
+            db.query(User)
+            .filter(User.telegram_id == int(tg_id))
+            .first()
+        )
+
+        if user:
             message = f"Welcome back, {first_name or ''}! Tap below to continue."
             button_label = "Open Deposit Mini App"
-        webapp_url = f"{os.getenv('BASE_URL', 'https://mstcbotnew-production.up.railway.app')}/static/telegram_mini_app.html"
+        else:
+            message = f"Welcome {first_name or ''}! Tap below to register."
+            button_label = "Register / Open Mini App"
+
+        webapp_url = (
+            f"{os.getenv('BASE_URL', 'https://mstcbotnew-production.up.railway.app')}"
+            "/static/telegram_mini_app.html"
+        )
+
         return jsonify({
             "ok": True,
             "message": message,
             "button_label": button_label,
             "webapp_url": webapp_url,
         })
+
     finally:
         db.close()
 
@@ -1260,7 +1161,7 @@ def debug_simulate_deposit():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.telegram_id == tg_id).first()
+        user = db.query(User).filter(User.id == tg_id).first()
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
