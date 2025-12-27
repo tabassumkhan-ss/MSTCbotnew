@@ -1591,7 +1591,7 @@ async function doRegister() {
   try {
     console.log("➡️ Sending /webapp/register");
 
-    const res = await fetch("/webapp/register", {
+    const res = await fetch(BACKEND_URL +"/webapp/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ initData: tg.initData })
@@ -1602,19 +1602,26 @@ async function doRegister() {
     const data = await res.json();
     console.log("📦 register JSON:", data);
 
-    if (!data.ok) {
-      console.error("❌ Register failed");
-      alert("Register failed");
-      return;
-    }
+    if (data.error === "db_warming_up_try_again") {
+  console.warn("⏳ DB warming up, retrying…");
+  await new Promise(r => setTimeout(r, 1500));
+  return doRegister();
+}
+
+if (!data.ok) {
+  alert("Register failed");
+  return;
+}
+
 
     console.log("✅ Register OK → calling loadDashboardAfterRegister()");
     await loadDashboardAfterRegister();
 
   } catch (e) {
-    console.error("🔥 doRegister crash:", e);
-    alert("Network error");
-  }
+  console.error("🔥 NETWORK ERROR (register):", e, e?.message);
+  alert("Network error – server waking up, please tap YES again");
+}
+
 }
 
 
@@ -1622,7 +1629,7 @@ async function loadDashboardAfterRegister() {
   console.log("🟢 loadDashboardAfterRegister() START");
 
   try {
-    const res = await fetch("/webapp/init", {
+    const res = await fetch(BACKEND_URL +"/webapp/init", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
