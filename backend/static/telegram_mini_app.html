@@ -1010,14 +1010,17 @@ function bindDepositLogic() {
 function initDashboardUI(userData) {
   const ranks = computeRanks(userData);
 
-  // 🔹 render deposit UI
-  renderDepositPanel();
+  // 🔹 User profile (avatar + name + id)
+renderUserHeader(userData);
 
-  // 🔹 attach deposit logic
-  bindDepositLogic();
+// 🔹 Deposit
+renderDepositPanel();
+bindDepositLogic();
 
-  renderRankPanel(userData);
-  bindRankLogic(userData);
+// 🔹 Rank UI
+renderRankPanel(userData);
+bindRankLogic(userData);
+
 
   // 🔹 wallet connect
   const connectBtn = document.getElementById("connectWalletBtn");
@@ -1547,6 +1550,44 @@ async function doRegister() {
       active_origin_count: 0
     }
   );
+
+  function renderUserHeader(userData) {
+  const avatar =
+    userData.photo_url ||
+    Telegram.WebApp?.initDataUnsafe?.user?.photo_url ||
+    baseLogo;
+
+  const name =
+    userData.first_name ||
+    Telegram.WebApp?.initDataUnsafe?.user?.first_name ||
+    "User";
+
+  const username =
+    userData.username ||
+    Telegram.WebApp?.initDataUnsafe?.user?.username ||
+    null;
+
+  const tgId =
+    userData.id ||
+    Telegram.WebApp?.initDataUnsafe?.user?.id ||
+    "";
+
+  document.getElementById("app").insertAdjacentHTML("beforeend", `
+    <div class="user-header">
+      <img src="${avatar}" class="logo glow" />
+
+      <div class="row big">
+        ${name}
+        ${username ? `<span class="mini"> @${username}</span>` : ""}
+      </div>
+
+      <div class="row mini">
+        Telegram ID: <span class="mono">${tgId}</span>
+      </div>
+    </div>
+  `);
+}
+
 
   // 3️⃣ Fire registration in background (DON’T BLOCK UI)
   fetch("/webapp/register", {
