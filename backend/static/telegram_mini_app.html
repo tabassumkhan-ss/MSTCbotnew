@@ -841,6 +841,100 @@ function renderDepositPanel() {
   `;
 }
 
+function renderRankPanel(userData) {
+  const ranks = computeRanks(userData);
+
+  document.getElementById("depositSection").insertAdjacentHTML("afterend", `
+    <div class="rank-panel">
+
+      <div class="rank-header">
+        <div class="rank-header-title">🏅 Your Rank & Levels</div>
+        <div class="rank-current-label">
+          Current: <b>${ranks.current}</b>
+        </div>
+      </div>
+
+      <div class="rank-tabs">
+
+        <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
+          <span class="rank-name">Origin</span>
+        </button>
+
+        <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
+          <span class="rank-name">Life Changer</span>
+        </button>
+
+        <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
+          <span class="rank-name">Advisor</span>
+        </button>
+
+        <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
+          <span class="rank-name">Visionary</span>
+        </button>
+
+        <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
+          <span class="rank-name">Creator</span>
+        </button>
+
+      </div>
+
+      <div id="rankDetails" class="rank-details"></div>
+
+    </div>
+  `);
+}
+
+function bindRankLogic(userData) {
+  const details = document.getElementById("rankDetails");
+  if (!details) return;
+
+  document.querySelectorAll(".rank-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".rank-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const rank = btn.dataset.rank;
+
+      const info = {
+        origin: `
+          <b>Origin</b>
+          <ul>
+            <li>Activate by depositing $20</li>
+            <li>Eligible for team rewards</li>
+          </ul>
+        `,
+        life_changer: `
+          <b>Life Changer</b>
+          <ul>
+            <li>$1000 total team business</li>
+            <li>10 active Origins</li>
+          </ul>
+        `,
+        advisor: `
+          <b>Advisor</b>
+          <ul>
+            <li>$5000 total team business</li>
+          </ul>
+        `,
+        visionary: `
+          <b>Visionary</b>
+          <ul>
+            <li>$25,000 total team business</li>
+          </ul>
+        `,
+        creator: `
+          <b>Creator</b>
+          <ul>
+            <li>$100,000 total team business</li>
+          </ul>
+        `
+      };
+
+      details.innerHTML = info[rank] || "";
+    });
+  });
+}
+
 
 function bindDepositLogic() {
   const submitBtn = document.getElementById("submitDeposit");
@@ -921,6 +1015,9 @@ function initDashboardUI(userData) {
 
   // 🔹 attach deposit logic
   bindDepositLogic();
+
+  renderRankPanel(userData);
+  bindRankLogic(userData);
 
   // 🔹 wallet connect
   const connectBtn = document.getElementById("connectWalletBtn");
