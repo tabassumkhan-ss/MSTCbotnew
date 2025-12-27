@@ -18,24 +18,16 @@ from sqlalchemy.exc import OperationalError
 # local imports
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
-def db_is_ready():
+    
+def require_db_ready():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return True
-    except Exception as e:
-        # logger may not exist yet, use print as fallback
-        try:
-            logging.getLogger(__name__).warning("db_is_ready failed: %s", e)
-        except Exception:
-            print("db_is_ready failed:", e)
-        return False
-    
-def require_db_ready():
-    if not db_is_ready():
+        return None
+    except Exception:
         current_app.logger.warning("DB warming up, ask client to retry")
         return jsonify(ok=False, error="db_warming_up_try_again"), 503
-    return None
+
 
 
 # -------------------------
@@ -62,6 +54,15 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/health", methods=["GET"])
+def health():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"ok": True, "db": "ready"}
+    except Exception:
+        return {"ok": False, "db": "warming"}, 503
+
 # show only first 6 chars of DEBUG_KEY to confirm it's present (do not leak secret)
 _debug_key = os.getenv("DEBUG_KEY") or app.config.get("DEBUG_KEY")
 if _debug_key:
@@ -81,19 +82,7 @@ try:
 except Exception:
     app.logger.exception("Could not read engine.url")
 
-# Initialize DB metadata (no destructive migrations)
-# Initialize DB metadata (safe for Railway)
-try:
-    init_db()
-
-    if os.getenv("RAILWAY_ENVIRONMENT"):
-        app.logger.info("Skipping create_all on Railway")
-    else:
-        Base.metadata.create_all(bind=engine)
-        app.logger.info("DB create_all executed (non-Railway)")
-
-except Exception as e:
-    app.logger.error("DB init failed, continuing without crash: %s", e)
+app.logger.info("DB initialization skipped at startup (Railway-safe)")
 
 app.logger.info("Flask CWD: %s", os.getcwd())
 app.logger.info("Flask DB URL: %s", engine.url)
@@ -442,11 +431,7 @@ def webapp_init():
     if not telegram_id:
         return jsonify(ok=False, error="invalid_telegram_user"), 400
 
-    # 🚨 ABSOLUTELY NO DB TOUCH BEFORE THIS
-    if not db_is_ready():
-        app.logger.warning("DB warming up, ask client to retry")
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     db = SessionLocal()
     try:
         user = (
@@ -515,7 +500,7 @@ def webapp_register():
         except OperationalError as e:
             db.rollback()
             app.logger.warning("DB retry %s: %s", attempt + 1, e)
-            
+            time.sleep(2)
         finally:
             db.close()
 
