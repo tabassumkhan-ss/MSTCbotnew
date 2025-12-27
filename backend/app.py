@@ -81,6 +81,20 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # -------------------------
 # Helpers
 # -------------------------
+def db_is_ready():
+    """
+    Lightweight DB readiness check.
+    Returns True if DB accepts connections, False if cold/asleep.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as e:
+        app.logger.warning("db_is_ready failed: %s", e)
+        return False
+
+
 def require_db_ready():
     if not db_is_ready():
         app.logger.warning("DB warming up, ask client to retry")
