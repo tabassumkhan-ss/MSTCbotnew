@@ -822,13 +822,7 @@ function renderDepositPanel() {
       <h3>💳 Deposit</h3>
 
       <label>Enter Amount (USD)</label>
-      <input
-        id="amt"
-        type="number"
-        min="20"
-        step="0.01"
-        placeholder="Minimum $20"
-      />
+      <input id="amt" type="number" min="20" placeholder="Minimum $20" />
 
       <div class="submit">
         <button class="btn secondary" id="submitDeposit">
@@ -836,7 +830,7 @@ function renderDepositPanel() {
         </button>
       </div>
 
-      <div id="submitMsg" class="ok" style="display:none;"></div>
+      <div id="submitMsg" class="mini"></div>
     </div>
   `;
 }
@@ -844,7 +838,7 @@ function renderDepositPanel() {
 function renderRankPanel(userData) {
   const ranks = computeRanks(userData);
 
-  document.getElementById("depositSection").insertAdjacentHTML("afterend", `
+  document.getElementById("rankSection").innerHTML = `
     <div class="rank-panel">
 
       <div class="rank-header">
@@ -855,34 +849,18 @@ function renderRankPanel(userData) {
       </div>
 
       <div class="rank-tabs">
-
-        <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">
-          <span class="rank-name">Origin</span>
-        </button>
-
-        <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">
-          <span class="rank-name">Life Changer</span>
-        </button>
-
-        <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">
-          <span class="rank-name">Advisor</span>
-        </button>
-
-        <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">
-          <span class="rank-name">Visionary</span>
-        </button>
-
-        <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">
-          <span class="rank-name">Creator</span>
-        </button>
-
+        <button class="rank-tab ${ranks.isOrigin ? 'achieved' : 'locked'}" data-rank="origin">Origin</button>
+        <button class="rank-tab ${ranks.isLifeChanger ? 'achieved' : 'locked'}" data-rank="life_changer">Life Changer</button>
+        <button class="rank-tab ${ranks.isAdvisor ? 'achieved' : 'locked'}" data-rank="advisor">Advisor</button>
+        <button class="rank-tab ${ranks.isVisionary ? 'achieved' : 'locked'}" data-rank="visionary">Visionary</button>
+        <button class="rank-tab ${ranks.isCreator ? 'achieved' : 'locked'}" data-rank="creator">Creator</button>
       </div>
 
       <div id="rankDetails" class="rank-details"></div>
-
     </div>
-  `);
+  `;
 }
+
 
 function bindRankLogic(userData) {
   const details = document.getElementById("rankDetails");
@@ -1008,25 +986,16 @@ function bindDepositLogic() {
 }
 
 function initDashboardUI(userData) {
-  const ranks = computeRanks(userData);
+  // Avatar + name + id
+  renderUserHeader(userData);
 
-  // 🔹 User profile (avatar + name + id)
-renderUserHeader(userData);
+  // Deposit
+  renderDepositPanel();
+  bindDepositLogic();
 
-// 🔹 Deposit
-renderDepositPanel();
-bindDepositLogic();
-
-// 🔹 Rank UI
-renderRankPanel(userData);
-bindRankLogic(userData);
-
-
-  // 🔹 wallet connect
-  const connectBtn = document.getElementById("connectWalletBtn");
-  if (connectBtn) {
-    connectBtn.onclick = connectTonWallet;
-  }
+  // Rank
+  renderRankPanel(userData);
+  bindRankLogic(userData);
 
   updateAdminMenuVisibility();
 }
@@ -1035,20 +1004,17 @@ function getDashboardSkeletonHTML() {
   return `
     <div class="deposit-header">
       <button id="menuBtn" class="hamburger">☰</button>
-      <h2>MSTC Dashboard</h2>
+      <div class="deposit-title">MSTC Dashboard</div>
     </div>
 
-    <div class="stats">
-      Total Business: <span id="totalBusiness">0</span>
-    </div>
+    <!-- USER HEADER -->
+    <div id="userHeader"></div>
 
-    <input id="refLink" readonly />
-
-    <button id="connectWalletBtn">
-      Connect TON Wallet
-    </button>
-
+    <!-- DEPOSIT -->
     <div id="depositSection"></div>
+
+    <!-- RANK -->
+    <div id="rankSection"></div>
   `;
 }
  
@@ -1552,27 +1518,29 @@ async function doRegister() {
   );
 
   function renderUserHeader(userData) {
+  const tgUser = Telegram.WebApp?.initDataUnsafe?.user || {};
+
   const avatar =
     userData.photo_url ||
-    Telegram.WebApp?.initDataUnsafe?.user?.photo_url ||
+    tgUser.photo_url ||
     baseLogo;
 
   const name =
     userData.first_name ||
-    Telegram.WebApp?.initDataUnsafe?.user?.first_name ||
+    tgUser.first_name ||
     "User";
 
   const username =
     userData.username ||
-    Telegram.WebApp?.initDataUnsafe?.user?.username ||
+    tgUser.username ||
     null;
 
   const tgId =
     userData.id ||
-    Telegram.WebApp?.initDataUnsafe?.user?.id ||
+    tgUser.id ||
     "";
 
-  document.getElementById("app").insertAdjacentHTML("beforeend", `
+  document.getElementById("userHeader").innerHTML = `
     <div class="user-header">
       <img src="${avatar}" class="logo glow" />
 
@@ -1585,9 +1553,8 @@ async function doRegister() {
         Telegram ID: <span class="mono">${tgId}</span>
       </div>
     </div>
-  `);
+  `;
 }
-
 
   // 3️⃣ Fire registration in background (DON’T BLOCK UI)
   fetch("/webapp/register", {
