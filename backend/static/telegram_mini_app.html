@@ -985,15 +985,56 @@ function bindDepositLogic() {
 
 }
 
+function renderUserHeader(userData) {
+  const tgUser = Telegram.WebApp?.initDataUnsafe?.user || {};
+
+  const avatar =
+    userData.photo_url ||
+    tgUser.photo_url ||
+    baseLogo;
+
+  const name =
+    userData.first_name ||
+    tgUser.first_name ||
+    "User";
+
+  const username =
+    userData.username ||
+    tgUser.username ||
+    null;
+
+  const tgId =
+    userData.id ||
+    tgUser.id ||
+    "";
+
+  document.getElementById("userHeader").innerHTML = `
+    <div class="user-header">
+      <img src="${avatar}" class="logo glow" />
+
+      <div class="row big">
+        ${name}
+        ${username ? `<span class="mini"> @${username}</span>` : ""}
+      </div>
+
+      <div class="row mini">
+        Telegram ID: <span class="mono">${tgId}</span>
+      </div>
+    </div>
+  `;
+}
+
+
 function initDashboardUI(userData) {
-  // Avatar + name + id
+
+  // 🟢 USER HEADER (avatar, name, id)
   renderUserHeader(userData);
 
-  // Deposit
+  // 🟢 DEPOSIT
   renderDepositPanel();
   bindDepositLogic();
 
-  // Rank
+  // 🟢 RANK
   renderRankPanel(userData);
   bindRankLogic(userData);
 
@@ -1490,16 +1531,14 @@ async function doRegister() {
   const yesBtn = document.getElementById("yesBtn");
   yesBtn.disabled = true;
 
-  // 1️⃣ Get user info directly from Telegram (no backend)
   const tgUser = Telegram.WebApp.initDataUnsafe?.user;
-
   if (!tgUser) {
     alert("Telegram user not available");
     yesBtn.disabled = false;
     return;
   }
 
-  // 2️⃣ OPEN DEPOSIT PANEL IMMEDIATELY
+  // 🔥 OPEN DASHBOARD IMMEDIATELY
   renderRegisteredView(
     tgUser.id,
     tgUser.first_name,
@@ -1508,6 +1547,7 @@ async function doRegister() {
       id: tgUser.id,
       first_name: tgUser.first_name,
       username: tgUser.username,
+      photo_url: tgUser.photo_url,
       role: "member",
       self_activated: false,
       balance_musd: 0,
@@ -1517,55 +1557,12 @@ async function doRegister() {
     }
   );
 
-  function renderUserHeader(userData) {
-  const tgUser = Telegram.WebApp?.initDataUnsafe?.user || {};
-
-  const avatar =
-    userData.photo_url ||
-    tgUser.photo_url ||
-    baseLogo;
-
-  const name =
-    userData.first_name ||
-    tgUser.first_name ||
-    "User";
-
-  const username =
-    userData.username ||
-    tgUser.username ||
-    null;
-
-  const tgId =
-    userData.id ||
-    tgUser.id ||
-    "";
-
-  document.getElementById("userHeader").innerHTML = `
-    <div class="user-header">
-      <img src="${avatar}" class="logo glow" />
-
-      <div class="row big">
-        ${name}
-        ${username ? `<span class="mini"> @${username}</span>` : ""}
-      </div>
-
-      <div class="row mini">
-        Telegram ID: <span class="mono">${tgId}</span>
-      </div>
-    </div>
-  `;
-}
-
-  // 3️⃣ Fire registration in background (DON’T BLOCK UI)
+  // 🔄 BACKGROUND REGISTER (NON-BLOCKING)
   fetch("/webapp/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      initData: Telegram.WebApp.initData
-    })
-  }).catch(err => {
-    console.warn("Registration deferred (DB warming)", err);
-  });
+    body: JSON.stringify({ initData: Telegram.WebApp.initData })
+  }).catch(() => {});
 }
 
 
