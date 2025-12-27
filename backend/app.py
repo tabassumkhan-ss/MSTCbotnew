@@ -20,15 +20,10 @@ from backend.models import Base, engine, SessionLocal, User, Transaction, Referr
 
     
 def require_db_ready():
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return None
-    except Exception:
+    if not db_warmed:
         current_app.logger.warning("DB warming up, ask client to retry")
         return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
-
+    return None
 
 # -------------------------
 # Load environment & logging
@@ -53,6 +48,24 @@ logger.info(
 # -------------------------
 app = Flask(__name__)
 CORS(app)
+
+db_warmed = False
+
+@app.before_request
+def warmup_db_once():
+    global db_warmed
+
+    if db_warmed:
+        return
+
+    try:
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        db_warmed = True
+        app.logger.info("DB warmed up successfully")
+    except Exception as e:
+        app.logger.warning("DB warmup failed, retrying later")
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -81,16 +94,6 @@ try:
         app.logger.info("Flask DB URL: %s", db_url)
 except Exception:
     app.logger.exception("Could not read engine.url")
-
-@app.before_first_request
-def warmup_db():
-    try:
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
-        logger.info("DB warmed up successfully")
-    except Exception as e:
-        logger.warning("DB warmup failed, will retry on request")
 
 
 app.logger.info("Flask CWD: %s", os.getcwd())
@@ -189,7 +192,7 @@ def create_user_only(db, tg_user, ref_id=None):
     # Fallback: try telegram_id column
     if user is None:
         try:
-            user = db.query(User).filter_by(telegram_id=str(tg_id)).first()
+            user = db.query(User).filter_by(telegram_id=tg_id).first()
         except Exception:
             user = None
 
@@ -855,7 +858,7 @@ def save_wallet():
         if not telegram_id:
             return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        user = db.query(User).filter_by(telegram_id=str(telegram_id)).first()
+        user = db.query(User).filter_by(telegram_id=(telegram_id)).first()
         if not user:
             return jsonify({"ok": False, "error": "user_not_found"}), 404
 
