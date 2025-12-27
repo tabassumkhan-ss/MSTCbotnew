@@ -82,7 +82,16 @@ try:
 except Exception:
     app.logger.exception("Could not read engine.url")
 
-app.logger.info("DB initialization skipped at startup (Railway-safe)")
+@app.before_first_request
+def warmup_db():
+    try:
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        logger.info("DB warmed up successfully")
+    except Exception as e:
+        logger.warning("DB warmup failed, will retry on request")
+
 
 app.logger.info("Flask CWD: %s", os.getcwd())
 app.logger.info("Flask DB URL: %s", engine.url)
