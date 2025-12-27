@@ -401,49 +401,52 @@ from sqlalchemy.exc import OperationalError
 
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    data = request.get_json(silent=True) or {}
-    init_data = data.get("initData")
-
-    telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
-    if not telegram_id:
-        return jsonify(ok=False, error="invalid_init_data"), 400
-
-    ref_id = get_ref_from_payload(data)
-    if not ref_id and start_param and start_param.isdigit():
-        ref_id = int(start_param)
-
     db = SessionLocal()
     try:
-        existing = db.query(User).filter(User.id == telegram_id).first()
-        if existing:
-            return jsonify(ok=True, exists=True)
+        data = request.get_json() or {}
+        init_data = data.get("initData")
 
-        user = User(
-            id=telegram_id,
-            username=username,
-            first_name=first_name,
-            role="user",
-            active=True,
-            self_activated=False,
-            created_at=datetime.utcnow(),
-        )
+        if not init_data:
+            return jsonify({"ok": False, "error": "missing_init_data"}), 400
 
-        if ref_id and ref_id != telegram_id:
-            ref = db.query(User).filter(User.id == ref_id).first()
-            if ref:
-                user.referrer_id = ref.id
+        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
 
-        db.add(user)
-        db.commit()
+        if not uid:
+            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
 
-        return jsonify(ok=True, created=True)
+        tg_user = {
+            "id": uid,
+            "username": username,
+            "first_name": first_name,
+        }
+
+        user = get_or_create_user(db, tg_user)
+
+        return jsonify({
+            "ok": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "username": user.username,
+                "role": user.role,
+                "self_activated": user.self_activated,
+            }
+        })
+
+    except OperationalError:
+        # 🚨 THIS IS THE MOST IMPORTANT PART
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
+    except Exception as e:
+        logging.exception("register failed")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
     finally:
         db.close()
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():

@@ -1416,34 +1416,49 @@ async function doRegister() {
   const yesBtn = document.getElementById("yesBtn");
 
   yesBtn.disabled = true;
-  yesBtn.innerText = "⏳ Registering...";
+  yesBtn.innerText = "⏳ Waking server...";
 
-  try {
-    const res = await fetch("/webapp/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        initData: Telegram.WebApp.initData
-      })
-    });
+  let attempts = 0;
+  const MAX_ATTEMPTS = 8;
 
-    const data = await res.json();
+  while (attempts < MAX_ATTEMPTS) {
+    try {
+      attempts++;
 
-    if (!data.ok) {
-      alert("Registration failed. Please try again.");
+      const res = await fetch(BACKEND_URL + "/webapp/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          initData: Telegram.WebApp.initData
+        })
+      });
+
+      // 🟡 DB still waking → retry silently
+      if (res.status === 503) {
+        console.warn("⏳ DB warming, retrying register...");
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "register_failed");
+      }
+
+      // ✅ SUCCESS → load dashboard
+      await loadDashboardAfterRegister();
       return;
+
+    } catch (e) {
+      console.error("Register attempt failed", e);
+      await new Promise(r => setTimeout(r, 2000));
     }
-
-    // ✅ SUCCESS → NOW open deposit panel
-    await loadDashboardAfterRegister();
-
-  } catch (err) {
-    console.error("Register failed", err);
-    alert("Network error. Please try again.");
-  } finally {
-    yesBtn.disabled = false;
-    yesBtn.innerText = "YES";
   }
+
+  alert("Server is starting. Please reopen the app.");
+  yesBtn.disabled = false;
+  yesBtn.innerText = "YES";
 }
 
 
