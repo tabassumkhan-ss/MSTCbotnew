@@ -42,14 +42,6 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
-def is_db_available(db):
-    try:
-        db.execute(text("SELECT 1"))
-        return True
-    except OperationalError as e:
-        current_app.logger.error("DB not available: %s", e)
-        return False
-
 @app.route("/health", methods=["GET"])
 def health():
     try:
@@ -438,45 +430,21 @@ def webapp_user():
 
     telegram_id, _, _, _ = verify_telegram_init_data(init_data)
     if not telegram_id:
-        return jsonify({
-            "ok": False,
-            "error": "invalid_init_data"
-        }), 400
+        return jsonify(ok=False, error="invalid_init_data"), 400
 
     db = SessionLocal()
     try:
-        # 🔥 DB availability check
-        if not is_db_available(db):
-            return jsonify({
-                "ok": False,
-                "error": "db_warming_up_try_again"
-            }), 503
-
-        user = (
-            db.query(User)
-            .filter(User.id == telegram_id)
-            .first()
-        )
+        user = db.query(User).filter(User.id == telegram_id).first()
 
         if not user:
-            return jsonify({
-                "ok": False,
-                "error": "user_not_found"
-            }), 404
+            return jsonify(ok=False, error="user_not_found"), 404
 
-        # ✅ ADMIN CHECK VIA ENV
         admin_ids = os.getenv("ADMIN_TELEGRAM_IDS", "")
-        admin_set = {
-            int(x.strip())
-            for x in admin_ids.split(",")
-            if x.strip().isdigit()
-        }
+        admin_set = {int(x) for x in admin_ids.split(",") if x.isdigit()}
 
-        is_admin = telegram_id in admin_set
-
-        return jsonify({
-            "ok": True,
-            "user": {
+        return jsonify(
+            ok=True,
+            user={
                 "id": user.id,
                 "role": user.role,
                 "self_activated": bool(user.self_activated),
@@ -484,17 +452,12 @@ def webapp_user():
                 "active_origin_count": int(user.active_origin_count or 0),
                 "username": user.username,
                 "first_name": user.first_name,
-                "is_admin": is_admin
+                "is_admin": telegram_id in admin_set,
             }
-        })
-
+        )
     except OperationalError:
-        current_app.logger.warning("DB error in /webapp/user")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 503
-
+        # optional: friendly message
+        return jsonify(ok=False, error="db_waking_up_retry"), 503
     finally:
         db.close()
 
