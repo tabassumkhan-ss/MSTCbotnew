@@ -49,31 +49,12 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
-db_warmed = False
-
-@app.before_request
-def warmup_db_once():
-    global db_warmed
-    if db_warmed:
-        return
-
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        db_warmed = True
-        current_app.logger.info("DB warmed up")
-    except Exception:
-        current_app.logger.warning("DB warming up, retry later")
+db_warmed = True
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return {"ok": True, "db": "ready"}
-    except Exception:
-        return {"ok": False, "db": "warming"}, 503
+   return {"ok": False, "db": "warming"}, 503
 
 # show only first 6 chars of DEBUG_KEY to confirm it's present (do not leak secret)
 _debug_key = os.getenv("DEBUG_KEY") or app.config.get("DEBUG_KEY")
