@@ -42,32 +42,16 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
-def is_db_available(db):
-    try:
-        db.execute(text("SELECT 1"))
-        return True
-    except OperationalError:
-        return False
-
-
-def require_db(db):
-    if not is_db_available(db):
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-    return None
-
 @app.route("/health", methods=["GET"])
 def health():
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         db.execute(text("SELECT 1"))
-        return {"ok": True, "db": "up"}, 200
-    except Exception:
-        return {"ok": True, "db": "sleeping"}, 200
+        return jsonify(ok=True, db="up"), 200
+    except OperationalError:
+        return jsonify(ok=False, db="sleeping"), 503
     finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+        db.close()
 
 
 
@@ -97,36 +81,33 @@ app.logger.info("Flask DB URL: %s", engine.url)
 # -------------------------
 # Helpers
 # -------------------------
-def get_or_create_user(db, tg_user, ref_id=None):
+def get_or_create_user(db, tg_user: dict):
     """
-    Canonical user creator.
-    User.id == Telegram ID (single source of truth)
+    Create user if not exists.
+    tg_user = {id, first_name, username}
     """
-    tg_id = int(tg_user["id"])
-
-    user = db.query(User).filter(User.id == tg_id).first()
+    user = db.query(User).filter(User.id == tg_user["id"]).first()
 
     if user:
         return user
 
     user = User(
-        id=tg_id,
-        username=tg_user.get("username"),
+        id=tg_user["id"],
         first_name=tg_user.get("first_name"),
+        username=tg_user.get("username"),
         role="user",
         self_activated=False,
         balance_musd=0.0,
         balance_mstc=0.0,
+        total_team_business=0.0,
+        active_origin_count=0,
         created_at=datetime.utcnow(),
-        referrer_id=ref_id
     )
 
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
-
-
 
 @app.route("/debug/routes", methods=["GET"])
 def debug_routes():
@@ -421,19 +402,20 @@ def webapp_register():
     if not init_data:
         return jsonify(ok=False, error="missing_init_data"), 400
 
-    uid, username, first_name, start_param = verify_telegram_init_data(init_data)
+    uid, username, first_name, _ = verify_telegram_init_data(init_data)
     if not uid:
         return jsonify(ok=False, error="invalid_init_data"), 400
 
-    tg_user = {
-        "id": uid,
-        "username": username,
-        "first_name": first_name,
-    }
-
     db = SessionLocal()
     try:
-        user = get_or_create_user(db, tg_user)
+        user = get_or_create_user(
+            db,
+            {
+                "id": uid,
+                "username": username,
+                "first_name": first_name,
+            }
+        )
 
         return jsonify(
             ok=True,
@@ -443,16 +425,15 @@ def webapp_register():
                 "username": user.username,
                 "role": user.role,
                 "self_activated": user.self_activated,
-            }
+            },
         )
 
-    except Exception:
+    except Exception as e:
         current_app.logger.exception("register failed")
         return jsonify(ok=False, error="server_error"), 500
 
     finally:
         db.close()
-
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
