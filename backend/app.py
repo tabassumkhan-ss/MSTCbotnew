@@ -311,8 +311,8 @@ def home():
 
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
-    data = request.get_json(silent=True) or {}
-    init_data = data.get("initData")
+    payload = request.get_json(silent=True) or {}
+    init_data = payload.get("initData")
 
     telegram_id, _, _, _ = verify_telegram_init_data(init_data)
     if not telegram_id:
@@ -335,11 +335,12 @@ def webapp_me():
                 "balance_mstc": float(user.balance_mstc or 0),
                 "balance_musd": float(user.balance_musd or 0),
                 "referrer_id": user.referrer_id,
-                "self_activated": bool(user.self_activated),
             }
         )
+
     finally:
         db.close()
+
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
@@ -351,19 +352,14 @@ def webapp_init():
 
     telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
     if not telegram_id:
-        return jsonify(ok=False, error="invalid_init_data"), 400
+        return jsonify(ok=False, error="invalid_telegram_user"), 400
 
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == telegram_id).first()
 
         if not user:
-            # ❗ IMPORTANT: do NOT create user here
-            return jsonify(
-                ok=True,
-                exists=False,
-                referrer=start_param  # optional, frontend can store this
-            )
+            return jsonify(ok=True, exists=False)
 
         return jsonify(
             ok=True,
@@ -376,10 +372,12 @@ def webapp_init():
                 "self_activated": bool(user.self_activated),
                 "total_team_business": float(user.total_team_business or 0),
                 "active_origin_count": int(user.active_origin_count or 0),
-            }
+            },
         )
+
     finally:
         db.close()
+
 
 
 from sqlalchemy.exc import OperationalError
@@ -392,38 +390,19 @@ def webapp_register():
     if not init_data:
         return jsonify(ok=False, error="missing_init_data"), 400
 
-    telegram_id, username, first_name, start_param = verify_telegram_init_data(init_data)
-    if not telegram_id:
+    uid, username, first_name, _ = verify_telegram_init_data(init_data)
+    if not uid:
         return jsonify(ok=False, error="invalid_init_data"), 400
+
+    tg_user = {
+        "id": uid,
+        "username": username,
+        "first_name": first_name,
+    }
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.id == telegram_id).first()
-
-        if not user:
-            user = User(
-                id=telegram_id,
-                username=username,
-                first_name=first_name,
-                role="user",
-                self_activated=False,
-                created_at=datetime.utcnow(),
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-            # Optional referral linking
-            if start_param:
-                try:
-                    ref_id = int(start_param)
-                    if ref_id != user.id:
-                        ref = db.query(User).filter(User.id == ref_id).first()
-                        if ref:
-                            user.referrer_id = ref.id
-                            db.commit()
-                except ValueError:
-                    pass
+        user = get_or_create_user(db, tg_user)
 
         return jsonify(
             ok=True,
@@ -435,6 +414,11 @@ def webapp_register():
                 "self_activated": bool(user.self_activated),
             }
         )
+
+    except Exception:
+        current_app.logger.exception("webapp_register failed")
+        return jsonify(ok=False, error="server_error"), 500
+
     finally:
         db.close()
 
