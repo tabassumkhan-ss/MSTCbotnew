@@ -18,13 +18,6 @@ from sqlalchemy.exc import OperationalError
 # local imports
 from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
-    
-def require_db_ready():
-    if not db_warmed:
-        current_app.logger.warning("DB warming up, ask client to retry")
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-    return None
-
 # -------------------------
 # Load environment & logging
 # -------------------------
@@ -49,12 +42,29 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
-db_warmed = True
-
+def is_db_available(db):
+    try:
+        db.execute(text("SELECT 1"))
+        return True
+    except OperationalError as e:
+        current_app.logger.error("DB not available: %s", e)
+        return False
 
 @app.route("/health", methods=["GET"])
 def health():
-   return {"ok": False, "db": "warming"}, 503
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        return {"ok": True, "db": "up"}, 200
+    except Exception:
+        return {"ok": True, "db": "sleeping"}, 200
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 
 # show only first 6 chars of DEBUG_KEY to confirm it's present (do not leak secret)
 _debug_key = os.getenv("DEBUG_KEY") or app.config.get("DEBUG_KEY")
@@ -297,9 +307,7 @@ def home():
 @app.route("/webapp/me", methods=["POST"])
 def webapp_me():
     
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     payload = request.get_json(silent=True) or {}
     init_data = payload.get("initData")
 
@@ -336,9 +344,7 @@ def webapp_me():
 
 @app.route("/webapp/init", methods=["POST"])
 def webapp_init():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
@@ -382,48 +388,44 @@ from sqlalchemy.exc import OperationalError
 
 @app.route("/webapp/register", methods=["POST"])
 def webapp_register():
+    data = request.get_json(silent=True) or {}
+    init_data = data.get("initData")
+
+    if not init_data:
+        return jsonify(ok=False, error="missing_init_data"), 400
+
+    uid, username, first_name, _ = verify_telegram_init_data(init_data)
+    if not uid:
+        return jsonify(ok=False, error="invalid_init_data"), 400
+
+    tg_user = {
+        "id": uid,
+        "username": username,
+        "first_name": first_name,
+    }
+
     db = SessionLocal()
     try:
-        data = request.get_json() or {}
-        init_data = data.get("initData")
-
-        if not init_data:
-            return jsonify({"ok": False, "error": "missing_init_data"}), 400
-
-        uid, username, first_name, start_param = verify_telegram_init_data(init_data)
-
-        if not uid:
-            return jsonify({"ok": False, "error": "invalid_init_data"}), 400
-
-        tg_user = {
-            "id": uid,
-            "username": username,
-            "first_name": first_name,
-        }
-
         user = get_or_create_user(db, tg_user)
 
-        return jsonify({
-            "ok": True,
-            "user": {
+        return jsonify(
+            ok=True,
+            user={
                 "id": user.id,
                 "first_name": user.first_name,
                 "username": user.username,
                 "role": user.role,
                 "self_activated": user.self_activated,
             }
-        })
+        )
 
-    except OperationalError:
-        # 🚨 THIS IS THE MOST IMPORTANT PART
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 503
+    except OperationalError as e:
+        current_app.logger.error("DB error in register: %s", e)
+        return jsonify(ok=False, error="db_error"), 500
 
-    except Exception as e:
-        logging.exception("register failed")
-        return jsonify({"ok": False, "error": str(e)}), 500
+    except Exception:
+        current_app.logger.exception("webapp_register failed")
+        return jsonify(ok=False, error="server_error"), 500
 
     finally:
         db.close()
@@ -431,9 +433,6 @@ def webapp_register():
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
-    guard = require_db_ready()
-    if guard:
-        return guard
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
@@ -444,10 +443,15 @@ def webapp_user():
             "error": "invalid_init_data"
         }), 400
 
-    # 🚨 DO NOT OPEN SESSION IF DB IS SLEEPING
-    
     db = SessionLocal()
     try:
+        # 🔥 DB availability check
+        if not is_db_available(db):
+            return jsonify({
+                "ok": False,
+                "error": "db_warming_up_try_again"
+            }), 503
+
         user = (
             db.query(User)
             .filter(User.id == telegram_id)
@@ -484,14 +488,19 @@ def webapp_user():
             }
         })
 
+    except OperationalError:
+        current_app.logger.warning("DB error in /webapp/user")
+        return jsonify({
+            "ok": False,
+            "error": "db_warming_up_try_again"
+        }), 503
+
     finally:
         db.close()
 
 @app.route("/admin/users", methods=["POST"])
 def admin_users():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
@@ -551,9 +560,7 @@ def admin_users():
 
 @app.route("/admin/update_user", methods=["POST"])
 def admin_update_user():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
     target_id = data.get("user_id")
@@ -634,9 +641,7 @@ def admin_update_user():
 
 @app.route("/admin/impersonate", methods=["POST"])
 def admin_impersonate():
-    guard = require_db_ready()
-    if guard:
-        return guard
+   
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -674,9 +679,7 @@ def admin_impersonate():
 
 @app.route("/admin/stats", methods=["POST"])
 def admin_stats():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     data = request.get_json(silent=True) or {}
     init_data = data.get("initData")
 
@@ -826,9 +829,7 @@ def bot_start():
 
 @app.route("/webapp/profile", methods=["POST"])
 def webapp_profile():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -860,9 +861,7 @@ def webapp_profile():
 
 @app.route("/webapp/downlines", methods=["POST"])
 def webapp_downlines():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -891,9 +890,7 @@ def webapp_downlines():
 
 @app.route("/webapp/role", methods=["POST"])
 def webapp_role():
-    guard = require_db_ready()
-    if guard:
-        return guard
+    
     db = SessionLocal()
     try:
         data = request.get_json() or {}
@@ -922,9 +919,7 @@ def webapp_role():
 
 @app.route("/debug/downlines/<int:user_id>")
 def debug_downlines(user_id):
-  guard = require_db_ready()
-  if guard:
-        return guard
+  
   db = SessionLocal()
   try:
         user = (
@@ -975,11 +970,7 @@ def debug_downlines(user_id):
         db.close()
 @app.route("/debug/link_referrer", methods=["POST"])
 def debug_link_referrer():
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    
+        
     data = request.get_json(silent=True) or {}
 
     try:
@@ -1036,11 +1027,7 @@ def debug_link_referrer():
     except OperationalError:
         db.rollback()
         app.logger.warning("DB error during link_referrer")
-        return jsonify({
-            "ok": False,
-            "error": "db_warming_up_try_again"
-        }), 200
-
+        
     except Exception as e:
         db.rollback()
         app.logger.exception("Error in /debug/link_referrer")
@@ -1054,11 +1041,7 @@ def debug_link_referrer():
 
 @app.route("/debug/list_users", methods=["GET"])
 def debug_list_users():
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    
+        
     db = SessionLocal()
     try:
         users = db.query(User).all()
@@ -1088,11 +1071,7 @@ def debug_list_users():
 
 @app.route("/debug/company_pool", methods=["GET"])
 def debug_company_pool():
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    
+        
     db = SessionLocal()
     try:
         company = db.query(User).filter(User.id == COMPANY_USER_ID).first()
@@ -1126,10 +1105,7 @@ def debug_company_pool():
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
-    guard = require_db_ready()
-    if guard:
-        return guard
-
+    
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
@@ -1209,11 +1185,7 @@ def debug_simulate_deposit():
  
 @app.route("/debug/user/<int:user_id>")
 def debug_user(user_id):
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    
+        
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -1238,10 +1210,7 @@ def debug_user(user_id):
 
 @app.route("/debug/reset_user/<int:user_id>", methods=["POST"])
 def debug_reset_user(user_id):
-    guard = require_db_ready()
-    if guard:
-        return guard
-
+    
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
@@ -1282,11 +1251,7 @@ def debug_reset_user(user_id):
 
 @app.route("/debug/transactions/<int:user_id>", methods=["GET"])
 def debug_transactions(user_id):
-    guard = require_db_ready()
-    if guard:
-        return guard
-
-    
+        
     db = SessionLocal()
     try:
         txs = (
