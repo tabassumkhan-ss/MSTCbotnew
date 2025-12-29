@@ -564,8 +564,7 @@
     <!-- Registration question + Yes/No; hidden later for registered users -->
     <div id="registerSection">
       <h2 id="accountStatus">Do you want to register?</h2>
-      <div class="actions">
-        <button id="yesBtn" class="btn" onclick="doRegister()">Yes</button>
+      <div class="actions"><button id="yesBtn" class="btn">Yes</button>
         <button id="noBtn" class="btn alt" type="button">No</button>
       </div>
     </div>
@@ -925,7 +924,6 @@ function bindDepositLogic() {
     return;
   }
 
-  // live validation
   amtInput.addEventListener("input", () => {
     const v = parseFloat(amtInput.value);
     if (isNaN(v) || v < 20) {
@@ -939,59 +937,50 @@ function bindDepositLogic() {
   });
 
   submitBtn.onclick = async () => {
-  if (submitBtn.disabled) return;
-  submitBtn.disabled = true;
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
 
-  try {
-    const amount = parseFloat(amtInput.value);
-    if (isNaN(amount) || amount < 20) {
-      throw new Error("Minimum deposit is $20");
+    try {
+      const amount = parseFloat(amtInput.value);
+      if (isNaN(amount) || amount < 20) {
+        throw new Error("Minimum deposit is $20");
+      }
+
+      msgEl.textContent = "Creating transaction…";
+
+      const txHash = await sendTonDeposit(amount);
+
+      msgEl.textContent = "Submitting deposit…";
+
+      const res = await fetch(BACKEND_URL + "/debug/simulate_deposit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-DEBUG-KEY": "48549630436fd1cb439e62b62e888b6c"
+        },
+        body: JSON.stringify({
+          user_id: window.currentUserData.id,
+          amount: Number(amount.toFixed(2)),
+          tx_musd: txHash
+        })
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Deposit failed");
+      }
+
+      msgEl.textContent = "✅ Deposit successful!";
+      amtInput.value = "";
+
+    } catch (err) {
+      msgEl.textContent = err.message || "Deposit failed";
     }
 
-    msgEl.textContent = "Creating transaction…";
-
-    const txHash = await sendTonDeposit(amount);
-
-    msgEl.textContent = "Submitting deposit…";
-
-    const res = await fetch(BACKEND_URL + "/debug/simulate_deposit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-DEBUG-KEY": "48549630436fd1cb439e62b62e888b6c"
-      },
-      body: JSON.stringify({
-        user_id: window.currentUserData.id,
-        amount: Number(amount.toFixed(2)),
-        tx_musd: txHash
-      })
-    });
-
-    const data = await res.json();
-
-    // 🔁 DB waking up → retry
-    if (!data.ok && data.error === "db_warming_up_try_again") {
-      msgEl.textContent = "⏳ Server starting, retrying...";
-      await new Promise(r => setTimeout(r, 1500));
-      submitBtn.disabled = false;
-      submitBtn.click();
-      return;
-    }
-
-    if (!data.ok) {
-      throw new Error(data.error || "Deposit failed");
-    }
-
-    msgEl.textContent = "✅ Deposit successful!";
-    amtInput.value = "";
-
-  } catch (err) {
-    msgEl.textContent = err.message || "Deposit failed";
-  }
-
-  submitBtn.disabled = false;
-};
-
+    submitBtn.disabled = false;
+  };
+} // ✅ THIS BRACE WAS MISSING
 
 function renderUserHeader(userData) {
   const tgUser = Telegram.WebApp?.initDataUnsafe?.user || {};
@@ -1182,6 +1171,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("Init failed", e);
     showRegisterScreen();
   }
+  
 });
 
 
@@ -1663,6 +1653,19 @@ document.addEventListener("click", (e) => {
     }
 
 });
+
+document.addEventListener("click", async (e) => {
+  const yesBtn = e.target.closest("#yesBtn");
+  if (!yesBtn) return;
+
+  console.log("✅ YES BUTTON CLICKED (delegated)");
+
+  if (yesBtn.disabled) return;
+  yesBtn.disabled = true;
+
+  await doRegister();
+});
+
 
 </script> 
 <!-- 🔹 Side Menu -->
