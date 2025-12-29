@@ -24,14 +24,11 @@ if not DATABASE_URL:
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
+    pool_pre_ping=True,      # 🔑 auto-reconnect dead connections
     pool_size=5,
     max_overflow=5,
-    connect_args={
-        "connect_timeout": 2  # 🔑 FAIL FAST (2 seconds)
-    },
-    future=True,
+    pool_timeout=30,         # wait up to 30s instead of failing
+    pool_recycle=300,        # recycle idle connections
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

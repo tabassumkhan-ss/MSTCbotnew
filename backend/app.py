@@ -42,18 +42,13 @@ logger.info(
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/health", methods=["GET"])
+@app.route("/health")
 def health():
-    db = SessionLocal()
     try:
-        db.execute(text("SELECT 1"))
-        return jsonify(ok=True, db="up"), 200
-    except OperationalError:
-        return jsonify(ok=False, db="sleeping"), 503
-    finally:
-        db.close()
-
-
+        engine.connect().close()
+        return {"ok": True, "db": "up"}
+    except Exception as e:
+        return {"ok": False, "db": "down", "error": str(e)}, 503
 
 # show only first 6 chars of DEBUG_KEY to confirm it's present (do not leak secret)
 _debug_key = os.getenv("DEBUG_KEY") or app.config.get("DEBUG_KEY")
@@ -346,9 +341,7 @@ def webapp_me():
             }
         )
 
-    except OperationalError:
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     finally:
         db.close()
 
@@ -385,9 +378,6 @@ def webapp_init():
             }
         )
 
-    except OperationalError:
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
     finally:
         db.close()
 
@@ -410,30 +400,24 @@ def webapp_register():
     try:
         user = get_or_create_user(
             db,
-            {
-                "id": uid,
-                "username": username,
-                "first_name": first_name,
-            }
+            {"id": uid, "username": username, "first_name": first_name}
         )
 
-        return jsonify(
-            ok=True,
-            user={
-                "id": user.id,
-                "first_name": user.first_name,
-                "username": user.username,
-                "role": user.role,
-                "self_activated": user.self_activated,
-            },
-        )
+        return jsonify(ok=True, user={
+            "id": user.id,
+            "first_name": user.first_name,
+            "username": user.username,
+            "role": user.role,
+            "self_activated": user.self_activated,
+        })
 
-    except Exception as e:
+    except Exception:
         current_app.logger.exception("register failed")
         return jsonify(ok=False, error="server_error"), 500
 
     finally:
         db.close()
+
 
 @app.route("/webapp/user", methods=["POST"])
 def webapp_user():
@@ -1128,9 +1112,7 @@ def debug_simulate_deposit():
 
         return jsonify(ok=True, user={"id": user.id, "role": user.role})
 
-    except OperationalError:
-        return jsonify(ok=False, error="db_warming_up_try_again"), 503
-
+    
     except Exception:
         db.rollback()
         current_app.logger.exception("simulate_deposit failed")
