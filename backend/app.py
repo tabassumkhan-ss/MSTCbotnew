@@ -405,7 +405,7 @@ def webapp_register():
 
     db = SessionLocal()
     try:
-        user = get_or_create_user(db, tg_user)
+        user = create_user_only(db, tg_user)
 
         return jsonify(
             ok=True,
