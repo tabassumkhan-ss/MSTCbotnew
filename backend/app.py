@@ -321,7 +321,6 @@ def webapp_me():
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == telegram_id).first()
-
         if not user:
             return jsonify(ok=False, not_registered=True)
 
@@ -337,6 +336,9 @@ def webapp_me():
                 "referrer_id": user.referrer_id,
             }
         )
+
+    except OperationalError:
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
 
     finally:
         db.close()
@@ -357,7 +359,6 @@ def webapp_init():
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == telegram_id).first()
-
         if not user:
             return jsonify(ok=True, exists=False)
 
@@ -369,15 +370,17 @@ def webapp_init():
                 "first_name": user.first_name,
                 "username": user.username,
                 "role": user.role,
-                "self_activated": bool(user.self_activated),
+                "self_activated": user.self_activated,
                 "total_team_business": float(user.total_team_business or 0),
                 "active_origin_count": int(user.active_origin_count or 0),
-            },
+            }
         )
+
+    except OperationalError:
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
 
     finally:
         db.close()
-
 
 
 from sqlalchemy.exc import OperationalError
@@ -411,17 +414,19 @@ def webapp_register():
                 "first_name": user.first_name,
                 "username": user.username,
                 "role": user.role,
-                "self_activated": bool(user.self_activated),
+                "self_activated": user.self_activated,
             }
         )
 
+    except OperationalError:
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
+
     except Exception:
-        current_app.logger.exception("webapp_register failed")
+        current_app.logger.exception("register failed")
         return jsonify(ok=False, error="server_error"), 500
 
     finally:
         db.close()
-
 
 
 @app.route("/webapp/user", methods=["POST"])
@@ -1071,18 +1076,15 @@ def debug_company_pool():
 # Single, canonical debug simulate_deposit implementation
 @app.route("/debug/simulate_deposit", methods=["POST"])
 def debug_simulate_deposit():
-    
     if not check_debug_key():
         return jsonify(ok=False, error="invalid_debug_key"), 401
 
-    
     payload = request.get_json(silent=True) or {}
-
     try:
         tg_id = int(payload.get("user_id"))
         amount = float(payload.get("amount"))
         tx_musd = str(payload.get("tx_musd") or "")
-    except (TypeError, ValueError):
+    except Exception:
         return jsonify(ok=False, error="missing_user_or_amount"), 400
 
     db = SessionLocal()
@@ -1096,16 +1098,7 @@ def debug_simulate_deposit():
         if amount >= 20:
             if not user.self_activated:
                 user.self_activated = True
-
-            if user.role not in (
-                "origin",
-                "life_changer",
-                "advisor",
-                "visionary",
-                "creator",
-                "admin",
-                "superadmin",
-            ):
+            if user.role == "user":
                 user.role = "origin"
                 became_origin_now = True
 
@@ -1115,35 +1108,28 @@ def debug_simulate_deposit():
         propagate_team_business(db, user, amount, became_origin_now)
         update_rank(user)
 
-        db.add(
-            Transaction(
-                user_id=user.id,
-                amount=amount,
-                currency="MUSD",
-                type="deposit",
-                external_id=tx_musd,
-                created_at=datetime.utcnow(),
-            )
-        )
+        db.add(Transaction(
+            user_id=user.id,
+            amount=amount,
+            currency="MUSD",
+            type="deposit",
+            external_id=tx_musd,
+            created_at=datetime.utcnow(),
+        ))
 
         db.commit()
         db.refresh(user)
 
-        return jsonify(
-            ok=True,
-            became_origin_now=became_origin_now,
-            user={
-                "id": user.id,
-                "role": user.role,
-                "self_activated": bool(user.self_activated),
-                "total_team_business": float(user.total_team_business),
-            },
-        )
+        return jsonify(ok=True, user={"id": user.id, "role": user.role})
+
+    except OperationalError:
+        return jsonify(ok=False, error="db_warming_up_try_again"), 503
 
     except Exception:
         db.rollback()
-        app.logger.exception("debug_simulate_deposit failed")
+        current_app.logger.exception("simulate_deposit failed")
         return jsonify(ok=False, error="server_error"), 500
+
     finally:
         db.close()
 

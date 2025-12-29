@@ -939,52 +939,59 @@ function bindDepositLogic() {
   });
 
   submitBtn.onclick = async () => {
-    if (submitBtn.disabled) return;
+  if (submitBtn.disabled) return;
+  submitBtn.disabled = true;
 
-    submitBtn.disabled = true;
-
-    try {
-      const amount = parseFloat(amtInput.value);
-      if (isNaN(amount) || amount < 20) {
-        throw new Error("Minimum deposit is $20");
-      }
-
-      msgEl.textContent = "Creating transaction…";
-
-      const txHash = await sendTonDeposit(amount);
-
-      msgEl.textContent = "Submitting deposit…";
-
-      const res = await fetch(
-        BACKEND_URL + "/debug/simulate_deposit",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-DEBUG-KEY": "48549630436fd1cb439e62b62e888b6c"
-          },
-          body: JSON.stringify({
-            user_id: window.currentUserData.id,
-            amount: Number(amount.toFixed(2)),
-            tx_musd: txHash
-          })
-        }
-      );
-
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Deposit failed");
-
-      msgEl.textContent = "✅ Deposit successful!";
-      amtInput.value = "";
-
-    } catch (err) {
-      msgEl.textContent = err.message;
+  try {
+    const amount = parseFloat(amtInput.value);
+    if (isNaN(amount) || amount < 20) {
+      throw new Error("Minimum deposit is $20");
     }
 
-    submitBtn.disabled = false;
-  };
+    msgEl.textContent = "Creating transaction…";
 
-}
+    const txHash = await sendTonDeposit(amount);
+
+    msgEl.textContent = "Submitting deposit…";
+
+    const res = await fetch(BACKEND_URL + "/debug/simulate_deposit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-DEBUG-KEY": "48549630436fd1cb439e62b62e888b6c"
+      },
+      body: JSON.stringify({
+        user_id: window.currentUserData.id,
+        amount: Number(amount.toFixed(2)),
+        tx_musd: txHash
+      })
+    });
+
+    const data = await res.json();
+
+    // 🔁 DB waking up → retry
+    if (!data.ok && data.error === "db_warming_up_try_again") {
+      msgEl.textContent = "⏳ Server starting, retrying...";
+      await new Promise(r => setTimeout(r, 1500));
+      submitBtn.disabled = false;
+      submitBtn.click();
+      return;
+    }
+
+    if (!data.ok) {
+      throw new Error(data.error || "Deposit failed");
+    }
+
+    msgEl.textContent = "✅ Deposit successful!";
+    amtInput.value = "";
+
+  } catch (err) {
+    msgEl.textContent = err.message || "Deposit failed";
+  }
+
+  submitBtn.disabled = false;
+};
+
 
 function renderUserHeader(userData) {
   const tgUser = Telegram.WebApp?.initDataUnsafe?.user || {};
