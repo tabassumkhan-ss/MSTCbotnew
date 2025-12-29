@@ -390,15 +390,16 @@ def webapp_register():
     if not uid:
         return jsonify(ok=False, error="invalid_init_data"), 400
 
-    tg_user = {
-        "id": uid,
-        "username": username,
-        "first_name": first_name,
-    }
-
     db = SessionLocal()
     try:
-        user = get_or_create_user(db, tg_user)
+        user = get_or_create_user(
+            db,
+            {
+                "id": uid,
+                "username": username,
+                "first_name": first_name,
+            },
+        )
 
         return jsonify(
             ok=True,
@@ -411,16 +412,12 @@ def webapp_register():
             }
         )
 
-    except OperationalError as e:
-        current_app.logger.error("DB error in register: %s", e)
-        return jsonify(ok=False, error="db_error"), 500
-
-    except Exception:
-        current_app.logger.exception("webapp_register failed")
-        return jsonify(ok=False, error="server_error"), 500
+    except OperationalError:
+        return jsonify(ok=False, error="db_temp_unavailable"), 503
 
     finally:
         db.close()
+
 
 
 @app.route("/webapp/user", methods=["POST"])
@@ -435,31 +432,33 @@ def webapp_user():
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == telegram_id).first()
-
         if not user:
             return jsonify(ok=False, error="user_not_found"), 404
 
         admin_ids = os.getenv("ADMIN_TELEGRAM_IDS", "")
-        admin_set = {int(x) for x in admin_ids.split(",") if x.isdigit()}
+        admin_set = {int(x) for x in admin_ids.split(",") if x.strip().isdigit()}
 
         return jsonify(
             ok=True,
             user={
                 "id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
                 "role": user.role,
                 "self_activated": bool(user.self_activated),
                 "total_team_business": float(user.total_team_business or 0),
                 "active_origin_count": int(user.active_origin_count or 0),
-                "username": user.username,
-                "first_name": user.first_name,
                 "is_admin": telegram_id in admin_set,
             }
         )
+
     except OperationalError:
-        # optional: friendly message
-        return jsonify(ok=False, error="db_waking_up_retry"), 503
+        # 👈 THIS is the ONLY place DB warm handling belongs
+        return jsonify(ok=False, error="db_temp_unavailable"), 503
+
     finally:
         db.close()
+
 
 @app.route("/admin/users", methods=["POST"])
 def admin_users():
