@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if "DATABASE_URL" not in os.environ or not os.environ["DATABASE_URL"]:
-    os.environ["DATABASE_URL"] = "postgresql://postgres:WVYXdfCNmQEsicJJPkZHIxwdzhDEPYcx@maglev.proxy.rlwy.net:39087/railway"
+    os.environ["DATABASE_URL"] = "DATABASE_URL=postgresql://postgres:ghWvzpEcAlvaRTklvlbSsIniVeoAJidZ@postgres-laod.railway.internal:5432/railway"
+
 
 from backend.models import SessionLocal, User, Transaction, ReferralEvent
 
