@@ -1,13 +1,11 @@
-# backend/models.py
 import os
 from datetime import datetime
-from dotenv import load_dotenv
-
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float,
     DateTime, ForeignKey, BigInteger, Boolean, Index
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -21,65 +19,45 @@ engine = create_engine(
     pool_recycle=300,
 )
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-)
-
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(BigInteger, primary_key=True, index=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
-
-    username = Column(String, nullable=True)
-    first_name = Column(String, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    balance_musd = Column(Float, default=0.0)
-    balance_mstc = Column(Float, default=0.0)
-
+    id = Column(BigInteger, primary_key=True)
+    username = Column(String)
+    first_name = Column(String)
     role = Column(String, default="user")
     self_activated = Column(Boolean, default=False)
-
     total_team_business = Column(Float, default=0.0)
     active_origin_count = Column(Integer, default=0)
-
+    balance_musd = Column(Float, default=0.0)
+    balance_mstc = Column(Float, default=0.0)
     referrer_id = Column(BigInteger, ForeignKey("users.id"))
-    referrer = relationship("User", remote_side=[id])
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    active = Column(Boolean, default=True)
+    referrer = relationship("User", remote_side=[id])
 
 
 class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(BigInteger, ForeignKey("users.id"), index=True)
-
-    amount = Column(Float, nullable=False)
-    currency = Column(String, nullable=False)
-    type = Column(String, nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"))
+    amount = Column(Float)
+    currency = Column(String)
+    type = Column(String)
     external_id = Column(String)
-
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    __table_args__ = (
-        Index("ix_tx_user_created", "user_id", "created_at"),
-    )
 
 
 class ReferralEvent(Base):
     __tablename__ = "referral_events"
 
     id = Column(Integer, primary_key=True)
-    from_user = Column(BigInteger, index=True)
-    to_user = Column(BigInteger, index=True)
+    from_user = Column(BigInteger)
+    to_user = Column(BigInteger)
     amount = Column(Float)
-    note = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
