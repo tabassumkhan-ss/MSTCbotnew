@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from sqlalchemy.exc import OperationalError
 
 # local imports
-from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent
+from backend.models import Base, engine, SessionLocal, User, Transaction, ReferralEvent, init_db
 
 
 # -------------------------

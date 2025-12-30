@@ -75,3 +75,7 @@ class ReferralEvent(Base):
     to_user = Column(BigInteger)
     amount = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+def init_db():
+    # Do NOT auto-create tables on Railway
+    return
